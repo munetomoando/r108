@@ -61,5 +61,5 @@ tests/                      r/（通常の R）、unit/（Vitest）、e2e/（Pla
 
 ## 公開
 
-`main` に push すると GitHub Actions（`.github/workflows/ci.yml`）が R テスト → ビルド → E2E → GitHub Pages への公開を行います。
+`main` に push すると GitHub Actions（`.github/workflows/ci.yml`）がビルド（教材の検証を含む）→ GitHub Pages への公開を行います。R テストと E2E は、内容の精査が終わるまで手動実行にしています（Actions の画面で「Run workflow」を押し、full にチェックを入れる）。
 リポジトリの Settings → Pages で Source を「GitHub Actions」にしてください。リポジトリ名が `r108` 以外のときは、環境変数 `R108_BASE`（例 `/myrepo/`）でビルドの base を変えます。

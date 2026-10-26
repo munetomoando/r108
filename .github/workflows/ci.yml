@@ -1,9 +1,16 @@
-# Rテスト → ビルド → E2E → GitHub Pages へ公開（main への push 時のみ）
+# 内容の精査中は、push でビルド（教材の検証を含む）→ GitHub Pages へ公開だけを行う。
+# R テストと E2E は、Actions の画面から「Run workflow」で full にチェックを入れて手動で実行する
 name: ci
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      full:
+        description: R テストと E2E も実行する
+        type: boolean
+        default: false
 permissions:
   contents: read
   pages: write
@@ -14,6 +21,7 @@ concurrency:
 
 jobs:
   r-tests:
+    if: inputs.full
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,6 +43,7 @@ jobs:
 
   build:
     needs: r-tests
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,6 +57,7 @@ jobs:
 
   e2e:
     needs: build
+    if: inputs.full
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -61,7 +71,7 @@ jobs:
         with: { name: playwright-report, path: test-results }
 
   deploy:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: ${{ !failure() && !cancelled() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     needs: [build, e2e]
     runs-on: ubuntu-latest
     environment:
