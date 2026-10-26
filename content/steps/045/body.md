@@ -4,7 +4,7 @@
 
 ## 使うデータ
 
-`wage1` は、J. M. Wooldridge『入門計量経済学』（原題 *Introductory Econometrics: A Modern Approach*）で使われている賃金データです。1976年の米国の人口動態調査（Current Population Survey）から取った526人の労働者で、wooldridge パッケージに入っています。時給 `wage`（ドル）、教育年数 `educ`、経験年数 `exper`、勤続年数 `tenure`、女性ダミー `female` などの列があります。
+`wage1` は、J. M. Wooldridge の教科書 *Introductory Econometrics: A Modern Approach*（第7版、Cengage、2020年）で使われている賃金データです。1976年の米国の人口動態調査（Current Population Survey）から取った526人の労働者で、wooldridge パッケージに入っています。時給 `wage`（ドル）、教育年数 `educ`、経験年数 `exper`、勤続年数 `tenure`、女性ダミー `female` などの列があります。
 
 比べる相手は、第21ステップから使ってきた `wage`（3,000人）です。教材用に乱数で作った**架空のデータ**で、実在の調査の値ではありません。
 

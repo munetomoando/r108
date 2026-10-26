@@ -17,7 +17,7 @@ exercises:
   - id: a
     type: write
     prompt: |
-      Wooldridge『入門計量経済学』の2つの例を再現します。どちらも被説明変数は時給の対数 log(wage)、data は wage1 です。
+      Wooldridge の教科書 Introductory Econometrics（第7版）の2つの例を再現します。どちらも被説明変数は時給の対数 log(wage)、data は wage1 です。
       - 例2.10: educ（教育年数）だけで説明する単回帰を m_ex2 に代入する
       - 例3.2: educ、exper（経験年数）、tenure（勤続年数）で説明する重回帰を m_ex3 に代入する
 

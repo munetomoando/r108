@@ -15,7 +15,7 @@ exercises:
   - id: a
     type: write
     prompt: |
-      Wooldridge『入門計量経済学』の例7.12（線形確率モデル）を再現します。被説明変数は労働参加ダミー inlf、説明変数は nwifeinc、educ、exper、I(exper^2)、age、kidslt6、kidsge6 の7つ（この順）、data は mroz です。
+      Wooldridge の教科書 Introductory Econometrics（第7版）の式(7.29)の線形確率モデルを再現します。被説明変数は労働参加ダミー inlf、説明変数は nwifeinc、educ、exper、I(exper^2)、age、kidslt6、kidsge6 の7つ（この順）、data は mroz です。
       lm() で推定して lpm に代入し、coef(lpm) を表示してください。教科書の値は、kidslt6 が −0.262、educ が 0.038 です。
     starter: |
       lpm <- lm(inlf ~ , data = mroz)

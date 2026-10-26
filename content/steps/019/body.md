@@ -4,7 +4,7 @@
 
 ## 使うデータ
 
-`gapminder` パッケージの `gapminder` は、スウェーデンの財団 Gapminder が集めた世界142か国のデータを、1952年から2007年まで5年おきにまとめた表です。このステップで使う列は次の4つです。
+`gapminder` パッケージの `gapminder` は、スウェーデンの財団 Gapminder が集めた世界142か国のデータを、1952年から2007年まで5年おきにまとめた表です（Based on free material from [GAPMINDER.ORG](https://www.gapminder.org/), CC-BY LICENSE）。このステップで使う列は次の4つです。
 
 - `country`（国名）、`continent`（大陸）
 - `lifeExp` … 出生時の平均寿命（年）

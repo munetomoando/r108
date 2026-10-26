@@ -4,6 +4,7 @@ import Step from './pages/Step';
 import Progress from './pages/Progress';
 import Playground from './pages/Playground';
 import PkgCheck from './pages/PkgCheck';
+import Sources from './pages/Sources';
 import RuntimeStatus from './components/RuntimeStatus';
 import { doneCount, useProgress } from './store/progress';
 import { TOTAL_STEPS } from './content/loader';
@@ -33,13 +34,16 @@ export default function App() {
           <Route path="/progress" element={<Progress />} />
           <Route path="/playground" element={<Playground />} />
           <Route path="/pkgcheck" element={<PkgCheck />} />
+          <Route path="/sources" element={<Sources />} />
           <Route path="*" element={<Toc />} />
         </Routes>
       </main>
       <footer className="site-footer no-print">
         <p>
-          著者：安藤至大（日本大学経済学部）・ 本文とデータは CC BY 4.0、コードは MIT ライセンス
+          著者：安藤至大（日本大学経済学部）・ 本文と合成データは CC BY 4.0、コードは MIT ライセンス・{' '}
+          <NavLink to="/sources">データの出典とライセンス</NavLink>
         </p>
+        <p>このサービスは、政府統計総合窓口(e-Stat)のAPI機能を使用していますが、サービスの内容は国によって保証されたものではありません。</p>
       </footer>
     </HashRouter>
   );

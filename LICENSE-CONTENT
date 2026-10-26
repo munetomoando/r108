@@ -1,0 +1,38 @@
+Rデータ分析 108ステップ（r108）の本文・データのライセンス
+
+Copyright (c) 2026 安藤至大（Munetomo Ando）
+
+1. クリエイティブ・コモンズ 表示 4.0 国際（CC BY 4.0）
+   https://creativecommons.org/licenses/by/4.0/legalcode.ja
+   次のものは CC BY 4.0 で提供します。利用するときは、著者名（安藤至大）、
+   作品名（Rデータ分析 108ステップ）、ライセンス、変更の有無を表示してください。
+   - content/（各ステップの本文・課題・ヒント・解答例・部の構成）
+   - public/images/（図）
+   - public/data/ のうち、コードブック（public/data/codebook/*.yaml）の source が
+     「合成データ」または「手作業で作成した補助データ」となっているデータ
+   - public/data/codebook/ の説明文
+   - docs/（設計書・執筆の手引き）
+
+2. 公的統計を加工したデータ
+   public/data/ のうち、コードブックの source に府省の統計が書かれているデータ
+   （pref_basic, pref_labor_wide, wage_census_pref, min_wage_pref, pref_panel,
+   kakei_raw_sjis, lfs_monthly, cpi_monthly, gdp_quarterly, iip_monthly,
+   estat_sample）と、data-raw/raw/ に保存した元の公表ファイルは、
+   各府省の利用規約（政府標準利用規約（第2.0版）。CC BY 4.0 と互換）に従います。
+   利用するときは、コードブックに書いた出典と、加工したことを表示してください。
+   加工したデータは著者が作成したもので、国が作成したものではありません。
+
+   このサービスは、政府統計総合窓口(e-Stat)のAPI機能を使用していますが、
+   サービスの内容は国によって保証されたものではありません。
+
+3. R のパッケージのデータ
+   gapminder、wooldridge、causaldata などのパッケージのデータは、このリポジトリに
+   含めていません。利用条件は各パッケージと元の著作者の定めに従います。
+   gapminder: Based on free material from GAPMINDER.ORG, CC-BY LICENSE.
+
+4. プログラム
+   上記以外のプログラム（src/, r/, local-src/, scripts/, tests/, data-raw/*.R
+   など）は MIT ライセンスです（LICENSE を参照）。
+
+R は R Foundation のプロジェクトで、RStudio と Positron は Posit PBC の製品です。
+このプロジェクトは R Foundation や Posit とは関係ありません。

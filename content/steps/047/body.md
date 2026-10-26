@@ -4,7 +4,7 @@
 
 ## 使うデータ
 
-`mroz` は、T. A. Mroz が1987年に *Econometrica* に発表した、既婚女性の労働時間についての論文のデータです。Wooldridge『入門計量経済学』でも繰り返し使われていて、wooldridge パッケージに入っています。
+`mroz` は、T. A. Mroz が1987年に *Econometrica*（55巻4号、765–799頁）に発表した、既婚女性の労働時間についての論文のデータです。Wooldridge の教科書 *Introductory Econometrics: A Modern Approach* でも繰り返し使われていて、wooldridge パッケージに入っています。
 
 ```r
 data("mroz", package = "wooldridge")
