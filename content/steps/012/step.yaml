@@ -1,0 +1,183 @@
+id: "012"
+part: 2
+title: 汚いデータを掃除する
+question: 来店客アンケートの性別は何通りに書き分けられているか
+minutes: 45
+mode: browser
+packages: [readr, dplyr, stringi, janitor]
+data: [messy_survey.csv]
+learn: [stri_trans_nfkc, case_when, na_if, parse_number, excel_numeric_to_date]
+setup: |
+  library(readr); library(dplyr); library(stringi); library(janitor)
+  survey <- read_csv("data/messy_survey.csv", skip = 1,
+                     col_names = c("id", "age", "gender", "visits", "amount", "date"),
+                     col_types = "cccccd")
+  memo <- data.frame(check.names = FALSE,
+                     "Store ID" = c("S01", "S02", "S03"),
+                     "Sales 2025" = c(98000, 125000, 87000),
+                     "No. of Customers" = c(51000, 60200, 47500))
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      survey の gender と amount を掃除して survey2 に代入してください。
+      - gender … stri_trans_nfkc() で全角の文字（「Ｍ」など）を半角にする
+      - amount … stri_trans_nfkc() で全角を半角にしてから、parse_number() で数値にする
+      ほかの列はそのまま残します。amount の「-」や「不明」は数値にできないので、警告が出て NA（欠損値）になります。
+    starter: |
+      survey2 <- survey |>
+        mutate(gender = ,
+               amount = )
+    solution: |
+      survey2 <- survey |>
+        mutate(gender = stri_trans_nfkc(gender),
+               amount = parse_number(stri_trans_nfkc(amount)))
+    check: |
+      expect_object("survey2", class = "data.frame")
+      expect_df_equal(survey2, .sol$survey2)
+    hints:
+      - mutate() の中で、gender と amount を同じ名前で作り直します（上書き）。amount は「半角にする → 数値にする」の2段階です。
+      - stri_trans_nfkc(gender) で半角になります。amount は関数を重ねて parse_number(stri_trans_nfkc(amount)) と書きます。
+      - "survey2 <- survey |> mutate(gender = stri_trans_nfkc(gender), amount = parse_number(stri_trans_nfkc(amount)))"
+    tests:
+      fail:
+        - |
+          survey2 <- survey |>
+            mutate(gender = stri_trans_nfkc(gender),
+                   amount = parse_number(amount))
+        - |
+          survey2 <- survey |>
+            mutate(amount = parse_number(stri_trans_nfkc(amount)))
+        - |
+          survey2 <- survey |>
+            mutate(gender = stri_trans_nfkc(gender),
+                   amount = stri_trans_nfkc(amount))
+  - id: b
+    type: write
+    prompt: |
+      a で作った survey2 の gender を、"男性"・"女性"・"その他" の3区分に統一して survey3 に代入してください。
+      a で半角にしたので、gender の書き方は 男 / 男性 / M、女 / 女性 / F、その他、それに「-」「不明」と NA です。「-」と「不明」は NA にします。
+      case_when() を使い、gender の列を上書きしてください。
+    starter: |
+      survey3 <- survey2 |>
+        mutate(gender = case_when(
+          gender %in% c("男", "男性", "M") ~ "男性",
+          ___
+        ))
+    solution: |
+      survey3 <- survey2 |>
+        mutate(gender = case_when(
+          gender %in% c("男", "男性", "M") ~ "男性",
+          gender %in% c("女", "女性", "F") ~ "女性",
+          gender == "その他" ~ "その他"
+        ))
+    check: |
+      expect_object("survey3", class = "data.frame")
+      expect_uses("case_when")
+      expect_df_equal(survey3, .sol$survey3)
+    hints:
+      - case_when() は「条件 ~ 値」を上から順に調べ、最初に当てはまった値を使います。どれにも当てはまらない行は NA になります。
+      - 女性の行は gender %in% c("女", "女性", "F") ~ "女性"、その他は gender == "その他" ~ "その他" と書き、カンマで区切って並べます。「-」と「不明」は書かなければ NA になります。
+      - "survey3 <- survey2 |> mutate(gender = case_when(gender %in% c(\"男\", \"男性\", \"M\") ~ \"男性\", gender %in% c(\"女\", \"女性\", \"F\") ~ \"女性\", gender == \"その他\" ~ \"その他\"))"
+    tests:
+      fail:
+        - |
+          survey3 <- survey2 |>
+            mutate(gender = case_when(
+              gender %in% c("男", "男性") ~ "男性",
+              gender %in% c("女", "女性") ~ "女性",
+              gender == "その他" ~ "その他"
+            ))
+        - |
+          survey3 <- survey2 |>
+            mutate(gender = case_when(
+              gender %in% c("男", "男性", "M") ~ "男性",
+              gender %in% c("女", "女性", "F") ~ "女性",
+              .default = "その他"
+            ))
+  - id: c
+    type: write
+    prompt: |
+      来店回数 visits には「-」と「不明」が混じっています。survey3 の visits について、まず na_if() で「-」と「不明」を NA にし、次に stri_trans_nfkc() で半角にしてから parse_number() で数値にして、survey4 に代入してください。
+      先に NA にしておくので、a のときのような警告は出ません。
+    starter: |
+      survey4 <- survey3 |>
+        mutate(visits = na_if(visits, "-"),
+               visits = ,
+               visits = )
+    solution: |
+      survey4 <- survey3 |>
+        mutate(visits = na_if(visits, "-"),
+               visits = na_if(visits, "不明"),
+               visits = parse_number(stri_trans_nfkc(visits)))
+    check: |
+      expect_object("survey4", class = "data.frame")
+      expect_uses("na_if")
+      expect_df_equal(survey4, .sol$survey4)
+    hints:
+      - na_if(列, 値) は、列の中で「値」と一致するものを NA に置き換えます。1回に1つの値なので、「-」と「不明」で2回使います。
+      - mutate() の中では、上で作り直した visits を次の行でさらに作り直せます。2行目は na_if(visits, "不明")、3行目は parse_number(stri_trans_nfkc(visits)) です。
+      - "survey4 <- survey3 |> mutate(visits = na_if(visits, \"-\"), visits = na_if(visits, \"不明\"), visits = parse_number(stri_trans_nfkc(visits)))"
+    tests:
+      fail:
+        - |
+          survey4 <- survey3 |>
+            mutate(visits = na_if(visits, "-"),
+                   visits = na_if(visits, "不明"))
+        - |
+          survey4 <- survey3 |>
+            mutate(visits = na_if(visits, "-"),
+                   visits = na_if(visits, "不明"),
+                   visits = parse_number(visits))
+        - |
+          survey4 <- survey3 |>
+            mutate(visits = parse_number(stri_trans_nfkc(visits)))
+  - id: d
+    type: write
+    prompt: |
+      回答日 date は、Excel の日付シリアル値（1899年12月30日から数えた日数。例 45762 は2025年4月15日）という数値で記録されています。
+      survey4 の date を excel_numeric_to_date() で日付に直し、survey5 に代入してください。
+    starter: |
+      survey5 <- survey4 |>
+    solution: |
+      survey5 <- survey4 |>
+        mutate(date = excel_numeric_to_date(date))
+    check: |
+      expect_object("survey5", class = "data.frame")
+      check_that(inherits(survey5$date, "Date"), "date が日付（Date）になっていません。excel_numeric_to_date() を使いましょう。")
+      expect_df_equal(survey5, .sol$survey5)
+    hints:
+      - mutate() で date の列を同じ名前で作り直します。
+      - janitor パッケージの excel_numeric_to_date(date) が、シリアル値を日付に変えます。
+      - "survey5 <- survey4 |> mutate(date = excel_numeric_to_date(date))"
+    tests:
+      fail:
+        - |
+          survey5 <- survey4 |>
+            mutate(date = as.Date(date))
+        - "survey5 <- survey4"
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第11ステップの復習】店舗からメールで届いた小さな表 memo は、列名が "Store ID"、"Sales 2025"、"No. of Customers" と、空白や記号を含んでいます。
+      clean_names() で列名を小文字と「_」だけの名前にし、さらに rename() で no_of_customers を customers に変えて、memo2 に代入してください。
+    starter: |
+      memo2 <- memo |>
+    solution: |
+      memo2 <- memo |>
+        clean_names() |>
+        rename(customers = no_of_customers)
+    check: |
+      expect_object("memo2", class = "data.frame")
+      expect_cols(memo2, c("store_id", "sales_2025", "customers"))
+      expect_df_equal(memo2, .sol$memo2)
+    hints:
+      - まず clean_names() で列名を整え、その結果の列名を rename() で変えます。
+      - clean_names() の後、列名は store_id, sales_2025, no_of_customers になります。rename(新しい名前 = 古い名前) の順に書きます。
+      - "memo2 <- memo |> clean_names() |> rename(customers = no_of_customers)"
+    tests:
+      fail:
+        - "memo2 <- memo |> clean_names()"
+        - "memo2 <- memo |> clean_names() |> rename(no_of_customers = customers)"
+review_of: "011"

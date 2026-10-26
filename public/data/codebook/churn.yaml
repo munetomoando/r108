@@ -1,0 +1,33 @@
+title: 顧客の解約データ（そらまめマーケット）
+file: churn.csv
+source: 合成データ ec_customers.csv・ec_orders.csv から集計（data-raw/synth_churn.R）
+rows: 5000
+unit_of_observation: 顧客
+notes: >-
+  特徴量は2024年1月1日〜2025年9月30日の注文から作る（基準日 2025-09-30）。
+  2025年10〜12月に注文が1件もない顧客を解約（churned = 1）とする。解約率は約25%
+columns:
+  - name: customer_id
+    description: 顧客ID
+    unit: なし
+  - name: recency
+    description: 基準日（2025-09-30）から最後の注文日までの日数
+    unit: 日
+  - name: frequency
+    description: 2024年1月〜2025年9月の注文件数
+    unit: 件
+  - name: monetary
+    description: 2024年1月〜2025年9月の購入金額の合計（qty × unit_price）
+    unit: 円
+  - name: age
+    description: 年齢
+    unit: 歳
+  - name: channel
+    description: 流入経路（検索・SNS・広告・紹介）
+    unit: なし
+  - name: rank
+    description: 会員ランク（ブロンズ・シルバー・ゴールド）
+    unit: なし
+  - name: churned
+    description: 解約（1=2025年10〜12月に注文なし、0=注文あり）
+    unit: なし（0/1）

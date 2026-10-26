@@ -1,0 +1,102 @@
+---
+title: "ネット通販 月次レポート"
+subtitle: "そらまめマーケット（架空の会社） 経営企画部"
+author: "安藤至大"
+date: today
+lang: ja
+format:
+  html:
+    embed-resources: true   # 図も中に入れた1つの HTML ファイルにする（メールで送れる）
+params:
+  month: "2025-12-01"       # 対象の月（その月の1日）
+execute:
+  echo: false
+  warning: false
+knitr:
+  opts_chunk:
+    dev: ragg_png           # 図の日本語を文字化けさせない
+---
+
+```{r}
+#| label: setup
+#| message: false
+library(tidyverse)
+orders <- read_csv("data/ec_orders.csv", show_col_types = FALSE)
+products <- read_csv("data/ec_products.csv", show_col_types = FALSE)
+
+m <- ymd("2025-12-01")
+
+ec <- orders |>
+  left_join(products, by = "product_id") |>
+  mutate(sales = qty * unit_price,
+         ym = floor_date(order_date, unit = "month"))
+
+# 月ごとの KPI と、前年同月比（%）。lag(x, 12) は12か月前の値
+kpi <- ec |>
+  group_by(ym) |>
+  summarise(sales = sum(sales),
+            buyers = n_distinct(customer_id),
+            orders = n_distinct(order_id)) |>
+  mutate(spend = sales / buyers,
+         sales_yoy = 100 * (sales / lag(sales, 12) - 1),
+         buyers_yoy = 100 * (buyers / lag(buyers, 12) - 1),
+         spend_yoy = 100 * (spend / lag(spend, 12) - 1))
+
+now <- kpi |> filter(ym == m)
+```
+
+## 要約
+
+- `r year(m)`年`r month(m)`月の売上は `r round(now$sales / 10000)` 万円で、前年同月比 `r round(now$sales_yoy, 1)`% でした。
+- 客数は `r now$buyers` 人（前年同月比 `r round(now$buyers_yoy, 1)`%）、客単価は `r round(now$spend)` 円（同 `r round(now$spend_yoy, 1)`%）です。
+- 売上の伸びは客数の増加によるもので、1人当たりの購入額は伸びていません。
+
+## 売上・客数・客単価
+
+売上は明細の数量×販売価格の合計、客数はその月に1回以上注文した顧客の数、客単価は売上÷客数です。
+
+```{r}
+#| label: tbl-kpi
+#| tbl-cap: "対象月と前年同月の KPI"
+kpi |>
+  filter(month(ym) == month(m), ym <= m) |>
+  mutate(sales = sales / 10000) |>
+  select(ym, sales, buyers, orders, spend) |>
+  knitr::kable(digits = 0,
+               col.names = c("月", "売上（万円）", "客数（人）", "注文件数", "客単価（円）"))
+```
+
+## 売上の推移
+
+```{r}
+#| label: fig-trend
+#| fig-cap: "月別の売上（縦線が対象月）"
+#| fig-width: 7
+#| fig-height: 3.5
+ggplot(kpi, aes(x = ym, y = sales / 10000)) +
+  geom_line() +
+  geom_point() +
+  geom_vline(xintercept = m, linetype = "dashed") +
+  labs(x = NULL, y = "売上（万円）")
+```
+
+## カテゴリ別の売上
+
+```{r}
+#| label: fig-category
+#| fig-cap: "対象月のカテゴリ別の売上"
+#| fig-width: 7
+#| fig-height: 3.5
+ec |>
+  filter(ym == m) |>
+  group_by(category) |>
+  summarise(sales = sum(sales) / 10000) |>
+  ggplot(aes(x = fct_reorder(category, sales), y = sales)) +
+  geom_col() +
+  coord_flip() +
+  labs(x = NULL, y = "売上（万円）")
+```
+
+## データ
+
+そらまめマーケット（架空の会社）のネット通販の注文明細（`ec_orders`）と商品マスタ（`ec_products`）、2024年1月〜2025年12月。

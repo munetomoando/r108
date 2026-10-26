@@ -1,0 +1,157 @@
+id: "037"
+part: 5
+title: 単回帰
+question: 教育年数が1年長いと時給は何%高いか
+minutes: 45
+mode: browser
+packages: [readr, dplyr]
+data: [wage_survey.csv]
+learn: [lm, coef, predict, exp]
+review_of: "036"
+setup: |
+  library(readr); library(dplyr)
+  # 架空の賃金調査の個票（3,000人）
+  wage <- read_csv("data/wage_survey.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      対数時給 log_wage を教育年数 educ_years で説明する単回帰を推定します。
+      lm(log_wage ~ educ_years, data = wage) の結果を m に代入し、m を表示してください。
+    starter: |
+      m <-
+      m
+    solution: |
+      m <- lm(log_wage ~ educ_years, data = wage)
+      m
+    check: |
+      expect_object("m", class = "lm")
+      expect_model(m, like = .sol$m)
+    hints:
+      - lm() は「~ の左に説明したい変数（被説明変数）、右に説明に使う変数（説明変数）」の式と、データを受け取ります。
+      - 式は log_wage ~ educ_years、データは data = wage です。
+      - |
+        m <- lm(log_wage ~ educ_years, data = wage)
+        m
+    tests:
+      fail:
+        - |
+          m <- lm(hourly_wage ~ educ_years, data = wage)
+          m
+        - |
+          m <- lm(educ_years ~ log_wage, data = wage)
+          m
+        - |
+          m <- lm(log_wage ~ exper, data = wage)
+          m
+  - id: b
+    type: write
+    prompt: |
+      m から教育年数の係数（傾き）を取り出します。
+      1. coef(m)[["educ_years"]] を b_educ に代入する
+      2. 係数を「1年あたり何%」に直した (exp(b_educ) - 1) * 100 を表示する
+    starter: |
+      b_educ <-
+
+    solution: |
+      b_educ <- coef(m)[["educ_years"]]
+      (exp(b_educ) - 1) * 100
+    check: |
+      expect_uses("coef")
+      expect_uses("exp")
+      expect_object("b_educ", class = "numeric")
+      expect_value(b_educ, .sol$b_educ, label = "b_educ")
+      expect_value(.value, .sol_value, label = "最後に表示した%の値")
+    hints:
+      - coef() はモデルの係数（切片と傾き）を名前つきのベクトルで返します。[[ ]] に名前を書くと1つだけ取り出せます。
+      - 1行目は coef(m)[["educ_years"]] です。exp() は e の何乗かを計算する関数で、log() の逆にあたります。
+      - |
+        b_educ <- coef(m)[["educ_years"]]
+        (exp(b_educ) - 1) * 100
+    tests:
+      fail:
+        - |
+          b_educ <- coef(m)[[1]]
+          (exp(b_educ) - 1) * 100
+        - |
+          b_educ <- coef(m)[["educ_years"]]
+          exp(b_educ) * 100
+  - id: c
+    type: write
+    prompt: |
+      教育年数16年（大卒）の人の対数時給の予測値を求め、円に直します。
+      1. predict(m, newdata = tibble(educ_years = 16)) を pred16 に代入する
+      2. exp(pred16) を表示する（対数を元の時給の単位に戻します）
+    starter: |
+      pred16 <- predict(m, newdata = )
+
+    solution: |
+      pred16 <- predict(m, newdata = tibble(educ_years = 16))
+      exp(pred16)
+    check: |
+      expect_uses("predict")
+      expect_object("pred16", class = "numeric")
+      expect_value(pred16, .sol$pred16, label = "pred16")
+      expect_value(.value, .sol_value, label = "最後に表示した予測時給（円）")
+    hints:
+      - predict() の newdata には、予測したい人の説明変数の値を、モデルと同じ列名の表で渡します。
+      - newdata = tibble(educ_years = 16) とします。予測値は対数時給なので、exp() で円に戻します。
+      - |
+        pred16 <- predict(m, newdata = tibble(educ_years = 16))
+        exp(pred16)
+    tests:
+      fail:
+        - |
+          pred16 <- predict(m, newdata = tibble(educ_years = 16))
+          pred16
+        - |
+          pred16 <- predict(m, newdata = tibble(educ_years = 12))
+          exp(pred16)
+  - id: d
+    type: interpret
+    prompt: |
+      a〜b で、教育年数の係数は約0.049、(exp(係数) − 1) × 100 は約5.0でした。この結果の読み方として最も適切なものはどれですか。
+    choices:
+      - "教育年数が1年長い人は、時給が平均で約0.049円高い"
+      - "教育年数が1年長い人は、時給（の対数で見た平均）が約5%高い傾向がある。ただし学歴とともに違う他の条件も含んだ差である"
+      - "誰でも教育を1年延ばせば、時給が必ず5%上がる"
+      - "教育年数が1年長い人は、時給が約0.049倍になる"
+    answer: 1
+    explain: 被説明変数が対数なので、係数0.049は「教育年数が1年長いと、対数時給が平均で0.049高い」という意味です。対数の差は比率の目安になり、係数×100で約4.9%、正確には (exp(0.049) − 1) × 100 ≈ 5.0% 高いと読みます。単位は円でも倍率でもありません。また、これは教育年数の違う人どうしを比べた差で、学歴と一緒に違う経験年数や能力なども含んでいます。教育を延ばしたときの効果（因果効果）とは限りません。他の条件をそろえる方法は第39ステップで学びます。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第36ステップの復習】教育年数ごとに時給を集計します。
+      wage を educ_years でグループに分け、時給 hourly_wage の平均 mean_wage、中央値 median_wage、人数 n の3列を求めた表を educ_tab に代入し、表示してください。
+    starter: |
+      educ_tab <- wage |>
+
+      educ_tab
+    solution: |
+      educ_tab <- wage |>
+        group_by(educ_years) |>
+        summarise(mean_wage = mean(hourly_wage), median_wage = median(hourly_wage), n = n())
+      educ_tab
+    check: |
+      expect_object("educ_tab", class = "data.frame")
+      expect_cols(educ_tab, c("educ_years", "mean_wage", "median_wage", "n"))
+      expect_df_equal(educ_tab, .sol$educ_tab, ignore_row_order = TRUE)
+    hints:
+      - 第36ステップの男女別の集計と同じ形で、グループを sex から educ_years に変えます。
+      - group_by(educ_years) のあとに summarise(mean_wage = mean(hourly_wage), median_wage = median(hourly_wage), n = n()) とつなぎます。
+      - |
+        educ_tab <- wage |> group_by(educ_years) |> summarise(mean_wage = mean(hourly_wage), median_wage = median(hourly_wage), n = n())
+        educ_tab
+    tests:
+      fail:
+        - |
+          educ_tab <- wage |>
+            group_by(educ_years) |>
+            summarise(mean_wage = mean(hourly_wage), median_wage = mean(hourly_wage), n = n())
+          educ_tab
+        - |
+          educ_tab <- wage |>
+            group_by(female) |>
+            summarise(mean_wage = mean(hourly_wage), median_wage = median(hourly_wage), n = n())
+          educ_tab

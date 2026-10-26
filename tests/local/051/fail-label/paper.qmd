@@ -1,0 +1,56 @@
+---
+title: "最低賃金と平均時給の関係"
+author: "氏名"
+date: today
+lang: ja
+format:
+  docx: default
+knitr:
+  opts_chunk:
+    dev: ragg_png   # 図の日本語を文字化けさせない
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+library(tidyverse)
+pref <- read_csv("data/pref_panel.csv", show_col_types = FALSE)
+pref24 <- pref |> filter(year == 2024)
+```
+
+## はじめに
+
+ここに、この論文の問いを1〜2文で書きます。
+
+## データ
+
+都道府県別の最低賃金と平均時給のパネルデータ（47都道府県、2019〜2025年）を使います。
+賃金は厚生労働省「賃金構造基本統計調査」の各年6月分、最低賃金は厚生労働省「地域別最低賃金改定状況」によります。
+
+```{r}
+#| label: scatter
+#| fig-cap: "最低賃金と平均時給（2024年6月、47都道府県）"
+#| fig-width: 6
+#| fig-height: 4
+ggplot(pref24, aes(x = min_wage, y = avg_wage)) +
+  geom_point() +
+  labs(x = "最低賃金（円/時）", y = "平均時給（円/時）")
+```
+
+## 結果
+
+```{r}
+#| label: tbl-year
+#| tbl-cap: "年ごとの平均（47都道府県の単純平均）"
+pref |>
+  group_by(year) |>
+  summarise(最低賃金 = mean(min_wage), 平均時給 = mean(avg_wage), カイツ指標 = mean(kaitz)) |>
+  knitr::kable(digits = c(0, 0, 0, 3))
+```
+
+## おわりに
+
+最低賃金の高い県ほど、平均時給も高い傾向があります。

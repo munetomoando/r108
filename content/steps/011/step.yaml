@@ -1,0 +1,137 @@
+id: "011"
+part: 2
+title: 文字化けと見出しを直す
+question: 出店先を考える：生鮮食品への支出が多い都市はどこか
+minutes: 45
+mode: browser
+packages: [readr, dplyr, janitor]
+data: [kakei_raw_sjis.csv, ec_products.csv]
+learn: [locale, skip, n_max, rename, clean_names]
+allow: [col_names]
+setup: |
+  library(readr); library(dplyr); library(janitor)
+exercises:
+  - id: a
+    type: fix
+    prompt: |
+      家計調査の表 data/kakei_raw_sjis.csv の6行目には、品目名の見出し（品目分類, 生鮮魚介, 生鮮肉, 生鮮野菜, 生鮮果物）があります。
+      先輩から、先頭の5行を飛ばして見出しと最初の3行だけを試しに読むコードをもらいました。ところが実行すると、列名が文字化けし、「invalid multibyte string」（使えない文字が含まれている）というエラーで止まってしまいます。コードの書き間違いではなく、ファイルの文字コードの問題です。
+      このファイルは Shift-JIS（CP932）で保存されています。正しく読めるように直し、結果を kakei_a に代入してください。
+    starter: |
+      kakei_a <- read_csv("data/kakei_raw_sjis.csv", skip = 5, n_max = 3)
+    solution: |
+      kakei_a <- read_csv("data/kakei_raw_sjis.csv", skip = 5, n_max = 3,
+                          locale = locale(encoding = "CP932"))
+    check: |
+      expect_object("kakei_a", class = "data.frame")
+      check_that(identical(names(kakei_a), names(.sol$kakei_a)),
+                 "列名が「品目分類」「生鮮魚介」…になっていません。文字コードを指定して読みましょう。")
+      expect_df_equal(kakei_a, .sol$kakei_a)
+    hints:
+      - 文字化けは、ファイルの文字コードと、R が読むときに想定した文字コードが違うときに起こります。read_csv() は何も指定しないと UTF-8 として読みます。
+      - read_csv() の引数 locale に locale(encoding = "CP932") を渡すと、Shift-JIS（CP932）として読みます。
+      - "kakei_a <- read_csv(\"data/kakei_raw_sjis.csv\", skip = 5, n_max = 3, locale = locale(encoding = \"CP932\"))"
+    tests:
+      fail:
+        - "kakei_a <- read_csv(\"data/kakei_raw_sjis.csv\", skip = 5, n_max = 3, locale = locale(encoding = \"UTF-8\"))"
+        - "kakei_a <- read_csv(\"data/kakei_raw_sjis.csv\", skip = 4, n_max = 3, locale = locale(encoding = \"CP932\"))"
+  - id: b
+    type: write
+    prompt: |
+      a の結果を見ると、1行目に分類コード、2行目に単位（円）が入っていて、金額の列まで文字（<chr>）として読まれています。
+      そこで、見出しの3行（6〜8行目）も含めて先頭の8行を飛ばし、52都市の行（9〜60行目）だけを読み込んで kakei_b に代入してください。
+      - 文字コードは a と同じく CP932 を指定する
+      - 1行目を見出しとして使わないよう col_names = FALSE を付ける（列名は X1〜X5 になる）
+      - 61行目以降の注記を読まないよう、読む行数を52行に限る
+    starter: |
+      kakei_b <- read_csv("data/kakei_raw_sjis.csv",
+                          locale = locale(encoding = "CP932"),
+                          col_names = FALSE)
+    solution: |
+      kakei_b <- read_csv("data/kakei_raw_sjis.csv",
+                          locale = locale(encoding = "CP932"),
+                          col_names = FALSE, skip = 8, n_max = 52)
+    check: |
+      expect_object("kakei_b", class = "data.frame")
+      expect_uses("read_csv")
+      expect_cols(kakei_b, c("X1", "X2", "X3", "X4", "X5"))
+      expect_nrow(kakei_b, nrow(.sol$kakei_b))
+      check_that(is.numeric(kakei_b$X2), "X2 が数値になっていません。飛ばす行数（skip）を確かめましょう。")
+      expect_df_equal(kakei_b, .sol$kakei_b)
+    hints:
+      - 先頭の何行を飛ばすかは引数 skip、何行まで読むかは引数 n_max で指定します。
+      - 表の情報が5行、見出しが3行なので、飛ばすのは8行です。都市は52あります。starter の col_names = FALSE の後に、skip = と n_max = を書き足します。
+      - "kakei_b <- read_csv(\"data/kakei_raw_sjis.csv\", locale = locale(encoding = \"CP932\"), col_names = FALSE, skip = 8, n_max = 52)"
+    tests:
+      fail:
+        - "kakei_b <- read_csv(\"data/kakei_raw_sjis.csv\", locale = locale(encoding = \"CP932\"), col_names = FALSE, skip = 7, n_max = 52)"
+        - "kakei_b <- read_csv(\"data/kakei_raw_sjis.csv\", locale = locale(encoding = \"CP932\"), col_names = FALSE, skip = 8, n_max = 50)"
+        - "kakei_b <- read_csv(\"data/kakei_raw_sjis.csv\", locale = locale(encoding = \"CP932\"), skip = 8, n_max = 52)"
+  - id: c
+    type: write
+    prompt: |
+      kakei_b の列名 X1〜X5 は、何の列か分かりません。rename() で次の英字の名前に付け直し、kakei に代入してください。
+      - X1 → city（都市）
+      - X2 → fish（生鮮魚介）
+      - X3 → meat（生鮮肉）
+      - X4 → vegetables（生鮮野菜）
+      - X5 → fruits（生鮮果物）
+    starter: |
+      kakei <- kakei_b |>
+    solution: |
+      kakei <- kakei_b |>
+        rename(city = X1, fish = X2, meat = X3, vegetables = X4, fruits = X5)
+    check: |
+      expect_object("kakei", class = "data.frame")
+      expect_cols(kakei, c("city", "fish", "meat", "vegetables", "fruits"))
+      expect_df_equal(kakei, .sol$kakei)
+    hints:
+      - rename() は列の中身はそのままで、名前だけを変えます。
+      - rename(新しい名前 = 古い名前) の順に書き、5つをカンマで区切って並べます。
+      - "kakei <- kakei_b |> rename(city = X1, fish = X2, meat = X3, vegetables = X4, fruits = X5)"
+    tests:
+      fail:
+        - "kakei <- kakei_b |> rename(city = X1, meat = X2, fish = X3, vegetables = X4, fruits = X5)"
+        - "kakei <- kakei_b |> rename(X1 = city, X2 = fish, X3 = meat, X4 = vegetables, X5 = fruits)"
+  - id: d
+    type: predict
+    prompt: |
+      b のコードから n_max = 52 を消して、次のように実行しました。読み込まれた表は何行になりますか。
+      ファイルは全部で65行あり、61〜65行目には「※1 …」のような注記が5行あります。
+
+      ```r
+      read_csv("data/kakei_raw_sjis.csv",
+               locale = locale(encoding = "CP932"),
+               col_names = FALSE, skip = 8)
+      ```
+    choices: ["52行", "57行", "60行", "65行"]
+    answer: 1
+    explain: |
+      skip = 8 で先頭の8行を飛ばすので、読むのは9〜65行目の57行です。52都市の行に、61〜65行目の注記5行が加わります。
+      注記の行は、X1 に「※1 …」の文が入り、X2〜X5 は NA（欠損値）になります。列の数が足りないという警告も出ます。
+      このまま平均や合計を計算すると、注記の行が混ざったままになります。読み込んだ後に行数を確かめ、元の表の都市数（52）と一致するかを見る習慣をつけましょう。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第10ステップの復習】ネット通販の商品マスタ data/ec_products.csv を、col_types で型を指定して read_csv() で読み込んでください。
+      product_id と category は文字列、list_price と unit_cost は数値です。読み込んだら、category が "食品" の商品だけを取り出して food に代入してください。
+    starter: |
+      food <- read_csv("data/ec_products.csv", col_types = ) |>
+    solution: |
+      food <- read_csv("data/ec_products.csv", col_types = "ccdd") |>
+        filter(category == "食品")
+    check: |
+      expect_object("food", class = "data.frame")
+      expect_uses("read_csv")
+      check_that(is.character(food$product_id), "product_id が文字列になっていません。col_types を確かめましょう。")
+      expect_df_equal(food, .sol$food, ignore_row_order = TRUE)
+    hints:
+      - 読み込みは第10ステップと同じです。続けてパイプで filter() をつなぎます。
+      - col_types は列の型を1列1文字で並べた文字列です。文字列は c、数値は d です。条件は category == "食品" です。
+      - "food <- read_csv(\"data/ec_products.csv\", col_types = \"ccdd\") |> filter(category == \"食品\")"
+    tests:
+      fail:
+        - "food <- read_csv(\"data/ec_products.csv\", col_types = \"dcdd\") |> filter(category == \"食品\")"
+        - "food <- read_csv(\"data/ec_products.csv\", col_types = \"ccdd\") |> filter(category == \"飲料\")"
+review_of: "010"

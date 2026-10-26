@@ -1,0 +1,208 @@
+id: "086"
+part: 10
+title: A/Bテストの設計
+question: 何人に見せれば差が分かるか
+minutes: 45
+mode: browser
+packages: [readr, dplyr, lubridate]
+data: [ec_orders.csv]
+learn: [power.prop.test, ceiling]
+review_of: "085"
+setup: |
+  library(readr); library(dplyr); library(lubridate)
+  # 小課題 a〜d はテストを始める前の設計なので、データは使いません。
+  # 小課題 e（第85ステップの復習）で使う、そらまめマーケットのネット通販の注文明細（架空のデータ）
+  orders <- read_csv("data/ec_orders.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      ネット通販の購入画面を新しくした案（B）を、今の画面（A）と比べるA/Bテストを計画します。今の画面の購入率は、過去のデータから約4%です。上司は「購入率が1ポイント上がって5%になるなら、確実に見つけたい」と言っています。
+      power.prop.test() に p1 = 0.04（今の購入率）、p2 = 0.05（見つけたい購入率）、power = 0.8 を渡した結果を pw に代入して pw を表示し、続けて ceiling(pw$n)（1群あたりに必要な人数を切り上げた値）を表示してください。有意水準は既定の5%のままにします。
+    starter: |
+      pw <- power.prop.test()
+      pw
+      ceiling(pw$n)
+    solution: |
+      pw <- power.prop.test(p1 = 0.04, p2 = 0.05, power = 0.8)
+      pw
+      ceiling(pw$n)
+    check: |
+      expect_object("pw", class = "power.htest")
+      expect_uses("power.prop.test", "割合（購入率）の差を調べるので、power.t.test() ではなく power.prop.test() を使いましょう。")
+      check_that(isTRUE(all.equal(c(pw$p1, pw$p2), c(.sol$pw$p1, .sol$pw$p2))),
+                 "購入率の指定が違います。p1 = 0.04、p2 = 0.05 です。p2 には差（0.01）ではなく、見つけたい購入率そのものを書きます。")
+      check_that(isTRUE(all.equal(pw$power, .sol$pw$power)), "検出力が違います。power = 0.8 を指定しましょう。")
+      expect_value(pw$n, .sol$pw$n, label = "pw$n")
+      expect_uses("ceiling", "人数は小数で出るので、ceiling(pw$n) で切り上げて表示しましょう。")
+      expect_value(.value, .sol_value, label = "最後に表示した ceiling(pw$n)")
+    hints:
+      - 第35ステップの power.t.test() の割合版が power.prop.test() です。p1・p2・sig.level・power・n のうち n 以外を渡すと、1群あたりの人数 n を計算します。
+      - power.prop.test(p1 = 0.04, p2 = 0.05, power = 0.8) と書きます。ceiling() は小数を切り上げる関数です（6744.1 なら 6745）。
+      - |
+        pw <- power.prop.test(p1 = 0.04, p2 = 0.05, power = 0.8)
+        pw
+        ceiling(pw$n)
+    tests:
+      fail:
+        - |
+          pw <- power.prop.test(p1 = 0.04, p2 = 0.01, power = 0.8)
+          pw
+          ceiling(pw$n)
+        - |
+          pw <- power.prop.test(p1 = 0.04, p2 = 0.05, power = 0.9)
+          pw
+          ceiling(pw$n)
+        - |
+          pw <- power.prop.test(p1 = 0.04, p2 = 0.05, power = 0.8)
+          pw
+          round(pw$n)
+  - id: b
+    type: write
+    prompt: |
+      実際には、テストの期間に購入画面を訪れる人は2万人ほどしか見込めず、A・B に1万人ずつしか割り当てられません。人数を固定したとき、どれだけの差なら見つけられるか（**最小検出効果**）を計算します。
+      power.prop.test() に n = 10000、p1 = 0.04、power = 0.8 を渡し（p2 は書かない）、結果を mde に代入して mde を表示してください。続けて、見つけられる最小の差 mde$p2 - 0.04 を表示してください。
+    starter: |
+      mde <- power.prop.test()
+      mde
+
+    solution: |
+      mde <- power.prop.test(n = 10000, p1 = 0.04, power = 0.8)
+      mde
+      mde$p2 - 0.04
+    check: |
+      expect_object("mde", class = "power.htest")
+      expect_uses("power.prop.test")
+      check_that(isTRUE(all.equal(mde$n, .sol$mde$n)), "人数が違います。n = 10000（1群あたりの人数）を指定しましょう。")
+      check_that(isTRUE(all.equal(mde$p1, .sol$mde$p1)) && isTRUE(all.equal(mde$power, .sol$mde$power)),
+                 "p1 = 0.04、power = 0.8 を指定しましょう。")
+      expect_value(mde$p2, .sol$mde$p2, label = "mde$p2")
+      expect_value(.value, .sol_value, label = "最後に表示した mde$p2 - 0.04")
+    hints:
+      - power.prop.test() は、5つの値のうち書かなかった1つを計算します。今回は n を書いて p2 を書かないので、p2（見つけられる購入率）が計算されます。
+      - power.prop.test(n = 10000, p1 = 0.04, power = 0.8) です。差は、結果の $p2 から今の購入率 0.04 を引いて求めます。
+      - |
+        mde <- power.prop.test(n = 10000, p1 = 0.04, power = 0.8)
+        mde
+        mde$p2 - 0.04
+    tests:
+      fail:
+        - |
+          mde <- power.prop.test(n = 20000, p1 = 0.04, power = 0.8)
+          mde
+          mde$p2 - 0.04
+        - |
+          mde <- power.prop.test(n = 10000, p1 = 0.04, power = 0.8)
+          mde
+          mde$p2
+  - id: c
+    type: write
+    prompt: |
+      訪問者2万人を、無作為に A と B へ1万人ずつ割り当てます。端末（スマホ6割・PC4割）を持つ架空の訪問者を作り、割当の結果を確かめましょう。
+      1. 最初の行で set.seed(108) とする
+      2. tibble() で、visitor_id（1:20000）、device（sample(c("スマホ", "PC"), 20000, replace = TRUE, prob = c(0.6, 0.4))）、group（sample(rep(c("A", "B"), each = 10000))）の3列の表を作り、visitors に代入する
+      3. count(visitors, device, group) で、端末と群の組み合わせごとの人数を表示する
+    starter: |
+      set.seed(108)
+      visitors <- tibble(visitor_id = 1:20000,
+                         device = ,
+                         group = )
+      count(visitors, device, group)
+    solution: |
+      set.seed(108)
+      visitors <- tibble(visitor_id = 1:20000,
+                         device = sample(c("スマホ", "PC"), 20000, replace = TRUE, prob = c(0.6, 0.4)),
+                         group = sample(rep(c("A", "B"), each = 10000)))
+      count(visitors, device, group)
+    check: |
+      expect_object("visitors", class = "data.frame")
+      expect_cols(visitors, c("visitor_id", "device", "group"))
+      expect_nrow(visitors, 20000)
+      expect_uses("set.seed", "最初の行で set.seed(108) として、乱数の出方を固定しましょう。")
+      check_that(sum(visitors$group == "A") == 10000 && sum(visitors$group == "B") == 10000,
+                 "A と B がちょうど1万人ずつになっていません。rep(c(\"A\", \"B\"), each = 10000) を sample() で並べ替えましょう（replace は付けません）。")
+      expect_value(visitors$device, .sol$visitors$device, label = "device の列")
+      expect_value(visitors$group, .sol$visitors$group, label = "group の列")
+      expect_df_equal(.value, .sol_value, ignore_row_order = TRUE)
+    hints:
+      - sample(x) は x を無作為に並べ替えます。rep(c("A", "B"), each = 10000) で A を1万個・B を1万個並べ、それを並べ替えれば、ちょうど1万人ずつの無作為な割当になります。
+      - device は sample(c("スマホ", "PC"), 20000, replace = TRUE, prob = c(0.6, 0.4)) で、prob はそれぞれが選ばれる確率です。device を先、group を後に作らないと、乱数の出方が変わって値が一致しません。
+      - |
+        set.seed(108)
+        visitors <- tibble(visitor_id = 1:20000,
+                           device = sample(c("スマホ", "PC"), 20000, replace = TRUE, prob = c(0.6, 0.4)),
+                           group = sample(rep(c("A", "B"), each = 10000)))
+        count(visitors, device, group)
+    tests:
+      fail:
+        - |
+          visitors <- tibble(visitor_id = 1:20000,
+                             device = sample(c("スマホ", "PC"), 20000, replace = TRUE, prob = c(0.6, 0.4)),
+                             group = sample(rep(c("A", "B"), each = 10000)))
+          count(visitors, device, group)
+        - |
+          set.seed(108)
+          visitors <- tibble(visitor_id = 1:20000,
+                             device = sample(c("スマホ", "PC"), 20000, replace = TRUE, prob = c(0.6, 0.4)),
+                             group = sample(c("A", "B"), 20000, replace = TRUE))
+          count(visitors, device, group)
+        - |
+          set.seed(108)
+          visitors <- tibble(visitor_id = 1:20000,
+                             device = sample(c("スマホ", "PC"), 20000, replace = TRUE, prob = c(0.6, 0.4)),
+                             group = rep(c("A", "B"), each = 10000))
+          count(visitors, device, group)
+  - id: d
+    type: interpret
+    prompt: |
+      A/Bテストで訪問者を A と B に分ける方法を、同僚が3つ提案しました。新しい画面 B の効果を正しく測れる方法として最も適切なものはどれですか。
+    choices:
+      - "スマホの訪問者は新しい画面 B、PC の訪問者は今の画面 A にする（スマホ向けに作った画面なので）"
+      - "最初の1週間は全員に A、次の1週間は全員に B を見せ、2つの週の購入率を比べる"
+      - "新しい画面を試したいかを訪問者に尋ね、希望した人に B を見せる"
+      - "訪問者ごとに、コインを投げるように無作為に A か B を割り当てる（c のように sample() で決める）"
+    answer: 3
+    explain: |
+      効果を正しく測るには、A と B の訪問者が「画面以外は同じ」でなければなりません。無作為に割り当てれば、端末・年齢・買う気の強さなど、見えるものも見えないものも、平均すると両群で同じになります（c では、スマホ・PC の人数が両群でほぼ同じになりました）。端末で分けると、端末による購入率の違い（PC の方がもともと買いやすいなど）が画面の効果と混ざります。週で分けると、給料日や天気、セールなど週ごとの違いが混ざります。希望者に見せると、新しいものを試したい人＝買う気の強い人が B に集まり、効果を大きく見誤ります。これは第56ステップのランダム化比較試験（RCT）と同じ考え方です。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第85ステップの復習】orders（ネット通販の注文明細）から、顧客ごとの**初回購入月**を求めます。
+      1. customer_id ごとに、注文日 order_date の最小値をその月の1日に切り下げた first_month を求め、first_buy に代入する（group_by() と summarise()、min() と floor_date(…, unit = "month") を使う）
+      2. count(first_buy, first_month) で、初回購入月ごとの新規顧客の人数を表示する
+    starter: |
+      first_buy <- orders |>
+
+      count(first_buy, first_month)
+    solution: |
+      first_buy <- orders |>
+        group_by(customer_id) |>
+        summarise(first_month = floor_date(min(order_date), unit = "month"))
+      count(first_buy, first_month)
+    check: |
+      expect_object("first_buy", class = "data.frame")
+      expect_cols(first_buy, c("customer_id", "first_month"))
+      check_that(nrow(first_buy) == nrow(.sol$first_buy),
+                 "first_buy は顧客1人につき1行にしましょう。group_by(customer_id) のあと summarise() で1行にまとめます。")
+      expect_df_equal(first_buy, .sol$first_buy, ignore_row_order = TRUE)
+      expect_df_equal(.value, .sol_value)
+    hints:
+      - 初回購入日は、その顧客の注文日のうち最も早い日、つまり min(order_date) です。それを月の1日に切り下げると初回購入月になります。
+      - group_by(customer_id) |> summarise(first_month = floor_date(min(order_date), unit = "month")) です。
+      - |
+        first_buy <- orders |>
+          group_by(customer_id) |>
+          summarise(first_month = floor_date(min(order_date), unit = "month"))
+        count(first_buy, first_month)
+    tests:
+      fail:
+        - |
+          first_buy <- orders |>
+            group_by(customer_id) |>
+            summarise(first_month = floor_date(max(order_date), unit = "month"))
+          count(first_buy, first_month)
+        - |
+          first_buy <- orders |>
+            mutate(first_month = floor_date(order_date, unit = "month"))
+          count(first_buy, first_month)

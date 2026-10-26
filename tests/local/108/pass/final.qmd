@@ -1,0 +1,97 @@
+---
+title: "広告経由の顧客は、買う額が少ないのか"
+subtitle: "R データ分析108ステップ 修了課題"
+author: "空野 花子"
+date: today
+lang: ja
+format:
+  html:
+    embed-resources: true
+execute:
+  echo: false
+  warning: false
+  message: false
+knitr:
+  opts_chunk:
+    dev: ragg_png
+---
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(modelsummary)
+
+orders <- read_csv("data/ec_orders.csv", show_col_types = FALSE)
+customers <- read_csv("data/ec_customers.csv", show_col_types = FALSE)
+
+# 2024年までに登録した顧客の、2025年の購入額（買わなかった人は0円）
+spend <- orders |>
+  filter(year(order_date) == 2025) |>
+  group_by(customer_id) |>
+  summarise(sales = sum(qty * unit_price))
+cust <- customers |>
+  filter(signup_date < ymd("2025-01-01")) |>
+  left_join(spend, by = "customer_id") |>
+  mutate(sales = replace_na(sales, 0),
+         channel = fct_relevel(channel, "検索"))
+
+m1 <- lm(sales ~ channel, data = cust)
+m2 <- lm(sales ~ channel + age, data = cust)
+ad <- coef(m2)[["channel広告"]]
+ad_ci <- confint(m2)["channel広告", ]
+```
+
+## 要約
+
+- 広告経由で入った顧客の2025年の購入額は、検索経由の顧客より1人あたり約 `r format(round(-ad), big.mark = ",")` 円少ない（年齢をそろえた推定、95%信頼区間 `r format(round(-ad_ci[2]), big.mark = ",")`〜`r format(round(-ad_ci[1]), big.mark = ",")` 円）。
+- 対象は2024年までに登録した `r format(nrow(cust), big.mark = ",")` 人で、全体の平均は `r format(round(mean(cust$sales)), big.mark = ",")` 円。
+- 広告の効果は、新規の人数だけでなく、入った後の購入額も合わせて評価する必要がある。
+
+## 問い
+
+広告経由で入った顧客は、ほかの経路の顧客より1年間に買う額が少ないか。年齢の違いを考えても差は残るか。
+
+## データ
+
+そらまめマーケット（架空の会社）のネット通販の注文明細と顧客マスタ。2024年までに登録した顧客について、2025年の購入額（数量×販売単価の合計）を求めた。
+
+```{r}
+#| label: fig-mean
+#| fig-cap: "流入経路別の2025年の平均購入額"
+cust |>
+  group_by(channel) |>
+  summarise(sales = mean(sales)) |>
+  ggplot(aes(x = channel, y = sales)) +
+  geom_col() +
+  labs(x = "流入経路", y = "平均購入額（円）")
+```
+
+```{r}
+#| label: fig-dist
+#| fig-cap: "流入経路別の購入額の分布"
+ggplot(cust, aes(x = channel, y = sales)) +
+  geom_boxplot() +
+  labs(x = "流入経路", y = "2025年の購入額（円）")
+```
+
+## 分析
+
+```{r}
+#| label: fig-age
+#| fig-cap: "年齢と購入額"
+ggplot(cust, aes(x = age, y = sales)) +
+  geom_point(alpha = 0.2) +
+  geom_smooth(method = "lm") +
+  labs(x = "年齢（歳）", y = "2025年の購入額（円）")
+```
+
+```{r}
+#| label: tbl-reg
+#| tbl-cap: "購入額の回帰（基準は検索経由）"
+modelsummary(list("(1)" = m1, "(2)" = m2), vcov = "HC1",
+             gof_map = c("nobs", "r.squared"), fmt = 0)
+```
+
+## 結論と次の一手
+
+年齢をそろえても、広告経由の顧客は検索経由より購入額が少ない。ただし流入経路は顧客が選んだもので、因果効果ではない。次は広告で入った顧客に初回クーポンを出す実験を行う。

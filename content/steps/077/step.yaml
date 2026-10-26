@@ -1,0 +1,262 @@
+id: "077"
+part: 9
+title: ARIMAのモデル選択
+question: どの次数が良いか
+minutes: 50
+mode: browser
+packages: [readr, dplyr, lubridate, ggplot2]
+data: [iip_monthly.csv]
+learn: [AIC, geom_ribbon]
+review_of: "076"
+setup: |
+  library(readr); library(dplyr); library(lubridate); library(ggplot2)
+  # 経済産業省「鉱工業生産指数」2020年基準（2026年10月24日取得時点）。2018年1月〜2026年8月の月次
+  iip <- read_csv("data/iip_monthly.csv", show_col_types = FALSE)
+  y <- ts(iip$iip_sa, start = c(2018, 1), frequency = 12)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      setup で、季節調整済指数 iip_sa の時系列 y（2018年1月始まり、frequency = 12）を作ってあります。
+      y に4つのモデルを arima() で当てはめ、AIC を比べてください。
+      - m1 … AR(1)（order = c(1, 0, 0)）
+      - m2 … AR(2)（order = c(2, 0, 0)）
+      - m3 … AR(3)（order = c(3, 0, 0)）
+      - m4 … ARMA(1,1)（order = c(1, 0, 1)）
+      model（"AR(1)"、"AR(2)"、"AR(3)"、"ARMA(1,1)" の順）と aic の2列の表を tibble() で作り、aic_tab に代入して表示します。
+    starter: |
+      m1 <- arima(y, order = c(1, 0, 0))
+      m2 <-
+      m3 <-
+      m4 <-
+      aic_tab <- tibble(model = c("AR(1)", "AR(2)", "AR(3)", "ARMA(1,1)"),
+                        aic = )
+      aic_tab
+    solution: |
+      m1 <- arima(y, order = c(1, 0, 0))
+      m2 <- arima(y, order = c(2, 0, 0))
+      m3 <- arima(y, order = c(3, 0, 0))
+      m4 <- arima(y, order = c(1, 0, 1))
+      aic_tab <- tibble(model = c("AR(1)", "AR(2)", "AR(3)", "ARMA(1,1)"),
+                        aic = c(AIC(m1), AIC(m2), AIC(m3), AIC(m4)))
+      aic_tab
+    check: |
+      for (nm in c("m1", "m2", "m3", "m4")) expect_object(nm, class = "Arima")
+      check_that(identical(m2$arma, .sol$m2$arma) && identical(m3$arma, .sol$m3$arma),
+                 "m2 か m3 の次数が違います。AR(2) は order = c(2, 0, 0)、AR(3) は c(3, 0, 0) です。")
+      check_that(identical(m4$arma, .sol$m4$arma),
+                 "m4 の次数が違います。ARMA(1,1) は order = c(1, 0, 1) です。")
+      expect_object("aic_tab", class = "data.frame")
+      expect_cols(aic_tab, c("model", "aic"))
+      expect_nrow(aic_tab, 4)
+      check_that(isTRUE(all.equal(aic_tab$aic, .sol$aic_tab$aic, tolerance = 1e-6)),
+                 "aic の値が違います。c(AIC(m1), AIC(m2), AIC(m3), AIC(m4)) の順に並べましょう。")
+      expect_df_equal(aic_tab, .sol$aic_tab, tol = 1e-6)
+      expect_value(.value, .sol_value, label = "表示した aic_tab")
+    hints:
+      - order = c(p, d, q) の p が AR の次数、q が MA の次数です。4つのモデルとも階差はとらない（d = 0）ので、真ん中は0です。AIC() にモデルを渡すと AIC が返ります。
+      - arima(y, order = c(2, 0, 0)) のように次数だけを替え、aic = c(AIC(m1), AIC(m2), AIC(m3), AIC(m4)) とします。
+      - |
+        m1 <- arima(y, order = c(1, 0, 0))
+        m2 <- arima(y, order = c(2, 0, 0))
+        m3 <- arima(y, order = c(3, 0, 0))
+        m4 <- arima(y, order = c(1, 0, 1))
+        aic_tab <- tibble(model = c("AR(1)", "AR(2)", "AR(3)", "ARMA(1,1)"),
+                          aic = c(AIC(m1), AIC(m2), AIC(m3), AIC(m4)))
+        aic_tab
+    tests:
+      fail:
+        - |
+          m1 <- arima(y, order = c(1, 0, 0))
+          m2 <- arima(y, order = c(2, 0, 0))
+          m3 <- arima(y, order = c(3, 0, 0))
+          m4 <- arima(y, order = c(1, 1, 1))
+          aic_tab <- tibble(model = c("AR(1)", "AR(2)", "AR(3)", "ARMA(1,1)"),
+                            aic = c(AIC(m1), AIC(m2), AIC(m3), AIC(m4)))
+          aic_tab
+        - |
+          m1 <- arima(y, order = c(1, 0, 0))
+          m2 <- arima(y, order = c(0, 0, 2))
+          m3 <- arima(y, order = c(0, 0, 3))
+          m4 <- arima(y, order = c(1, 0, 1))
+          aic_tab <- tibble(model = c("AR(1)", "AR(2)", "AR(3)", "ARMA(1,1)"),
+                            aic = c(AIC(m1), AIC(m2), AIC(m3), AIC(m4)))
+          aic_tab
+  - id: b
+    type: write
+    prompt: |
+      a で AIC が最も小さかった AR(1) の m1 で、2026年9月から2027年8月までの12か月を予測します。
+      1. predict(m1, n.ahead = 12) を fc_raw に代入する
+      2. 次の5列の表を tibble() で作り、fc に代入して表示する
+         - date … seq(ymd("2026-09-01"), by = "month", length.out = 12)
+         - pred … 予測値 as.numeric(fc_raw$pred)
+         - se … 標準誤差 as.numeric(fc_raw$se)
+         - lower、upper … 95%予測区間の下限と上限（pred ∓ 1.96 × se）
+    starter: |
+      fc_raw <-
+      fc <- tibble(date = seq(ymd("2026-09-01"), by = "month", length.out = 12),
+                   pred = ,
+                   se = ,
+                   lower = ,
+                   upper = )
+      fc
+    solution: |
+      fc_raw <- predict(m1, n.ahead = 12)
+      fc <- tibble(date = seq(ymd("2026-09-01"), by = "month", length.out = 12),
+                   pred = as.numeric(fc_raw$pred),
+                   se = as.numeric(fc_raw$se),
+                   lower = pred - 1.96 * se,
+                   upper = pred + 1.96 * se)
+      fc
+    check: |
+      check_that(exists("fc_raw") && length(fc_raw$pred) == 12,
+                 "fc_raw が違います。predict(m1, n.ahead = 12) で12か月先まで予測しましょう。")
+      check_that(isTRUE(all.equal(as.numeric(fc_raw$pred), as.numeric(.sol$fc_raw$pred), tolerance = 1e-6)),
+                 "予測値が違います。AR(1) の m1 で予測しましょう。")
+      expect_object("fc", class = "data.frame")
+      expect_cols(fc, c("date", "pred", "se", "lower", "upper"))
+      expect_nrow(fc, 12)
+      check_that(isTRUE(all.equal(fc$lower, .sol$fc$lower, tolerance = 1e-6)) &&
+                   isTRUE(all.equal(fc$upper, .sol$fc$upper, tolerance = 1e-6)),
+                 "予測区間が違います。95%予測区間は 予測値 ∓ 1.96 × 標準誤差 です。")
+      expect_df_equal(fc, .sol$fc, tol = 1e-6)
+      expect_value(.value, .sol_value, label = "表示した fc")
+    hints:
+      - 第76ステップ c の predict() で、n.ahead を12にします。tibble() の中では、先に作った列 pred と se を後の列の計算に使えます。
+      - pred = as.numeric(fc_raw$pred)、se = as.numeric(fc_raw$se)、lower = pred - 1.96 * se、upper = pred + 1.96 * se です。
+      - |
+        fc_raw <- predict(m1, n.ahead = 12)
+        fc <- tibble(date = seq(ymd("2026-09-01"), by = "month", length.out = 12),
+                     pred = as.numeric(fc_raw$pred),
+                     se = as.numeric(fc_raw$se),
+                     lower = pred - 1.96 * se,
+                     upper = pred + 1.96 * se)
+        fc
+    tests:
+      fail:
+        - |
+          fc_raw <- predict(m1, n.ahead = 12)
+          fc <- tibble(date = seq(ymd("2026-09-01"), by = "month", length.out = 12),
+                       pred = as.numeric(fc_raw$pred),
+                       se = as.numeric(fc_raw$se),
+                       lower = pred - se,
+                       upper = pred + se)
+          fc
+        - |
+          fc_raw <- predict(m3, n.ahead = 12)
+          fc <- tibble(date = seq(ymd("2026-09-01"), by = "month", length.out = 12),
+                       pred = as.numeric(fc_raw$pred),
+                       se = as.numeric(fc_raw$se),
+                       lower = pred - 1.96 * se,
+                       upper = pred + 1.96 * se)
+          fc
+  - id: c
+    type: write
+    prompt: |
+      2022年1月以降の実績と、b の予測を1枚の図にします。
+      1. iip を2022年1月1日以降に絞って recent に代入する
+      2. ggplot() に、実績の折れ線（data = recent、x = date、y = iip_sa）、予測区間の帯（geom_ribbon()、data = fc、x = date、ymin = lower、ymax = upper、alpha = 0.3）、予測値の破線（data = fc、y = pred、linetype = "dashed"）の3つの層を重ねる
+    starter: |
+      recent <-
+      ggplot() +
+        geom_line(data = recent, aes(x = date, y = iip_sa))
+    solution: |
+      recent <- filter(iip, date >= ymd("2022-01-01"))
+      ggplot() +
+        geom_line(data = recent, aes(x = date, y = iip_sa)) +
+        geom_ribbon(data = fc, aes(x = date, ymin = lower, ymax = upper), alpha = 0.3) +
+        geom_line(data = fc, aes(x = date, y = pred), linetype = "dashed")
+    check: |
+      expect_object("recent", class = "data.frame")
+      expect_df_equal(recent, .sol$recent)
+      expect_ggplot(geom = c("line", "ribbon"), x = "date", y = "iip_sa")
+      lab <- function(l, nm) if (is.null(l$mapping[[nm]])) "" else rlang::as_label(l$mapping[[nm]])
+      check_that(any(vapply(.plot$layers, function(l) lab(l, "ymin") == "lower" && lab(l, "ymax") == "upper", logical(1))),
+                 "予測区間の層がありません。geom_ribbon(data = fc, aes(x = date, ymin = lower, ymax = upper)) を加えましょう。")
+      check_that(any(vapply(.plot$layers, function(l) lab(l, "y") == "pred", logical(1))),
+                 "予測値の線がありません。geom_line(data = fc, aes(x = date, y = pred)) を加えましょう。")
+      check_that(any(vapply(.plot$layers, function(l) is.data.frame(l$data) && nrow(l$data) == nrow(.sol$recent), logical(1))),
+                 "実績の線のデータが違います。recent（2022年1月以降の iip）を使いましょう。")
+    hints:
+      - データの違う層を重ねるときは、ggplot() を空にして、層ごとに data = を指定します。帯は geom_ribbon() で、下端 ymin と上端 ymax を aes() で指定します。
+      - geom_ribbon(data = fc, aes(x = date, ymin = lower, ymax = upper), alpha = 0.3) と geom_line(data = fc, aes(x = date, y = pred), linetype = "dashed") を + でつなぎます。
+      - |
+        recent <- filter(iip, date >= ymd("2022-01-01"))
+        ggplot() +
+          geom_line(data = recent, aes(x = date, y = iip_sa)) +
+          geom_ribbon(data = fc, aes(x = date, ymin = lower, ymax = upper), alpha = 0.3) +
+          geom_line(data = fc, aes(x = date, y = pred), linetype = "dashed")
+    tests:
+      fail:
+        - |
+          recent <- filter(iip, date >= ymd("2022-01-01"))
+          ggplot() +
+            geom_line(data = recent, aes(x = date, y = iip_sa)) +
+            geom_line(data = fc, aes(x = date, y = pred), linetype = "dashed")
+        - |
+          recent <- filter(iip, date >= ymd("2022-01-01"))
+          ggplot() +
+            geom_line(data = recent, aes(x = date, y = iip_sa)) +
+            geom_ribbon(data = fc, aes(x = date, ymin = lower, ymax = upper), alpha = 0.3)
+        - |
+          recent <- iip
+          ggplot() +
+            geom_line(data = recent, aes(x = date, y = iip_sa)) +
+            geom_ribbon(data = fc, aes(x = date, ymin = lower, ymax = upper), alpha = 0.3) +
+            geom_line(data = fc, aes(x = date, y = pred), linetype = "dashed")
+  - id: d
+    type: interpret
+    prompt: |
+      b・c の AR(1) の予測では、2026年9月の予測値が約102.3で95%予測区間が約97.4〜107.1、2027年8月の予測値が約104.5で区間が約94.0〜115.0でした。この結果の読み方として最も適切なものはどれですか。
+    choices:
+      - "2027年8月の生産指数は104.5になる可能性が95%である"
+      - "先の月ほど不確かさが積み重なって区間は広がり、12か月先では幅が約21ポイントある。予測値が上がっていくのは平均（約105.4）への回帰で、その平均には生産水準の高い2018〜2019年が入っていることに注意して使う"
+      - "AIC が最も小さいモデルを選んだので、実際の値は必ず95%予測区間に入る"
+      - "予測区間が広いのは、季節調整済指数ではなく原指数を使ったためである"
+    answer: 1
+    explain: 95%予測区間は「モデルが正しければ、実際の値がこの範囲に入る確率が約95%」という幅で、予測値ちょうどになる確率ではありません。1か月先は約9.7ポイントの幅ですが、12か月先では約21ポイントに広がります。AR(1) の予測は平均の約105.4に近づくので、2026年8月の101.9から少しずつ上がっていきます。ただし平均は2018〜2019年の高い水準に引っ張られており、近年（2024〜2025年の平均は約101）の水準が続くなら、予測は高めに外れるかもしれません。また区間は「モデルが正しければ」の話で、2020年のような急なショックが起これば外に出ます。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第76ステップの復習】原指数 iip_nsa を、12か月前の値（前年同月の値）で説明する回帰を推定します。
+      iip に l12（lag(iip_nsa, 12)）を加えて iip_12 に代入し、lm(iip_nsa ~ l12, data = iip_12) を m12 に代入して coef(m12) を表示してください。
+    starter: |
+      iip_12 <-
+      m12 <-
+      coef(m12)
+    solution: |
+      iip_12 <- iip |>
+        mutate(l12 = lag(iip_nsa, 12))
+      m12 <- lm(iip_nsa ~ l12, data = iip_12)
+      coef(m12)
+    check: |
+      expect_object("iip_12", class = "data.frame")
+      expect_cols(iip_12, "l12")
+      check_that(isTRUE(all.equal(iip_12$l12, .sol$iip_12$l12)),
+                 "l12 が違います。lag(iip_nsa, 12) で12か月前の原指数を作りましょう。")
+      expect_object("m12", class = "lm")
+      check_that(nobs(m12) == 92,
+                 "観測数が92ではありません。最初の12か月は l12 が NA になるので、92か月で推定されるはずです。")
+      expect_model(m12, like = .sol$m12)
+      expect_value(.value, .sol_value, label = "表示した係数")
+    hints:
+      - 第76ステップ a と同じ形で、ずらす月数を12にし、季節調整済指数ではなく原指数を使います。
+      - mutate(l12 = lag(iip_nsa, 12)) と lm(iip_nsa ~ l12, data = iip_12) です。
+      - |
+        iip_12 <- iip |>
+          mutate(l12 = lag(iip_nsa, 12))
+        m12 <- lm(iip_nsa ~ l12, data = iip_12)
+        coef(m12)
+    tests:
+      fail:
+        - |
+          iip_12 <- iip |>
+            mutate(l12 = lag(iip_nsa))
+          m12 <- lm(iip_nsa ~ l12, data = iip_12)
+          coef(m12)
+        - |
+          iip_12 <- iip |>
+            mutate(l12 = lag(iip_sa, 12))
+          m12 <- lm(iip_sa ~ l12, data = iip_12)
+          coef(m12)

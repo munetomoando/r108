@@ -1,0 +1,238 @@
+id: "095"
+part: 11
+title: 分類とロジスティック回帰
+question: 誰が解約しそうか
+minutes: 50
+mode: browser
+packages: [readr, dplyr, rsample, recipes, parsnip, workflows, yardstick, tune]
+data: [churn.csv]
+learn: [logistic_reg, conf_mat, accuracy]
+review_of: "094"
+setup: |
+  library(readr); library(dplyr)
+  library(rsample); library(recipes); library(parsnip); library(workflows); library(yardstick); library(tune)
+  # そらまめマーケット（架空の会社）のネット通販の顧客5,000人。2025年10〜12月に注文がなければ解約（churned）
+  # churned は「yes（解約）」「no（継続）」の因子にしておく。最初の水準 yes が、予測したい側（注目する結果）
+  churn <- read_csv("data/churn.csv", show_col_types = FALSE) |>
+    mutate(churned = factor(churned, levels = c(1, 0), labels = c("yes", "no")))
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      【ロジスティック回帰で学習する】
+      1. set.seed(108) のあと、initial_split() で churn の75%を訓練データに回し（prop = 0.75）、解約の割合が訓練とテストでそろうよう strata = churned を付けて churn_split に代入する。training() と testing() で churn_train と churn_test を作る
+      2. recipe() で、churned を recency・frequency・monetary・age・channel・rank の6つで説明するレシピを churn_train から作り、churn_rec に代入する
+      3. workflow() に churn_rec と logistic_reg() を加えて logit_wf に代入する
+      4. fit() で logit_wf を churn_train に当てはめて logit_fit に代入し、表示する
+    starter: |
+      set.seed(108)
+      churn_split <-
+      churn_train <-
+      churn_test <-
+      churn_rec <-
+      logit_wf <-
+      logit_fit <-
+      logit_fit
+    solution: |
+      set.seed(108)
+      churn_split <- initial_split(churn, prop = 0.75, strata = churned)
+      churn_train <- training(churn_split)
+      churn_test <- testing(churn_split)
+      churn_rec <- recipe(churned ~ recency + frequency + monetary + age + channel + rank,
+                          data = churn_train)
+      logit_wf <- workflow() |>
+        add_recipe(churn_rec) |>
+        add_model(logistic_reg())
+      logit_fit <- fit(logit_wf, data = churn_train)
+      logit_fit
+    check: |
+      expect_object("churn_train", class = "data.frame")
+      expect_object("churn_test", class = "data.frame")
+      check_that(nrow(churn_train) == nrow(.sol$churn_train) && nrow(churn_test) == nrow(.sol$churn_test),
+                 "訓練データとテストデータの行数が違います。initial_split() に prop = 0.75 を付けましょう。")
+      check_that(identical(sort(churn_train$customer_id), sort(.sol$churn_train$customer_id)),
+                 "訓練データに入った顧客が違います。最初に set.seed(108) を実行し、initial_split() に strata = churned を付けましょう。")
+      expect_object("logit_fit", class = "workflow")
+      check_that(isTRUE(logit_fit$trained),
+                 "logit_fit がまだ学習されていません。fit(logit_wf, data = churn_train) としましょう。")
+      check_that(inherits(extract_fit_engine(logit_fit), "glm"),
+                 "モデルが違います。add_model(logistic_reg()) を使いましょう。")
+      expect_model(extract_fit_engine(logit_fit), like = extract_fit_engine(.sol$logit_fit))
+    hints:
+      - 「データを分ける（第92ステップ）→ レシピ → ワークフロー → 学習（第93ステップ）」の順です。違いは、モデルが linear_reg() ではなく、0か1かを予測する logistic_reg() になることだけです。
+      - initial_split(churn, prop = 0.75, strata = churned)、recipe(churned ~ recency + frequency + monetary + age + channel + rank, data = churn_train)、workflow() |> add_recipe(churn_rec) |> add_model(logistic_reg()) です。
+      - |
+        set.seed(108)
+        churn_split <- initial_split(churn, prop = 0.75, strata = churned)
+        churn_train <- training(churn_split)
+        churn_test <- testing(churn_split)
+        churn_rec <- recipe(churned ~ recency + frequency + monetary + age + channel + rank,
+                            data = churn_train)
+        logit_wf <- workflow() |>
+          add_recipe(churn_rec) |>
+          add_model(logistic_reg())
+        logit_fit <- fit(logit_wf, data = churn_train)
+        logit_fit
+    tests:
+      fail:
+        - |
+          set.seed(108)
+          churn_split <- initial_split(churn, prop = 0.75)
+          churn_train <- training(churn_split)
+          churn_test <- testing(churn_split)
+          churn_rec <- recipe(churned ~ recency + frequency + monetary + age + channel + rank,
+                              data = churn_train)
+          logit_wf <- workflow() |>
+            add_recipe(churn_rec) |>
+            add_model(logistic_reg())
+          logit_fit <- fit(logit_wf, data = churn_train)
+          logit_fit
+        - |
+          set.seed(108)
+          churn_split <- initial_split(churn, prop = 0.75, strata = churned)
+          churn_train <- training(churn_split)
+          churn_test <- testing(churn_split)
+          churn_rec <- recipe(churned ~ recency + frequency + monetary,
+                              data = churn_train)
+          logit_wf <- workflow() |>
+            add_recipe(churn_rec) |>
+            add_model(logistic_reg())
+          logit_fit <- fit(logit_wf, data = churn_train)
+          logit_fit
+  - id: b
+    type: write
+    prompt: |
+      【予測確率を出す】augment()（第93ステップ）で logit_fit の予測をテストデータ churn_test に付けて churn_pred に代入してください。
+      続けて churn_pred から解約の予測確率 .pred_yes が高い5人を slice_max() で取り出し、customer_id・recency・frequency・rank・.pred_yes・churned の6列を select() して表示してください。
+    starter: |
+      churn_pred <-
+
+    solution: |
+      churn_pred <- augment(logit_fit, new_data = churn_test)
+      churn_pred |>
+        slice_max(.pred_yes, n = 5) |>
+        select(customer_id, recency, frequency, rank, .pred_yes, churned)
+    check: |
+      expect_object("churn_pred", class = "data.frame")
+      expect_cols(churn_pred, c(".pred_class", ".pred_yes", ".pred_no", "churned"))
+      check_that(nrow(churn_pred) == nrow(.sol$churn_pred),
+                 "churn_pred の行数が違います。予測はテストデータ churn_test に付けましょう（new_data = churn_test）。")
+      expect_df_equal(churn_pred, .sol$churn_pred, ignore_row_order = TRUE)
+      expect_value(.value, .sol_value, label = "表示した上位5人の表")
+    hints:
+      - augment() は、データの右に予測の列（.pred_class・.pred_yes・.pred_no）を付けて返します。予測は、学習に使っていないテストデータに対して行います。
+      - augment(logit_fit, new_data = churn_test) です。上位5人は slice_max(.pred_yes, n = 5) で取り出します（第7ステップ）。
+      - |
+        churn_pred <- augment(logit_fit, new_data = churn_test)
+        churn_pred |>
+          slice_max(.pred_yes, n = 5) |>
+          select(customer_id, recency, frequency, rank, .pred_yes, churned)
+    tests:
+      fail:
+        - |
+          churn_pred <- augment(logit_fit, new_data = churn_train)
+          churn_pred |>
+            slice_max(.pred_yes, n = 5) |>
+            select(customer_id, recency, frequency, rank, .pred_yes, churned)
+        - |
+          churn_pred <- augment(logit_fit, new_data = churn_test)
+          churn_pred |>
+            slice_max(.pred_no, n = 5) |>
+            select(customer_id, recency, frequency, rank, .pred_yes, churned)
+  - id: c
+    type: write
+    prompt: |
+      【混同行列と正解率】churn_pred で、実際の結果 churned（truth）と予測した分類 .pred_class（estimate）を比べます。
+      conf_mat() の結果を logit_cm に代入して表示し、続けて accuracy() で正解率を求めて logit_acc に代入し、表示してください。
+    starter: |
+      logit_cm <-
+      logit_cm
+      logit_acc <-
+      logit_acc
+    solution: |
+      logit_cm <- conf_mat(churn_pred, truth = churned, estimate = .pred_class)
+      logit_cm
+      logit_acc <- accuracy(churn_pred, truth = churned, estimate = .pred_class)
+      logit_acc
+    check: |
+      expect_object("logit_cm", class = "conf_mat")
+      check_that(identical(unname(as.matrix(logit_cm$table)), unname(as.matrix(.sol$logit_cm$table))),
+                 "混同行列が違います。truth = churned（実際）、estimate = .pred_class（予測）の順に指定しましょう。")
+      expect_object("logit_acc", class = "data.frame")
+      expect_df_equal(logit_acc, .sol$logit_acc)
+      expect_value(.value, .sol_value, label = "表示した logit_acc")
+    hints:
+      - 混同行列は「予測（行）× 実際（列）」の2×2の表です。正解率は、表の対角線（予測と実際が一致した人）の割合です。
+      - conf_mat(churn_pred, truth = churned, estimate = .pred_class) と accuracy(churn_pred, truth = churned, estimate = .pred_class) です。
+      - |
+        logit_cm <- conf_mat(churn_pred, truth = churned, estimate = .pred_class)
+        logit_cm
+        logit_acc <- accuracy(churn_pred, truth = churned, estimate = .pred_class)
+        logit_acc
+    tests:
+      fail:
+        - |
+          logit_cm <- conf_mat(churn_pred, truth = .pred_class, estimate = churned)
+          logit_cm
+          logit_acc <- accuracy(churn_pred, truth = churned, estimate = .pred_class)
+          logit_acc
+        - |
+          logit_cm <- conf_mat(churn_pred, truth = churned, estimate = .pred_class)
+          logit_cm
+          logit_acc <- accuracy(augment(logit_fit, new_data = churn_train), truth = churned, estimate = .pred_class)
+          logit_acc
+  - id: d
+    type: interpret
+    prompt: |
+      テストデータ1,251人のうち、実際に解約したのは321人（25.7%）でした。c の正解率は約78.0%で、混同行列では、解約した321人のうち「解約する」と予測できたのは80人だけでした。この結果の読み方として最も適切なものはどれですか。
+    choices:
+      - "正解率が78%と高いので、このモデルで解約しそうな顧客をほぼ見つけられている"
+      - "全員を「継続する」と予測するだけでも正解率は約74.3%になる。78%はそれより少し高いだけで、解約した人の4分の3を見逃しているので、正解率だけでは解約を見つける力を評価できない"
+      - "正解率が100%でないので、このモデルは使えない。説明変数をすべて入れ直すべきだ"
+      - "テストデータでの正解率は訓練データの正解率より必ず高くなるので、78%は控えめな値である"
+    answer: 1
+    explain: |
+      解約しない人が約74%を占めるので、何も考えずに全員を「継続」と予測しても正解率は 930 ÷ 1,251 ≈ 74.3% になります。このように一方の結果が多いデータでは、正解率は高く見えても、少ない側（解約）を見つける力はほとんど分かりません。実際、解約した321人のうち予測で当たったのは80人（約25%）で、残りの241人を見逃しています。何を見逃し、何を空振りしたのかを混同行列で確かめ、目的に合う指標を選ぶ必要があります（次のステップ）。テストデータの正解率は、訓練データより低くなることが多く、高くなる保証はありません。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第94ステップの復習】同じロジスティック回帰を、訓練データの中の5分割交差検証で評価します。
+      set.seed(108) のあと、vfold_cv() で churn_train を5つに分け（v = 5、strata = churned）churn_folds に代入します。fit_resamples() で logit_wf を churn_folds に当てはめて logit_cv に代入し、collect_metrics(logit_cv) を表示してください。
+    starter: |
+      set.seed(108)
+      churn_folds <-
+      logit_cv <-
+
+    solution: |
+      set.seed(108)
+      churn_folds <- vfold_cv(churn_train, v = 5, strata = churned)
+      logit_cv <- fit_resamples(logit_wf, resamples = churn_folds)
+      collect_metrics(logit_cv)
+    check: |
+      expect_object("churn_folds", class = "rset")
+      expect_nrow(churn_folds, 5)
+      check_that(identical(sort(churn_folds$splits[[1]]$in_id), sort(.sol$churn_folds$splits[[1]]$in_id)),
+                 "分け方が違います。最初に set.seed(108) を実行し、vfold_cv(churn_train, v = 5, strata = churned) としましょう。")
+      expect_object("logit_cv", class = "resample_results")
+      expect_value(.value, .sol_value, label = "表示した collect_metrics(logit_cv)")
+    hints:
+      - 第94ステップと同じく、訓練データだけを5つに分け、4つで学習して残り1つで評価することを5回くり返します。テストデータには触れません。
+      - vfold_cv(churn_train, v = 5, strata = churned) と fit_resamples(logit_wf, resamples = churn_folds) です。学習前のワークフロー logit_wf を渡します。
+      - |
+        set.seed(108)
+        churn_folds <- vfold_cv(churn_train, v = 5, strata = churned)
+        logit_cv <- fit_resamples(logit_wf, resamples = churn_folds)
+        collect_metrics(logit_cv)
+    tests:
+      fail:
+        - |
+          set.seed(108)
+          churn_folds <- vfold_cv(churn_train, v = 10, strata = churned)
+          logit_cv <- fit_resamples(logit_wf, resamples = churn_folds)
+          collect_metrics(logit_cv)
+        - |
+          set.seed(108)
+          churn_folds <- vfold_cv(churn_train, v = 5)
+          logit_cv <- fit_resamples(logit_wf, resamples = churn_folds)
+          collect_metrics(logit_cv)

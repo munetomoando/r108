@@ -1,0 +1,50 @@
+---
+title: "流入経路と購入額"
+author: "空野 花子"
+format: dashboard
+lang: ja
+execute:
+  echo: false
+  warning: false
+  message: false
+knitr:
+  opts_chunk:
+    dev: ragg_png
+---
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(modelsummary)
+orders <- read_csv("data/ec_orders.csv", show_col_types = FALSE)
+customers <- read_csv("data/ec_customers.csv", show_col_types = FALSE)
+spend <- orders |>
+  filter(year(order_date) == 2025) |>
+  group_by(customer_id) |>
+  summarise(sales = sum(qty * unit_price))
+cust <- customers |>
+  filter(signup_date < ymd("2025-01-01")) |>
+  left_join(spend, by = "customer_id") |>
+  mutate(sales = replace_na(sales, 0), channel = fct_relevel(channel, "検索"))
+m2 <- lm(sales ~ channel + age, data = cust)
+```
+
+## Row {height="45%"}
+
+```{r}
+#| title: "経路別の平均購入額"
+cust |> group_by(channel) |> summarise(sales = mean(sales)) |>
+  ggplot(aes(x = channel, y = sales)) + geom_col() + labs(x = NULL, y = "円")
+```
+
+```{r}
+#| title: "購入額の分布"
+ggplot(cust, aes(x = channel, y = sales)) + geom_boxplot() + labs(x = NULL, y = "円")
+```
+
+## Row {height="55%"}
+
+```{r}
+#| title: "回帰（基準は検索経由）"
+modelsummary(list("(2)" = m2), vcov = "HC1", gof_map = c("nobs", "r.squared"), fmt = 0)
+```

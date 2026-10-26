@@ -1,0 +1,236 @@
+id: "085"
+part: 10
+title: コホート分析
+question: 初回購入から何か月で離れていくか
+minutes: 55
+mode: browser
+packages: [readr, dplyr, lubridate, ggplot2]
+data: [ec_orders.csv, ec_customers.csv]
+learn: []
+review_of: "084"
+setup: |
+  library(readr); library(dplyr); library(lubridate); library(ggplot2)
+  orders <- read_csv("data/ec_orders.csv", show_col_types = FALSE)
+  customers <- read_csv("data/ec_customers.csv", show_col_types = FALSE)
+  # 注文日をその月の1日にそろえた列 ym を加えておく
+  orders_m <- mutate(orders, ym = floor_date(order_date, unit = "month"))
+  # 第84ステップの復習用：顧客ごとの R・F・M（基準日 2025年12月31日）
+  rfm <- orders |>
+    mutate(sales = qty * unit_price) |>
+    group_by(customer_id) |>
+    summarise(recency = as.integer(ymd("2025-12-31") - max(order_date)),
+              frequency = n_distinct(order_id),
+              monetary = sum(sales)) |>
+    inner_join(select(customers, customer_id, channel, rank), by = "customer_id")
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      顧客ごとに、初めて注文した月（**コホート**）を付けます。
+      1. orders_m を customer_id ごとに集計し、最初の注文の月 cohort（min(ym)）を求める
+      2. customers の customer_id・signup_date・channel の3列と内部結合（inner_join）する
+      3. 2024年1月1日以降に会員登録した顧客（signup_date >= ymd("2024-01-01")）に絞る
+      この表を first_buy に代入し、count(first_buy, cohort) で各コホートの人数を表示してください。
+    starter: |
+      first_buy <- orders_m |>
+
+      count(first_buy, cohort)
+    solution: |
+      first_buy <- orders_m |>
+        group_by(customer_id) |>
+        summarise(cohort = min(ym)) |>
+        inner_join(select(customers, customer_id, signup_date, channel), by = "customer_id") |>
+        filter(signup_date >= ymd("2024-01-01"))
+      count(first_buy, cohort)
+    check: |
+      expect_object("first_buy", class = "data.frame")
+      expect_cols(first_buy, c("customer_id", "cohort", "signup_date", "channel"))
+      check_that(nrow(first_buy) == nrow(.sol$first_buy),
+                 "first_buy の人数が違います。2024年より前からの既存顧客は、データの最初の月（2024年1月）が初回購入に見えてしまうので、signup_date >= ymd(\"2024-01-01\") の顧客に絞りましょう。")
+      check_that(isTRUE(all.equal(sort(first_buy$cohort), sort(.sol$first_buy$cohort))),
+                 "cohort が違います。顧客ごとに最も早い月 min(ym) をとりましょう。")
+      expect_df_equal(first_buy, .sol$first_buy, ignore_row_order = TRUE)
+      expect_value(.value, .sol_value, label = "表示したコホートごとの人数")
+    hints:
+      - 初回購入月は「その顧客の注文の月のうち最も早いもの」です。データは2024年1月からなので、それより前から買っていた顧客は除きます。
+      - group_by(customer_id) |> summarise(cohort = min(ym)) のあと、inner_join(select(customers, customer_id, signup_date, channel), by = "customer_id") |> filter(signup_date >= ymd("2024-01-01")) です。
+      - |
+        first_buy <- orders_m |>
+          group_by(customer_id) |>
+          summarise(cohort = min(ym)) |>
+          inner_join(select(customers, customer_id, signup_date, channel), by = "customer_id") |>
+          filter(signup_date >= ymd("2024-01-01"))
+        count(first_buy, cohort)
+    tests:
+      fail:
+        - |
+          first_buy <- orders_m |>
+            group_by(customer_id) |>
+            summarise(cohort = min(ym)) |>
+            inner_join(select(customers, customer_id, signup_date, channel), by = "customer_id")
+          count(first_buy, cohort)
+        - |
+          first_buy <- orders_m |>
+            group_by(customer_id) |>
+            summarise(cohort = max(ym)) |>
+            inner_join(select(customers, customer_id, signup_date, channel), by = "customer_id") |>
+            filter(signup_date >= ymd("2024-01-01"))
+          count(first_buy, cohort)
+  - id: b
+    type: write
+    prompt: |
+      コホートごとに、初回購入から k か月後に注文した顧客の割合（**継続率**）を求めます。
+      1. orders_m に first_buy を customer_id で内部結合し、経過月 month_n（(year(ym) − year(cohort)) × 12 + month(ym) − month(cohort)）を作る
+      2. cohort と month_n ごとに、注文した顧客の数 active（customer_id の種類の数）を集計する（.groups = "drop"）
+      3. コホートの人数 count(first_buy, cohort, name = "size") を cohort で左結合し、継続率 rate（active ÷ size）を加える
+      この表を ret に代入し、2025年1月のコホート（cohort == ymd("2025-01-01")）の行を表示してください。
+    starter: |
+      ret <- orders_m |>
+
+      filter(ret, cohort == ymd("2025-01-01"))
+    solution: |
+      ret <- orders_m |>
+        inner_join(first_buy, by = "customer_id") |>
+        mutate(month_n = (year(ym) - year(cohort)) * 12 + month(ym) - month(cohort)) |>
+        group_by(cohort, month_n) |>
+        summarise(active = n_distinct(customer_id), .groups = "drop") |>
+        left_join(count(first_buy, cohort, name = "size"), by = "cohort") |>
+        mutate(rate = active / size)
+      filter(ret, cohort == ymd("2025-01-01"))
+    check: |
+      expect_object("ret", class = "data.frame")
+      expect_cols(ret, c("cohort", "month_n", "active", "size", "rate"))
+      check_that(nrow(ret) == nrow(.sol$ret),
+                 "ret の行数が違います。group_by(cohort, month_n) で、コホートと経過月の組ごとに1行にしましょう。")
+      check_that(all(ret$rate[ret$month_n == 0] == 1),
+                 "0か月目の継続率は全コホートで1（100%）になるはずです。month_n の作り方と、size（コホートの人数）を確かめましょう。")
+      check_that(isTRUE(all.equal(ret$active, .sol$ret$active)),
+                 "active が違います。明細の行数 n() ではなく、n_distinct(customer_id) で顧客の数を数えましょう。")
+      expect_df_equal(ret, .sol$ret, ignore_row_order = TRUE)
+      expect_value(.value, .sol_value, label = "表示した2025年1月のコホート")
+    hints:
+      - 経過月は「注文の月 − 初回購入の月」を月数で表したものです。年が変わるので、年の差 × 12 に月の差を足します。継続率の分母は、各コホートの最初の人数です。
+      - mutate(month_n = (year(ym) - year(cohort)) * 12 + month(ym) - month(cohort)) |> group_by(cohort, month_n) |> summarise(active = n_distinct(customer_id), .groups = "drop") のあと、left_join(count(first_buy, cohort, name = "size"), by = "cohort") です。
+      - |
+        ret <- orders_m |>
+          inner_join(first_buy, by = "customer_id") |>
+          mutate(month_n = (year(ym) - year(cohort)) * 12 + month(ym) - month(cohort)) |>
+          group_by(cohort, month_n) |>
+          summarise(active = n_distinct(customer_id), .groups = "drop") |>
+          left_join(count(first_buy, cohort, name = "size"), by = "cohort") |>
+          mutate(rate = active / size)
+        filter(ret, cohort == ymd("2025-01-01"))
+    tests:
+      fail:
+        - |
+          ret <- orders_m |>
+            inner_join(first_buy, by = "customer_id") |>
+            mutate(month_n = month(ym) - month(cohort)) |>
+            group_by(cohort, month_n) |>
+            summarise(active = n_distinct(customer_id), .groups = "drop") |>
+            left_join(count(first_buy, cohort, name = "size"), by = "cohort") |>
+            mutate(rate = active / size)
+          filter(ret, cohort == ymd("2025-01-01"))
+        - |
+          ret <- orders_m |>
+            inner_join(first_buy, by = "customer_id") |>
+            mutate(month_n = (year(ym) - year(cohort)) * 12 + month(ym) - month(cohort)) |>
+            group_by(cohort, month_n) |>
+            summarise(active = n(), .groups = "drop") |>
+            left_join(count(first_buy, cohort, name = "size"), by = "cohort") |>
+            mutate(rate = active / size)
+          filter(ret, cohort == ymd("2025-01-01"))
+  - id: c
+    type: write
+    prompt: |
+      継続率の表をヒートマップ（色の濃さで値を表す図）にします。0か月目は全コホートで100%なので、色の幅を広げるために除きます。
+      ret を month_n が1以上の行に絞って ret1 に代入し、横軸に month_n、縦軸に cohort、塗り（fill）に rate を対応づけて geom_tile() で描き、scale_fill_viridis_c() で色を付けてください。
+    starter: |
+      ret1 <-
+      ggplot(ret1, aes(x = month_n, y = cohort, fill = rate)) +
+
+    solution: |
+      ret1 <- filter(ret, month_n >= 1)
+      ggplot(ret1, aes(x = month_n, y = cohort, fill = rate)) +
+        geom_tile() +
+        scale_fill_viridis_c()
+    check: |
+      expect_object("ret1", class = "data.frame")
+      check_that(min(ret1$month_n) == 1 && nrow(ret1) == nrow(.sol$ret1),
+                 "ret1 は month_n が1以上の行です。filter(ret, month_n >= 1) で0か月目を除きましょう。")
+      expect_ggplot(geom = "tile", x = "month_n", y = "cohort", fill = "rate")
+      expect_df_equal(.plot$data, .sol_plot$data, ignore_row_order = TRUE)
+    hints:
+      - 第25ステップのタイル地図と同じ geom_tile() で、マスの位置を「経過月 × コホート」にし、色を継続率にします。
+      - filter(ret, month_n >= 1) で絞り、ggplot(ret1, aes(x = month_n, y = cohort, fill = rate)) + geom_tile() + scale_fill_viridis_c() です。
+      - |
+        ret1 <- filter(ret, month_n >= 1)
+        ggplot(ret1, aes(x = month_n, y = cohort, fill = rate)) +
+          geom_tile() +
+          scale_fill_viridis_c()
+    tests:
+      fail:
+        - |
+          ret1 <- filter(ret, month_n >= 1)
+          ggplot(ret1, aes(x = month_n, y = cohort, fill = active)) +
+            geom_tile() +
+            scale_fill_viridis_c()
+        - |
+          ret1 <- ret
+          ggplot(ret1, aes(x = month_n, y = cohort, fill = rate)) +
+            geom_tile() +
+            scale_fill_viridis_c()
+  - id: d
+    type: interpret
+    prompt: |
+      全コホートをまとめた継続率は、1か月後が約43%、6か月後が約43%、12か月後が約40%で、1か月目に大きく下がった後はほぼ横ばいでした。流入経路別では、1か月後の継続率が紹介 約55%、検索 約45%、SNS 約39%、広告 約38%、12か月後が紹介 約48%、検索 約40%、SNS 約39%、広告 約38% でした。この結果の読み方として最も適切なものはどれですか。
+    choices:
+      - "1か月後に約57%の顧客が注文しなかったので、新規顧客の半分以上は1か月で二度と買わなくなる"
+      - "紹介経由の継続率が最も高いので、広告をやめて紹介に予算を回せば、全体の継続率は必ず紹介経由の水準まで上がる"
+      - "継続率は1か月目に下がった後ほぼ横ばいで、毎月買うわけではないが買い続ける顧客が多い。流入経路で差があり、紹介経由は1年後も継続率が高く、広告経由は低い。ただし経路は顧客が選んだものなので、この差がすべて経路の効果とは言えない"
+      - "コホートによって継続率が少しずつ違うので、コホート分析からは何も言えない"
+    answer: 2
+    explain: このヒートマップの継続率は「その月に注文したか」で数えています。1か月後に注文しなかった顧客の多くは、その後の月にまた注文しており、継続率が12か月後まで40%前後で保たれています。月ごとに注文するかどうかの上下と、本当に離れること（解約）は区別が必要です（選択肢1は誤り）。流入経路の差ははっきりしていますが、紹介で来る人はもともと買う意欲の高い人かもしれず、経路を変えた場合の効果は分かりません（選択肢2は誤り）。コホートごとの細かい違いには偶然のばらつきもありますが、全体の形（1か月目の落ち込みとその後の横ばい）や経路の差は読み取れます（選択肢4は誤り）。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第84ステップの復習】rfm に m_score（ntile(monetary, 5)）を加え、channel ごとに人数 n と、m_score = 5（売上の上位20%）に入る人の割合 top_rate（mean(m_score == 5)）を集計して表示してください。
+    starter: |
+      rfm |>
+        mutate() |>
+        group_by(channel) |>
+        summarise()
+    solution: |
+      rfm |>
+        mutate(m_score = ntile(monetary, 5)) |>
+        group_by(channel) |>
+        summarise(n = n(),
+                  top_rate = mean(m_score == 5))
+    check: |
+      check_that(is.data.frame(.value) && all(c("channel", "n", "top_rate") %in% names(.value)),
+                 "channel・n・top_rate の3列の表を表示しましょう。")
+      expect_df_equal(.value, .sol_value, ignore_row_order = TRUE)
+    hints:
+      - 第84ステップ b の m_score を作り、流入経路ごとに「5点の人の割合」を求めます。TRUE/FALSE の平均は TRUE の割合です。
+      - mutate(m_score = ntile(monetary, 5)) |> group_by(channel) |> summarise(n = n(), top_rate = mean(m_score == 5)) です。
+      - |
+        rfm |>
+          mutate(m_score = ntile(monetary, 5)) |>
+          group_by(channel) |>
+          summarise(n = n(),
+                    top_rate = mean(m_score == 5))
+    tests:
+      fail:
+        - |
+          rfm |>
+            mutate(m_score = ntile(desc(monetary), 5)) |>
+            group_by(channel) |>
+            summarise(n = n(),
+                      top_rate = mean(m_score == 5))
+        - |
+          rfm |>
+            mutate(m_score = ntile(monetary, 5)) |>
+            group_by(channel) |>
+            summarise(n = n(),
+                      top_rate = mean(m_score))

@@ -1,0 +1,187 @@
+id: "065"
+part: 8
+title: 固定効果
+question: 県の違いと年の動きを取り除くと、最低賃金と若年就業率の関係はどう変わるか
+minutes: 50
+mode: browser
+packages: [readr, dplyr, fixest]
+data: [minwage_panel.csv]
+learn: []
+review_of: "064"
+setup: |
+  library(readr); library(dplyr); library(fixest)
+  # 47県×2012〜2024年の架空のパネル。12県で2019年から最低賃金の「特別引上げ」（架空の政策）
+  mw <- read_csv("data/minwage_panel.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      まず、県や年の違いを気にせず、611行をすべてまとめて回帰します（プールした OLS）。
+      若年就業率 youth_emp_rate を最低賃金 min_wage で説明する回帰を feols() で推定して m_pool に代入し、coef(m_pool) を表示してください。
+    starter: |
+      m_pool <- feols( , data = mw)
+      coef(m_pool)
+    solution: |
+      m_pool <- feols(youth_emp_rate ~ min_wage, data = mw)
+      coef(m_pool)
+    check: |
+      expect_object("m_pool", class = "fixest")
+      expect_model(m_pool, like = .sol$m_pool)
+      expect_value(.value, .sol_value, label = "表示した係数")
+    hints:
+      - 第43ステップと同じく、feols() は lm() と同じ式の書き方で回帰を推定できます。
+      - 式は youth_emp_rate ~ min_wage です。
+      - |
+        m_pool <- feols(youth_emp_rate ~ min_wage, data = mw)
+        coef(m_pool)
+    tests:
+      fail:
+        - |
+          m_pool <- feols(min_wage ~ youth_emp_rate, data = mw)
+          coef(m_pool)
+        - |
+          m_pool <- feols(youth_emp_rate ~ min_wage | pref_code, data = mw)
+          coef(m_pool)
+  - id: b
+    type: fill
+    prompt: |
+      次に、県の固定効果と年の固定効果を入れた**二元固定効果**モデルを推定します。fixest では、式の `|` の右に固定効果にする変数を `+` でつないで書きます。
+      youth_emp_rate を min_wage で説明し、pref_code と year の固定効果を入れたモデルを m_fe に代入し、coef(m_fe) を表示してください。
+    starter: |
+      m_fe <- feols(youth_emp_rate ~ min_wage | ___, data = mw)
+      coef(m_fe)
+    solution: |
+      m_fe <- feols(youth_emp_rate ~ min_wage | pref_code + year, data = mw)
+      coef(m_fe)
+    check: |
+      expect_object("m_fe", class = "fixest")
+      check_that(identical(sort(m_fe$fixef_vars), c("pref_code", "year")),
+                 "固定効果は pref_code と year の2つです。式の | の右に pref_code + year と書きましょう。")
+      expect_model(m_fe, like = .sol$m_fe)
+      expect_value(.value, .sol_value, label = "表示した係数")
+    hints:
+      - 県ごとの水準の違いは pref_code の固定効果、全国共通の年ごとの動きは year の固定効果で取り除きます。
+      - youth_emp_rate ~ min_wage | pref_code + year と書きます。
+      - |
+        m_fe <- feols(youth_emp_rate ~ min_wage | pref_code + year, data = mw)
+        coef(m_fe)
+    tests:
+      fail:
+        - |
+          m_fe <- feols(youth_emp_rate ~ min_wage | pref_code, data = mw)
+          coef(m_fe)
+        - |
+          m_fe <- feols(youth_emp_rate ~ min_wage | year, data = mw)
+          coef(m_fe)
+  - id: c
+    type: write
+    prompt: |
+      b のモデルの標準誤差を2通りで計算して比べます。
+      1. b と同じ式で、vcov = "iid"（誤差が互いに無関係で、ばらつきが一定という前提の標準誤差）を付けたモデルを m_iid に代入する
+      2. 同じ式で、cluster = ~pref_code（県でクラスタした標準誤差）を付けたモデルを m_cl に代入する
+      3. se(m_iid)、se(m_cl) を表示し、最後に se(m_cl) / se(m_iid) を表示する
+    starter: |
+      m_iid <- feols(youth_emp_rate ~ min_wage | pref_code + year, data = mw, )
+      m_cl <- feols(youth_emp_rate ~ min_wage | pref_code + year, data = mw, )
+      se(m_iid)
+      se(m_cl)
+
+    solution: |
+      m_iid <- feols(youth_emp_rate ~ min_wage | pref_code + year, data = mw, vcov = "iid")
+      m_cl <- feols(youth_emp_rate ~ min_wage | pref_code + year, data = mw, cluster = ~pref_code)
+      se(m_iid)
+      se(m_cl)
+      se(m_cl) / se(m_iid)
+    check: |
+      expect_object("m_iid", class = "fixest")
+      expect_object("m_cl", class = "fixest")
+      expect_model(m_iid, like = .sol$m_iid)
+      expect_model(m_cl, like = .sol$m_cl)
+      check_that(isTRUE(all.equal(as.numeric(se(m_iid)), as.numeric(se(.sol$m_iid)), tolerance = 1e-6)),
+                 "m_iid の標準誤差が違います。feols() の中に vcov = \"iid\" を書きましょう。")
+      check_that(isTRUE(all.equal(as.numeric(se(m_cl)), as.numeric(se(.sol$m_cl)), tolerance = 1e-6)),
+                 "m_cl の標準誤差が県でクラスタした標準誤差になっていません。feols() の中に cluster = ~pref_code を書きましょう。")
+      expect_value(.value, .sol_value, label = "最後に表示した比（クラスタ ÷ iid）")
+    hints:
+      - 係数は2つのモデルで同じです。違うのは標準誤差の計算方法だけなので、引数を1つずつ足します。
+      - vcov = "iid" と cluster = ~pref_code です。cluster の右は「~ 変数名」の形で書きます。
+      - |
+        m_iid <- feols(youth_emp_rate ~ min_wage | pref_code + year, data = mw, vcov = "iid")
+        m_cl <- feols(youth_emp_rate ~ min_wage | pref_code + year, data = mw, cluster = ~pref_code)
+        se(m_iid)
+        se(m_cl)
+        se(m_cl) / se(m_iid)
+    tests:
+      fail:
+        - |
+          m_iid <- feols(youth_emp_rate ~ min_wage | pref_code + year, data = mw, vcov = "iid")
+          m_cl <- feols(youth_emp_rate ~ min_wage | pref_code + year, data = mw, vcov = "hetero")
+          se(m_iid)
+          se(m_cl)
+          se(m_cl) / se(m_iid)
+        - |
+          m_iid <- feols(youth_emp_rate ~ min_wage | pref_code + year, data = mw, vcov = "iid")
+          m_cl <- feols(youth_emp_rate ~ min_wage | pref_code + year, data = mw, cluster = ~year)
+          se(m_iid)
+          se(m_cl)
+          se(m_cl) / se(m_iid)
+  - id: d
+    type: interpret
+    prompt: |
+      a のプールした OLS では min_wage の係数は約 +0.0072 でした（最低賃金が高いほど若年就業率が高い）。b の二元固定効果では約 −0.0147 で、符号が逆になりました。なお、県の固定効果だけを入れると約 +0.0076、年の固定効果だけを入れると約 −0.0002 です。この違いの説明として最も適切なものはどれですか。
+    choices:
+      - "二元固定効果は推定に使える情報が少ないので、符号が逆になったのは推定の誤差にすぎない。プールした OLS の結果を信じればよい"
+      - "最低賃金は全国で毎年上がり、若年就業率も全国で上がる傾向があったため、プールした OLS にはこの共通の時間の動きが混ざっていた。県と年の固定効果で県の水準の違いと全国共通の動きを取り除くと、「同じ県で、その年の全国の動き以上に最低賃金が上がったとき」の関係を見ることになり、負の値になった"
+      - "県の固定効果を入れれば年の動きも自動的に取り除かれるので、年の固定効果は入れても入れなくても同じである"
+      - "二元固定効果を使ったので、最低賃金を100円上げると若年就業率が1.47ポイント下がるという因果効果が、仮定なしに証明された"
+    answer: 1
+    explain: 最低賃金は全県で毎年20円ほど上がり、若年就業率も全国で緩やかに上がっています。プールした OLS や県の固定効果だけのモデルでは、この「どちらも時間とともに上がる」関係が正の係数として現れます（県の固定効果だけでも約 +0.0076）。年の固定効果を入れると全国共通の動きが消え、残るのは主に、特別引上げで対象県の最低賃金が他県より余分に上がった部分です。その部分と若年就業率の関係が約 −0.0147 です。固定効果は「県ごとに一定の違い」と「全国共通の年の動き」しか取り除けません。県ごとに違う時期に起きた別の出来事は残るので、因果効果と読むには、それがないという仮定が必要です（選択肢4は誤り）。県の固定効果は時間の動きを取り除かないので、選択肢3も誤りです。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第64ステップの復習】県内平均を引く within 変換を、若年就業率と最低賃金の両方に行います。
+      1. mw を pref_code でグループに分け、mutate() で y_dm = youth_emp_rate - mean(youth_emp_rate) と x_dm = min_wage - mean(min_wage) を加え、ungroup() して mw_w に代入する
+      2. lm(y_dm ~ x_dm, data = mw_w) の係数を coef() で表示する
+    starter: |
+      mw_w <- mw |>
+
+      coef(lm(y_dm ~ x_dm, data = mw_w))
+    solution: |
+      mw_w <- mw |>
+        group_by(pref_code) |>
+        mutate(y_dm = youth_emp_rate - mean(youth_emp_rate),
+               x_dm = min_wage - mean(min_wage)) |>
+        ungroup()
+      coef(lm(y_dm ~ x_dm, data = mw_w))
+    check: |
+      expect_object("mw_w", class = "data.frame")
+      expect_cols(mw_w, c("y_dm", "x_dm"))
+      check_that(length(dplyr::group_vars(mw_w)) == 0,
+                 "mw_w にグループが残っています。最後に ungroup() をつなぎましょう。")
+      expect_df_equal(mw_w, .sol$mw_w)
+      expect_value(.value, .sol_value, label = "表示した係数", tol = 1e-6)
+    hints:
+      - 第64ステップ b と同じく、group_by(pref_code) のあとの mutate() で mean() を使うと県ごとの平均になります。今回は2つの列で行います。
+      - mutate(y_dm = youth_emp_rate - mean(youth_emp_rate), x_dm = min_wage - mean(min_wage)) のあとに ungroup() をつなぎます。
+      - |
+        mw_w <- mw |>
+          group_by(pref_code) |>
+          mutate(y_dm = youth_emp_rate - mean(youth_emp_rate),
+                 x_dm = min_wage - mean(min_wage)) |>
+          ungroup()
+        coef(lm(y_dm ~ x_dm, data = mw_w))
+    tests:
+      fail:
+        - |
+          mw_w <- mw |>
+            mutate(y_dm = youth_emp_rate - mean(youth_emp_rate),
+                   x_dm = min_wage - mean(min_wage))
+          coef(lm(y_dm ~ x_dm, data = mw_w))
+        - |
+          mw_w <- mw |>
+            group_by(year) |>
+            mutate(y_dm = youth_emp_rate - mean(youth_emp_rate),
+                   x_dm = min_wage - mean(min_wage)) |>
+            ungroup()
+          coef(lm(y_dm ~ x_dm, data = mw_w))

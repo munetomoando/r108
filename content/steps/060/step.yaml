@@ -1,0 +1,182 @@
+id: "060"
+part: 7
+title: マッチング
+question: 似た人どうしを比べる
+minutes: 55
+mode: browser
+packages: [readr, dplyr, MatchIt]
+data: [training_obs.csv]
+learn: [matchit, match.data]
+allow: [cbind]
+review_of: "059"
+setup: |
+  library(readr); library(dplyr); library(MatchIt)
+  # 職業訓練の観察データ（4,000人、架空のデータ）。参加するかどうかは本人が決めた
+  obs <- read_csv("data/training_obs.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      参加者1人ひとりに、前年収入・年齢・教育年数・性別が似た不参加者を1人ずつ組み合わせます。
+      matchit(treat ~ prior_earn + age + educ_years + female, data = obs, method = "nearest") の結果を m_match に代入し、m_match を表示してください。
+    starter: |
+      m_match <-
+      m_match
+    solution: |
+      m_match <- matchit(treat ~ prior_earn + age + educ_years + female,
+                         data = obs, method = "nearest")
+      m_match
+    check: |
+      expect_object("m_match", class = "matchit")
+      check_that(setequal(all.vars(m_match$formula), all.vars(.sol$m_match$formula)),
+                 "~ の左に treat、右に prior_earn・age・educ_years・female を並べましょう。")
+      check_that(identical(m_match$match.matrix, .sol$m_match$match.matrix),
+                 "組み合わせが正解と違います。method = \"nearest\" を指定し、ほかの引数は付けずに実行しましょう。")
+    hints:
+      - matchit() の式は「~ の左に処置、右にそろえたい変数」です。lm() と同じ書き方です。
+      - method = "nearest" は最近傍マッチング（いちばん似た人を選ぶ方法）です。data = obs も忘れずに付けます。
+      - |
+        m_match <- matchit(treat ~ prior_earn + age + educ_years + female,
+                           data = obs, method = "nearest")
+        m_match
+    tests:
+      fail:
+        - |
+          m_match <- matchit(treat ~ age + educ_years + female,
+                             data = obs, method = "nearest")
+          m_match
+        - |
+          m_match <- matchit(treat ~ prior_earn + age + educ_years + female,
+                             data = obs, method = "nearest", replace = TRUE)
+          m_match
+  - id: b
+    type: fill
+    prompt: |
+      マッチングの前と後で、参加者と不参加者がどれだけ似てきたか（**バランス**）を確かめます。
+      summary(m_match) の結果を bal に代入し、標準化平均差（Std. Mean Diff.）をマッチング前（sum.all）と後（sum.matched）で並べた表を、小数第2位まで表示してください。
+    starter: |
+      bal <- summary(___)
+      round(cbind(before = bal$___[, "Std. Mean Diff."],
+                  after = bal$___[, "Std. Mean Diff."]), 2)
+    solution: |
+      bal <- summary(m_match)
+      round(cbind(before = bal$sum.all[, "Std. Mean Diff."],
+                  after = bal$sum.matched[, "Std. Mean Diff."]), 2)
+    check: |
+      expect_object("bal", class = "summary.matchit")
+      expect_value(.value, .sol_value, label = "標準化平均差の表")
+    hints:
+      - summary() にマッチングの結果を渡すと、マッチング前のバランス（sum.all）と後のバランス（sum.matched）が入った結果が返ります。
+      - before には bal$sum.all、after には bal$sum.matched の "Std. Mean Diff." の列を入れます。
+      - |
+        bal <- summary(m_match)
+        round(cbind(before = bal$sum.all[, "Std. Mean Diff."],
+                    after = bal$sum.matched[, "Std. Mean Diff."]), 2)
+    tests:
+      fail:
+        - |
+          bal <- summary(m_match)
+          round(cbind(before = bal$sum.matched[, "Std. Mean Diff."],
+                      after = bal$sum.all[, "Std. Mean Diff."]), 2)
+        - |
+          bal <- summary(m_match)
+          round(cbind(before = bal$sum.all[, "Means Treated"],
+                      after = bal$sum.matched[, "Means Treated"]), 2)
+  - id: c
+    type: write
+    prompt: |
+      組み合わせた人だけのデータで、参加者についての平均処置効果（ATT）を推定します。
+      1. match.data(m_match) を md に代入する
+      2. lm(earn_post ~ treat, data = md, weights = weights) を m_att に代入する
+      3. 共変量も入れた lm(earn_post ~ treat + prior_earn + age + educ_years + female, data = md, weights = weights) を m_att2 に代入する
+      4. c(coef(m_att)[["treat"]], coef(m_att2)[["treat"]]) を表示する
+    starter: |
+      md <-
+      m_att <-
+      m_att2 <-
+
+    solution: |
+      md <- match.data(m_match)
+      m_att <- lm(earn_post ~ treat, data = md, weights = weights)
+      m_att2 <- lm(earn_post ~ treat + prior_earn + age + educ_years + female,
+                   data = md, weights = weights)
+      c(coef(m_att)[["treat"]], coef(m_att2)[["treat"]])
+    check: |
+      expect_object("md", class = "data.frame")
+      expect_df_equal(md, .sol$md, ignore_row_order = TRUE)
+      expect_object("m_att", class = "lm")
+      expect_model(m_att, like = .sol$m_att)
+      check_that(!is.null(m_att$call$weights), "m_att の lm() に weights = weights を付けましょう。")
+      expect_object("m_att2", class = "lm")
+      expect_model(m_att2, like = .sol$m_att2)
+      check_that(!is.null(m_att2$call$weights), "m_att2 の lm() に weights = weights を付けましょう。")
+      expect_value(.value, .sol_value, label = "最後に表示した2つの係数")
+    hints:
+      - match.data() は、組み合わせに選ばれた人だけの表を返します。重みの列 weights も付いてきます。
+      - 回帰は data = md とし、weights = weights で重みを指定します。2つの回帰の違いは共変量を入れるかどうかだけです。
+      - |
+        md <- match.data(m_match)
+        m_att <- lm(earn_post ~ treat, data = md, weights = weights)
+        m_att2 <- lm(earn_post ~ treat + prior_earn + age + educ_years + female,
+                     data = md, weights = weights)
+        c(coef(m_att)[["treat"]], coef(m_att2)[["treat"]])
+    tests:
+      fail:
+        - |
+          md <- match.data(m_match)
+          m_att <- lm(earn_post ~ treat, data = obs)
+          m_att2 <- lm(earn_post ~ treat + prior_earn + age + educ_years + female,
+                       data = md, weights = weights)
+          c(coef(m_att)[["treat"]], coef(m_att2)[["treat"]])
+        - |
+          md <- match.data(m_match)
+          m_att <- lm(earn_post ~ treat, data = md)
+          m_att2 <- lm(earn_post ~ treat + prior_earn + age + educ_years + female, data = md)
+          c(coef(m_att)[["treat"]], coef(m_att2)[["treat"]])
+  - id: d
+    type: interpret
+    prompt: |
+      c の推定値は、共変量なしで約22.7万円、共変量ありで約28.3万円でした（真の効果は +30万円）。正しい説明はどれですか。
+    choices:
+      - "推定しているのは参加者についての平均効果（ATT）である。共変量なしの値が低めなのは、マッチング後も前年収入などに小さな差が残っているためで、共変量を入れるとその差が調整される"
+      - "推定しているのは、不参加者も含めた4,000人全員の平均効果である"
+      - "マッチングで似た人を選んだので、観察できない意欲などの違いもそろい、推定値はそのまま因果効果と言える"
+      - "マッチングで2,204人に減ったので、推定値は信用できない"
+    answer: 0
+    explain: |
+      最近傍マッチングでは参加者1,102人全員に不参加者を1人ずつ組み合わせるので、推定値は参加者についての平均処置効果（ATT）です。b の表を見ると、マッチング後も前年収入の標準化平均差は約−0.09、年齢は約−0.07と、0にはなっていません。組み合わせた不参加者の前年収入は平均で約7万円高く、その分だけ共変量なしの推定は低めに出ます。マッチングの後に共変量を入れた回帰を行うと、残った差も調整できます。
+      ただし、マッチングがそろえるのは、式に入れた観察できる変数だけです。観察できない変数で参加が決まっているなら、マッチングでも偏りは残ります。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第59ステップの復習】共通サポートを数字で確かめます。
+      obs を treat でグループ分けし、前年収入 prior_earn の最小値 min_earn と最大値 max_earn を求めて、表示してください。
+    starter: |
+      obs |>
+        group_by() |>
+        summarise()
+    solution: |
+      obs |>
+        group_by(treat) |>
+        summarise(min_earn = min(prior_earn), max_earn = max(prior_earn))
+    check: |
+      expect_uses("group_by")
+      expect_value(.value, .sol_value, label = "群別の最小値と最大値の表")
+    hints:
+      - 群ごとに集計するときは group_by() の後に summarise() をつなぎます。
+      - summarise() の中に min_earn = min(prior_earn), max_earn = max(prior_earn) と書きます。
+      - |
+        obs |>
+          group_by(treat) |>
+          summarise(min_earn = min(prior_earn), max_earn = max(prior_earn))
+    tests:
+      fail:
+        - |
+          obs |>
+            group_by(female) |>
+            summarise(min_earn = min(prior_earn), max_earn = max(prior_earn))
+        - |
+          obs |>
+            group_by(treat) |>
+            summarise(min_earn = min(earn_post), max_earn = max(earn_post))

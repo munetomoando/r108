@@ -1,0 +1,202 @@
+id: "076"
+part: 9
+title: 自己回帰モデル
+question: 先月の生産で今月を予測できるか
+minutes: 45
+mode: browser
+packages: [readr, dplyr, lubridate, ggplot2]
+data: [iip_monthly.csv]
+learn: [arima, tail]
+review_of: "075"
+setup: |
+  library(readr); library(dplyr); library(lubridate); library(ggplot2)
+  # 経済産業省「鉱工業生産指数」2020年基準（2026年10月24日取得時点）。2018年1月〜2026年8月の月次
+  iip <- read_csv("data/iip_monthly.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      iip に、1か月前の季節調整済指数 prev（lag(iip_sa)）を加えて iip_l に代入してください。
+      続けて、今月の iip_sa を prev で説明する回帰 lm(iip_sa ~ prev, data = iip_l) を m_lm に代入し、coef(m_lm) を表示します。
+    starter: |
+      iip_l <- iip |>
+        mutate()
+      m_lm <-
+      coef(m_lm)
+    solution: |
+      iip_l <- iip |>
+        mutate(prev = lag(iip_sa))
+      m_lm <- lm(iip_sa ~ prev, data = iip_l)
+      coef(m_lm)
+    check: |
+      expect_object("iip_l", class = "data.frame")
+      expect_cols(iip_l, "prev")
+      check_that(isTRUE(all.equal(iip_l$prev, .sol$iip_l$prev)),
+                 "prev が違います。lag(iip_sa) で1か月前の季節調整済指数を作りましょう。")
+      expect_object("m_lm", class = "lm")
+      check_that(nobs(m_lm) == 103,
+                 "観測数が103ではありません。最初の月は prev が NA なので、103か月で推定されるはずです。")
+      expect_model(m_lm, like = .sol$m_lm)
+      expect_value(.value, .sol_value, label = "表示した係数")
+    hints:
+      - 第73ステップの lag() で「先月の値」の列を作り、それを説明変数にした回帰を lm() で推定します。
+      - mutate(prev = lag(iip_sa)) と lm(iip_sa ~ prev, data = iip_l) です。
+      - |
+        iip_l <- iip |>
+          mutate(prev = lag(iip_sa))
+        m_lm <- lm(iip_sa ~ prev, data = iip_l)
+        coef(m_lm)
+    tests:
+      fail:
+        - |
+          iip_l <- iip |>
+            mutate(prev = lag(iip_sa, 12))
+          m_lm <- lm(iip_sa ~ prev, data = iip_l)
+          coef(m_lm)
+        - |
+          iip_l <- iip |>
+            mutate(prev = lag(iip_nsa))
+          m_lm <- lm(iip_nsa ~ prev, data = iip_l)
+          coef(m_lm)
+  - id: b
+    type: write
+    prompt: |
+      同じ AR(1) モデルを arima() で推定します。
+      季節調整済指数 iip_sa を2018年1月始まりの月次の時系列（ts()、frequency = 12）にして y に代入し、arima() に order = c(1, 0, 0) を指定して当てはめ、m_ar に代入して表示してください。
+    starter: |
+      y <-
+      m_ar <-
+      m_ar
+    solution: |
+      y <- ts(iip$iip_sa, start = c(2018, 1), frequency = 12)
+      m_ar <- arima(y, order = c(1, 0, 0))
+      m_ar
+    check: |
+      expect_object("y", class = "ts")
+      check_that(frequency(y) == 12 && identical(start(y), start(.sol$y)),
+                 "y は start = c(2018, 1)、frequency = 12 の時系列にしましょう。")
+      check_that(isTRUE(all.equal(as.numeric(y), as.numeric(.sol$y))),
+                 "y の中身が違います。季節調整済指数 iip$iip_sa を使いましょう。")
+      expect_object("m_ar", class = "Arima")
+      check_that(identical(m_ar$arma, .sol$m_ar$arma),
+                 "m_ar の次数が違います。AR(1) は order = c(1, 0, 0) です。")
+      expect_value(coef(m_ar), coef(.sol$m_ar), tol = 1e-4, label = "m_ar の係数")
+    hints:
+      - arima() の order は c(p, d, q) の3つの数です。AR(1) は「1か月前の値だけを使い（p = 1）、階差をとらない（d = 0）」モデルなので c(1, 0, 0) です。
+      - ts(iip$iip_sa, start = c(2018, 1), frequency = 12) と arima(y, order = c(1, 0, 0)) です。
+      - |
+        y <- ts(iip$iip_sa, start = c(2018, 1), frequency = 12)
+        m_ar <- arima(y, order = c(1, 0, 0))
+        m_ar
+    tests:
+      fail:
+        - |
+          y <- ts(iip$iip_sa, start = c(2018, 1), frequency = 12)
+          m_ar <- arima(y, order = c(0, 0, 1))
+          m_ar
+        - |
+          y <- ts(iip$iip_sa, start = c(2018, 1), frequency = 12)
+          m_ar <- arima(y, order = c(1, 1, 0))
+          m_ar
+        - |
+          y <- ts(iip$iip_nsa, start = c(2018, 1), frequency = 12)
+          m_ar <- arima(y, order = c(1, 0, 0))
+          m_ar
+  - id: c
+    type: write
+    prompt: |
+      2026年9月の値を2通りで予測します。
+      1. predict(m_ar, n.ahead = 1) を fc1 に代入する
+      2. a の回帰の係数と最後の月（2026年8月）の値 tail(iip$iip_sa, 1) から、切片 ＋ 傾き × 最後の月の値 を計算して pred_lm に代入する（係数は coef(m_lm)[["(Intercept)"]] と coef(m_lm)[["prev"]] で取り出す）
+      3. c(as.numeric(fc1$pred), pred_lm) を表示する
+    starter: |
+      fc1 <-
+      pred_lm <-
+      c(as.numeric(fc1$pred), pred_lm)
+    solution: |
+      fc1 <- predict(m_ar, n.ahead = 1)
+      pred_lm <- coef(m_lm)[["(Intercept)"]] + coef(m_lm)[["prev"]] * tail(iip$iip_sa, 1)
+      c(as.numeric(fc1$pred), pred_lm)
+    check: |
+      expect_object("fc1", class = "list")
+      check_that(length(fc1$pred) == 1 && isTRUE(all.equal(as.numeric(fc1$pred), as.numeric(.sol$fc1$pred), tolerance = 1e-6)),
+                 "fc1 が違います。predict(m_ar, n.ahead = 1) で1か月先だけを予測しましょう。")
+      check_that(exists("pred_lm") && length(pred_lm) == 1 &&
+                   isTRUE(all.equal(unname(pred_lm), .sol$pred_lm, tolerance = 1e-6)),
+                 "pred_lm が違います。切片 ＋ 傾き × tail(iip$iip_sa, 1)（2026年8月の値）で計算しましょう。")
+      expect_value(unname(.value), unname(.sol_value), tol = 1e-6, label = "表示した2つの予測値")
+    hints:
+      - predict() の n.ahead は「何か月先まで予測するか」です。lm の予測は、先月の値に最後の月（tail() で取り出す）の値を入れれば計算できます。
+      - predict(m_ar, n.ahead = 1)、coef(m_lm)[["(Intercept)"]] + coef(m_lm)[["prev"]] * tail(iip$iip_sa, 1) です。
+      - |
+        fc1 <- predict(m_ar, n.ahead = 1)
+        pred_lm <- coef(m_lm)[["(Intercept)"]] + coef(m_lm)[["prev"]] * tail(iip$iip_sa, 1)
+        c(as.numeric(fc1$pred), pred_lm)
+    tests:
+      fail:
+        - |
+          fc1 <- predict(m_ar, n.ahead = 12)
+          pred_lm <- coef(m_lm)[["(Intercept)"]] + coef(m_lm)[["prev"]] * tail(iip$iip_sa, 1)
+          c(as.numeric(fc1$pred), pred_lm)
+        - |
+          fc1 <- predict(m_ar, n.ahead = 1)
+          pred_lm <- coef(m_lm)[["(Intercept)"]] + coef(m_lm)[["prev"]] * head(iip$iip_sa, 1)
+          c(as.numeric(fc1$pred), pred_lm)
+  - id: d
+    type: interpret
+    prompt: |
+      b の AR(1) モデルでは、ar1 の係数が約0.895、intercept（arima() ではこれが系列の平均を表す）が約105.4でした。2026年8月の値は101.9です。このモデルと予測の読み方として最も適切なものはどれですか。
+    choices:
+      - "係数0.895は、先月の生産が1増えると今月の生産が0.895増えるという因果効果なので、先月の生産を増やす政策をとれば今月の生産も増やせる"
+      - "今月の値は、平均約105.4からのずれの約9割を先月から引き継ぐ。2026年8月は平均より低いので、予測は少しずつ平均の約105.4に近づく。ただし平均には生産水準の高かった2018〜2019年も含まれ、よく当たる予測でも生産を動かす原因は分からない"
+      - "係数が1に近いので、来月の値は必ず今月とまったく同じになる"
+      - "intercept の約105.4は、先月の値が0のときの今月の予測値である"
+    answer: 1
+    explain: AR(1) は「今月の平均からのずれ ＝ 0.895 × 先月の平均からのずれ ＋ 偶然の動き」というモデルです。ずれが毎月約1割ずつ縮むので、予測は遠い先ほど平均に近づきます（平均への回帰）。arima() の intercept は lm の切片とは違い、系列の平均です。lm の切片 約11.5 は、105.4 × (1 − 0.895) ≈ 11.1 に近い値です（推定の方法が少し違うので一致はしません）。全期間の平均には2018〜2019年の高い水準が入っているので、近年の水準（2024〜2025年の平均は約101）より高い値に引き寄せられる点に注意します。また、予測に使えることと、先月の生産が今月の生産を生む因果関係とは別のことです。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第75ステップの復習】原指数 iip_nsa を2018年1月始まりの月次の時系列にして nsa_ts に代入し、その前月差を diff() で求めて dn に代入してください。
+      続けて、dn の自己相関 acf(dn, lag.max = 12) を acf_dn に代入し、as.numeric(acf_dn$acf) を表示します。12か月目の値に注目しましょう。
+    starter: |
+      nsa_ts <-
+      dn <-
+      acf_dn <-
+      as.numeric(acf_dn$acf)
+    solution: |
+      nsa_ts <- ts(iip$iip_nsa, start = c(2018, 1), frequency = 12)
+      dn <- diff(nsa_ts)
+      acf_dn <- acf(dn, lag.max = 12)
+      as.numeric(acf_dn$acf)
+    check: |
+      expect_object("nsa_ts", class = "ts")
+      check_that(frequency(nsa_ts) == 12 && identical(start(nsa_ts), start(.sol$nsa_ts)),
+                 "nsa_ts は start = c(2018, 1)、frequency = 12 の時系列にしましょう。")
+      check_that(isTRUE(all.equal(as.numeric(nsa_ts), as.numeric(.sol$nsa_ts))),
+                 "nsa_ts の中身が違います。原指数 iip$iip_nsa を使いましょう。")
+      expect_object("dn", class = "ts")
+      check_that(isTRUE(all.equal(as.numeric(dn), as.numeric(.sol$dn))),
+                 "dn が違います。diff(nsa_ts) で前月差をとりましょう。")
+      expect_object("acf_dn", class = "acf")
+      expect_value(.value, .sol_value, label = "表示した自己相関")
+    hints:
+      - 第75ステップ a・b と同じ手順を、季節調整済指数ではなく原指数で行います。
+      - ts(iip$iip_nsa, start = c(2018, 1), frequency = 12)、diff(nsa_ts)、acf(dn, lag.max = 12) です。
+      - |
+        nsa_ts <- ts(iip$iip_nsa, start = c(2018, 1), frequency = 12)
+        dn <- diff(nsa_ts)
+        acf_dn <- acf(dn, lag.max = 12)
+        as.numeric(acf_dn$acf)
+    tests:
+      fail:
+        - |
+          nsa_ts <- ts(iip$iip_sa, start = c(2018, 1), frequency = 12)
+          dn <- diff(nsa_ts)
+          acf_dn <- acf(dn, lag.max = 12)
+          as.numeric(acf_dn$acf)
+        - |
+          nsa_ts <- ts(iip$iip_nsa, start = c(2018, 1), frequency = 12)
+          dn <- diff(nsa_ts)
+          acf_dn <- acf(nsa_ts, lag.max = 12)
+          as.numeric(acf_dn$acf)

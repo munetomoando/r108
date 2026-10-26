@@ -1,0 +1,256 @@
+id: "075"
+part: 9
+title: トレンドと定常性
+question: 関係のない2系列が相関して見えるのはなぜか
+minutes: 45
+mode: browser
+packages: [readr, dplyr, lubridate, ggplot2]
+data: [iip_monthly.csv]
+learn: [diff, acf]
+review_of: "074"
+setup: |
+  library(readr); library(dplyr); library(lubridate); library(ggplot2)
+  # 経済産業省「鉱工業生産指数」2020年基準（2026年10月24日取得時点）。2018年1月〜2026年8月の月次
+  iip <- read_csv("data/iip_monthly.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      鉱工業生産指数の季節調整済指数 iip_sa を、2018年1月始まりの月次の時系列（ts()、frequency = 12）にして y に代入してください。
+      続けて、y の前月差（階差）を diff() で求めて dy に代入し、date（2018年2月以降、iip$date[-1]）と前月差 d_sa（as.numeric(dy)）の2列の表を tibble() で作って d_df に代入します。
+      最後に、横軸 date・縦軸 d_sa の折れ線グラフに、0 の水平線（geom_hline(yintercept = 0)）を加えて描いてください。
+    starter: |
+      y <-
+      dy <-
+      d_df <- tibble(date = iip$date[-1], d_sa = )
+      ggplot(d_df, aes(x = date, y = d_sa)) +
+        geom_line()
+    solution: |
+      y <- ts(iip$iip_sa, start = c(2018, 1), frequency = 12)
+      dy <- diff(y)
+      d_df <- tibble(date = iip$date[-1], d_sa = as.numeric(dy))
+      ggplot(d_df, aes(x = date, y = d_sa)) +
+        geom_line() +
+        geom_hline(yintercept = 0)
+    check: |
+      expect_object("y", class = "ts")
+      check_that(frequency(y) == 12 && identical(start(y), start(.sol$y)),
+                 "y は start = c(2018, 1)、frequency = 12 の時系列にしましょう。")
+      check_that(isTRUE(all.equal(as.numeric(y), as.numeric(.sol$y))),
+                 "y の中身が違います。原指数ではなく、季節調整済指数 iip$iip_sa を使いましょう。")
+      expect_object("dy", class = "ts")
+      check_that(length(dy) == 103,
+                 "dy の長さが違います。diff(y) は104か月から1つ少ない103個の前月差になります。")
+      check_that(isTRUE(all.equal(as.numeric(dy), as.numeric(.sol$dy))),
+                 "dy の値が違います。diff(y) で「今月 − 前月」を求めましょう。")
+      expect_object("d_df", class = "data.frame")
+      expect_cols(d_df, c("date", "d_sa"))
+      expect_df_equal(d_df, .sol$d_df)
+      expect_ggplot(geom = "line", x = "date", y = "d_sa")
+      check_that(any(vapply(.plot$layers, function(l) inherits(l$geom, "GeomHline"), logical(1))),
+                 "0 の水平線がありません。+ geom_hline(yintercept = 0) を加えましょう。")
+    hints:
+      - 時系列にするのは第74ステップの ts() と同じです。diff() は隣どうしの差をとるので、結果は元より1つ短くなります。日付も最初の月を除いた iip$date[-1] と組み合わせます。
+      - ts(iip$iip_sa, start = c(2018, 1), frequency = 12)、diff(y)、tibble(date = iip$date[-1], d_sa = as.numeric(dy)) です。
+      - |
+        y <- ts(iip$iip_sa, start = c(2018, 1), frequency = 12)
+        dy <- diff(y)
+        d_df <- tibble(date = iip$date[-1], d_sa = as.numeric(dy))
+        ggplot(d_df, aes(x = date, y = d_sa)) +
+          geom_line() +
+          geom_hline(yintercept = 0)
+    tests:
+      fail:
+        - |
+          y <- ts(iip$iip_nsa, start = c(2018, 1), frequency = 12)
+          dy <- diff(y)
+          d_df <- tibble(date = iip$date[-1], d_sa = as.numeric(dy))
+          ggplot(d_df, aes(x = date, y = d_sa)) +
+            geom_line() +
+            geom_hline(yintercept = 0)
+        - |
+          y <- ts(iip$iip_sa, start = c(2018, 1), frequency = 12)
+          dy <- diff(y)
+          d_df <- tibble(date = iip$date[-104], d_sa = as.numeric(dy))
+          ggplot(d_df, aes(x = date, y = d_sa)) +
+            geom_line() +
+            geom_hline(yintercept = 0)
+        - |
+          y <- ts(iip$iip_sa, start = c(2018, 1), frequency = 12)
+          dy <- diff(y)
+          d_df <- tibble(date = iip$date[-1], d_sa = as.numeric(dy))
+          ggplot(d_df, aes(x = date, y = d_sa)) +
+            geom_line()
+  - id: b
+    type: write
+    prompt: |
+      水準 y と前月差 dy の自己相関を比べます。
+      1. acf(y, lag.max = 12) を acf_y に、acf(dy, lag.max = 12) を acf_dy に代入する（それぞれ図が描かれます）
+      2. lag（0:12）、水準の自己相関 level（as.numeric(acf_y$acf)）、前月差の自己相関 change（as.numeric(acf_dy$acf)）の3列の表を tibble() で作り、ac_tab に代入して表示する
+    starter: |
+      acf_y <-
+      acf_dy <-
+      ac_tab <- tibble(lag = 0:12,
+                       level = ,
+                       change = )
+      ac_tab
+    solution: |
+      acf_y <- acf(y, lag.max = 12)
+      acf_dy <- acf(dy, lag.max = 12)
+      ac_tab <- tibble(lag = 0:12,
+                       level = as.numeric(acf_y$acf),
+                       change = as.numeric(acf_dy$acf))
+      ac_tab
+    check: |
+      expect_object("acf_y", class = "acf")
+      expect_object("acf_dy", class = "acf")
+      check_that(length(acf_y$acf) == 13 && length(acf_dy$acf) == 13,
+                 "ラグの数が違います。acf() に lag.max = 12 を付けて、0〜12か月の自己相関を求めましょう。")
+      check_that(isTRUE(all.equal(as.numeric(acf_y$acf), as.numeric(.sol$acf_y$acf))),
+                 "acf_y が違います。季節調整済指数の水準 y の自己相関 acf(y, lag.max = 12) です。")
+      check_that(isTRUE(all.equal(as.numeric(acf_dy$acf), as.numeric(.sol$acf_dy$acf))),
+                 "acf_dy が違います。前月差 dy の自己相関 acf(dy, lag.max = 12) です。")
+      expect_object("ac_tab", class = "data.frame")
+      expect_cols(ac_tab, c("lag", "level", "change"))
+      expect_df_equal(ac_tab, .sol$ac_tab)
+      expect_value(.value, .sol_value, label = "表示した ac_tab")
+    hints:
+      - acf() は「k か月前の値との相関」を k = 0, 1, 2, … について並べます。結果の acf という部分に相関の値が入っています。
+      - acf(y, lag.max = 12) と acf(dy, lag.max = 12)、level = as.numeric(acf_y$acf) です。
+      - |
+        acf_y <- acf(y, lag.max = 12)
+        acf_dy <- acf(dy, lag.max = 12)
+        ac_tab <- tibble(lag = 0:12,
+                         level = as.numeric(acf_y$acf),
+                         change = as.numeric(acf_dy$acf))
+        ac_tab
+    tests:
+      fail:
+        - |
+          acf_y <- acf(y, lag.max = 12)
+          acf_dy <- acf(y, lag.max = 12)
+          ac_tab <- tibble(lag = 0:12,
+                           level = as.numeric(acf_y$acf),
+                           change = as.numeric(acf_dy$acf))
+          ac_tab
+        - |
+          acf_y <- acf(iip$iip_nsa, lag.max = 12)
+          acf_dy <- acf(dy, lag.max = 12)
+          ac_tab <- tibble(lag = 0:12,
+                           level = as.numeric(acf_y$acf),
+                           change = as.numeric(acf_dy$acf))
+          ac_tab
+  - id: c
+    type: write
+    prompt: |
+      互いにまったく関係のない2本のランダムウォークを作り、一方を他方で回帰する実験を500回くり返します。
+      1. set.seed(75) で乱数の種を決める
+      2. replicate(500, { ... }) の中で、x と z をそれぞれ cumsum(rnorm(100)) で作り（100か月分のランダムウォーク）、lm(z ~ x) の x の係数の p 値 summary(lm(z ~ x))$coefficients[2, 4] を返す。500個の p 値を p_rw に代入する
+      3. p 値が0.05未満になった割合 mean(p_rw < 0.05) を表示する
+    starter: |
+      set.seed(75)
+      p_rw <- replicate(500, {
+        x <-
+        z <-
+        summary(lm(z ~ x))$coefficients[2, 4]
+      })
+      mean(p_rw < 0.05)
+    solution: |
+      set.seed(75)
+      p_rw <- replicate(500, {
+        x <- cumsum(rnorm(100))
+        z <- cumsum(rnorm(100))
+        summary(lm(z ~ x))$coefficients[2, 4]
+      })
+      mean(p_rw < 0.05)
+    check: |
+      expect_uses("set.seed")
+      expect_uses("cumsum", "ランダムウォークは、毎月の偶然の動き rnorm(100) を cumsum() で積み上げて作ります。")
+      expect_object("p_rw", class = "numeric")
+      check_that(length(p_rw) == 500,
+                 "p_rw の長さが500ではありません。replicate(500, { ... }) で500回くり返しましょう。")
+      check_that(isTRUE(all.equal(p_rw, .sol$p_rw)),
+                 "p_rw の値が正解と違います。replicate() の直前に set.seed(75) を実行し、x を先、z を後に作りましょう。")
+      expect_value(.value, .sol_value, label = "表示した割合")
+    hints:
+      - ランダムウォークは「先月の値 ＋ 今月の偶然の動き」をくり返した系列です。rnorm(100) の100個の動きを cumsum() で積み上げれば作れます。p 値は summary() の係数表の2行目（x）・4列目です。
+      - x <- cumsum(rnorm(100)) と z <- cumsum(rnorm(100)) を { } の中に書きます。割合は mean(p_rw < 0.05) です。
+      - |
+        set.seed(75)
+        p_rw <- replicate(500, {
+          x <- cumsum(rnorm(100))
+          z <- cumsum(rnorm(100))
+          summary(lm(z ~ x))$coefficients[2, 4]
+        })
+        mean(p_rw < 0.05)
+    tests:
+      fail:
+        - |
+          set.seed(75)
+          p_rw <- replicate(500, {
+            x <- rnorm(100)
+            z <- rnorm(100)
+            summary(lm(z ~ x))$coefficients[2, 4]
+          })
+          mean(p_rw < 0.05)
+        - |
+          set.seed(1)
+          p_rw <- replicate(500, {
+            x <- cumsum(rnorm(100))
+            z <- cumsum(rnorm(100))
+            summary(lm(z ~ x))$coefficients[2, 4]
+          })
+          mean(p_rw < 0.05)
+  - id: d
+    type: interpret
+    prompt: |
+      c の実験では、互いに関係のない2本のランダムウォークでも、500回のうち約8割で x の係数が5%水準で有意になりました。同じ乱数で、2本の系列の前月差どうし（lm(diff(z) ~ diff(x))）を回帰すると、有意になるのは約6%でした。この結果の読み方として最も適切なものはどれですか。
+    choices:
+      - "p 値が小さいほど関係は確かなので、水準どうしの回帰で有意なら、2つの系列には何らかの因果関係があると考えてよい"
+      - "ランダムウォークのように一方向にさまよう系列（非定常な系列）どうしは、関係がなくても水準の回帰で有意になりやすい。前月差のように定常な形にしてから回帰すると、有意になる割合は本来の5%前後に戻る"
+      - "約8割が有意になったのは、500回という回数が少なすぎたためで、5,000回くり返せば5%前後に戻る"
+      - "前月差をとると情報が失われるので、時系列の分析では常に水準のまま回帰するべきである"
+    answer: 1
+    explain: ランダムウォークは偶然の動きが積み上がるので、たまたま上がり続けたり下がり続けたりします。2本とも同じ時期に一方向へ動くと、関係がなくても水準どうしの相関が強く見え、通常の p 値は「関係がないのに有意」を5%よりはるかに多く出します。これが見せかけの回帰です。前月差は平均のまわりを上下する定常な系列なので、有意になる割合は約6%と、5%水準の本来の値に近くなります。くり返しの回数を増やしても約8割という割合は変わらず、むしろ系列を長くするほど有意になりやすくなります。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第74ステップの復習】鉱工業生産指数の原指数 iip_nsa を、2018年1月始まりの月次の時系列にして nsa_ts に代入し、stl() で分解して（季節の形を全期間で固定する s.window = "periodic"）fit_n に代入してください。
+      続けて、成分の最初の12か月 head(fit_n$time.series, 12) を表示し、季節成分が最も低い月を確かめましょう。
+    starter: |
+      nsa_ts <-
+      fit_n <-
+      head(fit_n$time.series, 12)
+    solution: |
+      nsa_ts <- ts(iip$iip_nsa, start = c(2018, 1), frequency = 12)
+      fit_n <- stl(nsa_ts, s.window = "periodic")
+      head(fit_n$time.series, 12)
+    check: |
+      expect_object("nsa_ts", class = "ts")
+      check_that(frequency(nsa_ts) == 12 && identical(start(nsa_ts), start(.sol$nsa_ts)),
+                 "nsa_ts は start = c(2018, 1)、frequency = 12 の時系列にしましょう。")
+      check_that(isTRUE(all.equal(as.numeric(nsa_ts), as.numeric(.sol$nsa_ts))),
+                 "nsa_ts の中身が違います。原指数 iip$iip_nsa を使いましょう。")
+      expect_object("fit_n", class = "stl")
+      check_that(isTRUE(all.equal(as.numeric(fit_n$time.series[, "seasonal"]),
+                                  as.numeric(.sol$fit_n$time.series[, "seasonal"]), tolerance = 1e-6)),
+                 "季節成分が正解と違います。stl(nsa_ts, s.window = \"periodic\") で分解しましょう。")
+      expect_value(.value, .sol_value, label = "表示した成分の表")
+    hints:
+      - 第74ステップ a と同じ手順で、データと始まりの年、s.window を替えます。
+      - ts(iip$iip_nsa, start = c(2018, 1), frequency = 12) と stl(nsa_ts, s.window = "periodic") です。
+      - |
+        nsa_ts <- ts(iip$iip_nsa, start = c(2018, 1), frequency = 12)
+        fit_n <- stl(nsa_ts, s.window = "periodic")
+        head(fit_n$time.series, 12)
+    tests:
+      fail:
+        - |
+          nsa_ts <- ts(iip$iip_sa, start = c(2018, 1), frequency = 12)
+          fit_n <- stl(nsa_ts, s.window = "periodic")
+          head(fit_n$time.series, 12)
+        - |
+          nsa_ts <- ts(iip$iip_nsa, start = c(2018, 1), frequency = 12)
+          fit_n <- stl(nsa_ts, s.window = 13)
+          head(fit_n$time.series, 12)

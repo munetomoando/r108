@@ -1,0 +1,185 @@
+id: "039"
+part: 5
+title: 重回帰
+question: 経験年数をそろえると学歴の効果は変わるか
+minutes: 50
+mode: browser
+packages: [readr, dplyr]
+data: [wage_survey.csv]
+learn: [confint]
+review_of: "038"
+setup: |
+  library(readr); library(dplyr)
+  # 架空の賃金調査の個票（3,000人）
+  wage <- read_csv("data/wage_survey.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      教育年数 educ_years に加えて、経験年数 exper と勤続年数 tenure も説明変数に入れた重回帰を推定します。
+      lm(log_wage ~ educ_years + exper + tenure, data = wage) の結果を m_multi に代入し、m_multi を表示してください。
+    starter: |
+      m_multi <-
+      m_multi
+    solution: |
+      m_multi <- lm(log_wage ~ educ_years + exper + tenure, data = wage)
+      m_multi
+    check: |
+      expect_object("m_multi", class = "lm")
+      expect_model(m_multi, like = .sol$m_multi)
+    hints:
+      - 重回帰では、~ の右に説明変数を + でつないで並べます。
+      - 式は log_wage ~ educ_years + exper + tenure、データは data = wage です。
+      - |
+        m_multi <- lm(log_wage ~ educ_years + exper + tenure, data = wage)
+        m_multi
+    tests:
+      fail:
+        - |
+          m_multi <- lm(log_wage ~ educ_years + exper, data = wage)
+          m_multi
+        - |
+          m_multi <- lm(hourly_wage ~ educ_years + exper + tenure, data = wage)
+          m_multi
+  - id: b
+    type: write
+    prompt: |
+      単回帰と重回帰で、教育年数の係数を比べます。
+      1. 第37ステップと同じ単回帰 lm(log_wage ~ educ_years, data = wage) を m_simple に代入する
+      2. 2つのモデルの教育年数の係数を c(coef(m_simple)[["educ_years"]], coef(m_multi)[["educ_years"]]) で並べて表示する
+      3. confint(m_multi) で、重回帰の係数の95%信頼区間を表示する
+    starter: |
+      m_simple <-
+
+
+    solution: |
+      m_simple <- lm(log_wage ~ educ_years, data = wage)
+      c(coef(m_simple)[["educ_years"]], coef(m_multi)[["educ_years"]])
+      confint(m_multi)
+    check: |
+      expect_object("m_simple", class = "lm")
+      expect_model(m_simple, like = .sol$m_simple)
+      expect_uses("confint")
+      expect_value(.value, .sol_value, label = "最後に表示した信頼区間")
+    hints:
+      - coef(モデル)[["educ_years"]] で教育年数の係数だけを取り出せます。2つのモデルから1つずつ取り出して c() で並べます。
+      - confint() はモデルを受け取り、各係数の95%信頼区間（2.5% と 97.5% の列）を表で返します。
+      - |
+        m_simple <- lm(log_wage ~ educ_years, data = wage)
+        c(coef(m_simple)[["educ_years"]], coef(m_multi)[["educ_years"]])
+        confint(m_multi)
+    tests:
+      fail:
+        - |
+          m_simple <- lm(log_wage ~ educ_years, data = wage)
+          c(coef(m_simple)[["educ_years"]], coef(m_multi)[["educ_years"]])
+          confint(m_simple)
+        - |
+          m_simple <- lm(log_wage ~ educ_years + exper, data = wage)
+          c(coef(m_simple)[["educ_years"]], coef(m_multi)[["educ_years"]])
+          confint(m_multi)
+        - |
+          m_simple <- lm(log_wage ~ educ_years, data = wage)
+          c(coef(m_simple)[["educ_years"]], coef(m_multi)[["educ_years"]])
+          confint(m_multi, level = 0.9)
+  - id: c
+    type: write
+    prompt: |
+      「真の効果」を自分で決めたデータを作り、大事な変数を入れ忘れると係数がどうずれるか（欠落変数バイアス）を再現します。
+      能力 ability の高い人ほど教育年数 educ が長く、能力そのものも対数時給 lw を高めるとします。教育の真の効果は 0.05 です。
+      1. set.seed(39) を書いてから、次の表を sim に代入する
+         tibble(ability = rnorm(1000), educ = 14 + ability + rnorm(1000, sd = 1.5), lw = 7 + 0.05 * educ + 0.1 * ability + rnorm(1000, sd = 0.2))
+      2. 能力を入れない回帰 lm(lw ~ educ, data = sim) を m_short に、入れた回帰 lm(lw ~ educ + ability, data = sim) を m_long に代入する
+      3. c(coef(m_short)[["educ"]], coef(m_long)[["educ"]]) を表示する
+    starter: |
+      set.seed(39)
+      sim <- tibble(ability = rnorm(1000),
+                    educ = 14 + ability + rnorm(1000, sd = 1.5),
+                    lw = 7 + 0.05 * educ + 0.1 * ability + rnorm(1000, sd = 0.2))
+      m_short <-
+      m_long <-
+
+    solution: |
+      set.seed(39)
+      sim <- tibble(ability = rnorm(1000),
+                    educ = 14 + ability + rnorm(1000, sd = 1.5),
+                    lw = 7 + 0.05 * educ + 0.1 * ability + rnorm(1000, sd = 0.2))
+      m_short <- lm(lw ~ educ, data = sim)
+      m_long <- lm(lw ~ educ + ability, data = sim)
+      c(coef(m_short)[["educ"]], coef(m_long)[["educ"]])
+    check: |
+      expect_uses("set.seed")
+      expect_object("sim", class = "data.frame")
+      expect_df_equal(sim, .sol$sim)
+      expect_object("m_short", class = "lm")
+      expect_model(m_short, like = .sol$m_short)
+      expect_object("m_long", class = "lm")
+      expect_model(m_long, like = .sol$m_long)
+      expect_value(.value, .sol_value, label = "最後に表示した2つの係数")
+    hints:
+      - 乱数で作る表は、set.seed(39) を先に実行しないと毎回違う値になります。sim は starter のまま使い、2つの回帰の違いは「ability を入れるかどうか」だけです。
+      - m_short は lm(lw ~ educ, data = sim)、m_long は lm(lw ~ educ + ability, data = sim) です。
+      - |
+        m_short <- lm(lw ~ educ, data = sim)
+        m_long <- lm(lw ~ educ + ability, data = sim)
+        c(coef(m_short)[["educ"]], coef(m_long)[["educ"]])
+    tests:
+      fail:
+        - |
+          sim <- tibble(ability = rnorm(1000),
+                        educ = 14 + ability + rnorm(1000, sd = 1.5),
+                        lw = 7 + 0.05 * educ + 0.1 * ability + rnorm(1000, sd = 0.2))
+          m_short <- lm(lw ~ educ, data = sim)
+          m_long <- lm(lw ~ educ + ability, data = sim)
+          c(coef(m_short)[["educ"]], coef(m_long)[["educ"]])
+        - |
+          set.seed(39)
+          sim <- tibble(ability = rnorm(1000),
+                        educ = 14 + ability + rnorm(1000, sd = 1.5),
+                        lw = 7 + 0.05 * educ + 0.1 * ability + rnorm(1000, sd = 0.2))
+          m_short <- lm(lw ~ educ, data = sim)
+          m_long <- lm(lw ~ educ, data = sim)
+          c(coef(m_short)[["educ"]], coef(m_long)[["educ"]])
+  - id: d
+    type: interpret
+    prompt: |
+      b の重回帰で、教育年数の係数は約0.063でした。この係数の「他の条件を一定とすると」という読み方として最も適切なものはどれですか。
+    choices:
+      - "経験年数と勤続年数が同じ人どうしで比べると、教育年数が1年長い人は対数時給が平均で約0.063高い（約6.5%高い）"
+      - "経験年数と勤続年数を0年にした人だけで比べた差である"
+      - "能力や家庭環境まで含め、教育以外のあらゆる条件が同じ人どうしで比べた差であり、教育の因果効果そのものである"
+      - "教育年数・経験年数・勤続年数の3つを合わせて1年ずつ延ばしたときの差である"
+    answer: 0
+    explain: 重回帰の係数は、モデルに入れた他の説明変数（ここでは経験年数と勤続年数）を同じ値に固定したときの、教育年数1年あたりの差です。0年に固定するという意味ではなく、どの値にそろえても同じ差になると仮定しています。対数時給なので約6.3%、正確には (exp(0.063) − 1) × 100 ≈ 6.5% 高いと読みます。ただし一定にできるのは、モデルに入れてデータで観測できる変数だけです。能力のように観測できない要因は一定になっていないので、c で見たように係数がずれている可能性が残ります。重回帰の係数も、因果効果とは限りません。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第38ステップの復習】経験年数 exper と対数時給の単回帰の傾きを、lm() を使わずに求めます。
+      cov() と var() で「共分散 ÷ 分散」を計算して slope_ex に代入し、表示してください。
+    starter: |
+      slope_ex <-
+      slope_ex
+    solution: |
+      slope_ex <- cov(wage$exper, wage$log_wage) / var(wage$exper)
+      slope_ex
+    check: |
+      expect_uses("cov")
+      expect_uses("var")
+      expect_not_uses("lm")
+      expect_object("slope_ex", class = "numeric")
+      expect_value(slope_ex, .sol$slope_ex, label = "slope_ex")
+    hints:
+      - 単回帰の傾きは、x と y の共分散を x の分散で割ったものです。ここでは x が経験年数、y が対数時給です。
+      - cov(wage$exper, wage$log_wage) を var(wage$exper) で割ります。
+      - |
+        slope_ex <- cov(wage$exper, wage$log_wage) / var(wage$exper)
+        slope_ex
+    tests:
+      fail:
+        - |
+          slope_ex <- cov(wage$exper, wage$log_wage) / var(wage$log_wage)
+          slope_ex
+        - |
+          slope_ex <- cov(wage$educ_years, wage$log_wage) / var(wage$educ_years)
+          slope_ex

@@ -1,0 +1,196 @@
+id: "022"
+part: 3
+title: 棒グラフと順位
+question: 売場効率の高い店舗を並べる
+minutes: 40
+mode: browser
+packages: [readr, dplyr, ggplot2, forcats]
+data: [sora_stores.csv]
+learn: [geom_col, geom_bar, fct_reorder, coord_flip]
+review_of: "021"
+setup: |
+  library(readr); library(dplyr); library(ggplot2); library(forcats)
+  stores <- read_csv("data/sora_stores.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      stores の50店舗について、店舗名 store_name ごとの今年の売上 sales（万円）を棒グラフにしてください。
+      棒の高さに表の値をそのまま使うので geom_col() を使います。店舗名を横軸に並べると50個の名前が重なって読めないので、最後に coord_flip() を足して縦と横を入れ替え、店舗名が縦に並ぶようにします。
+    starter: |
+      ggplot(stores, aes(x = store_name, y = sales)) +
+    solution: |
+      ggplot(stores, aes(x = store_name, y = sales)) +
+        geom_col() +
+        coord_flip()
+    check: |
+      expect_ggplot(geom = "col", x = "store_name", y = "sales")
+      check_that(inherits(.plot$coordinates, "CoordFlip"),
+                 "縦と横が入れ替わっていません。最後に + coord_flip() を足しましょう。")
+    hints:
+      - 「ggplot() で横軸と縦軸を決める → 棒の層を足す → 縦横を入れ替える」の3つを + でつなぎます。
+      - 表の値を棒の高さにするのは geom_col() です。縦横の入れ替えは coord_flip() です。
+      - "ggplot(stores, aes(x = store_name, y = sales)) + geom_col() + coord_flip()"
+    tests:
+      fail:
+        - |
+          ggplot(stores, aes(x = store_name, y = sales)) +
+            geom_col()
+        - |
+          ggplot(stores, aes(x = store_name, y = sales)) +
+            geom_point() +
+            coord_flip()
+  - id: b
+    type: write
+    prompt: |
+      a の図では、店舗が名前の五十音（文字コード）順に並んでいて、どこが売上上位か分かりません。
+      横軸を fct_reorder(store_name, sales) に変えて、売上の大きい店舗ほど上に来るように並べ替えてください（fct_reorder() の既定の並べ方のまま。coord_flip() と組み合わせると、大きい店舗が上になります）。
+    starter: |
+      ggplot(stores, aes(x = store_name, y = sales)) +
+        geom_col() +
+        coord_flip()
+    solution: |
+      ggplot(stores, aes(x = fct_reorder(store_name, sales), y = sales)) +
+        geom_col() +
+        coord_flip()
+    check: |
+      expect_ggplot(geom = "col", y = "sales")
+      check_that(inherits(.plot$coordinates, "CoordFlip"),
+                 "縦と横が入れ替わっていません。a と同じく + coord_flip() を足しましょう。")
+      x_order <- function(p) ggplot2::ggplot_build(p)$layout$panel_scales_x[[1]]$get_limits()
+      check_that(identical(as.character(x_order(.plot)), as.character(x_order(.sol_plot))),
+                 "店舗が売上の順に並んでいません。横軸を fct_reorder(store_name, sales) にしましょう（.desc は付けません）。")
+    hints:
+      - 並べ替えたいのは横軸の店舗名です。aes() の x を、売上の順に並んだ店舗名に置き換えます。
+      - fct_reorder(並べたい列, 並べる基準の列) と書きます。ここでは fct_reorder(store_name, sales) です。
+      - "ggplot(stores, aes(x = fct_reorder(store_name, sales), y = sales)) + geom_col() + coord_flip()"
+    tests:
+      fail:
+        - |
+          ggplot(stores, aes(x = fct_reorder(store_name, floor_m2), y = sales)) +
+            geom_col() +
+            coord_flip()
+        - |
+          ggplot(stores, aes(x = fct_reorder(store_name, sales, .desc = TRUE), y = sales)) +
+            geom_col() +
+            coord_flip()
+  - id: c
+    type: write
+    prompt: |
+      売上の大きさは売場の広さにも左右されます。そこで、売場面積1m²あたりの売上である売場効率で比べます。
+      stores に列 sales_per_m2（sales / floor_m2、万円/m²）を加え、sales_per_m2 の大きい10店舗を取り出した表を eff_top10 に代入してください。
+      続けて、eff_top10 の売場効率を棒グラフにします。横軸は fct_reorder(store_name, sales_per_m2)、縦軸は sales_per_m2 とし、立地 location で棒を塗り分け（aes の fill）、coord_flip() で店舗名を縦に並べてください。
+    starter: |
+      eff_top10 <- stores |>
+
+    solution: |
+      eff_top10 <- stores |>
+        mutate(sales_per_m2 = sales / floor_m2) |>
+        slice_max(sales_per_m2, n = 10)
+      ggplot(eff_top10, aes(x = fct_reorder(store_name, sales_per_m2), y = sales_per_m2, fill = location)) +
+        geom_col() +
+        coord_flip()
+    check: |
+      expect_object("eff_top10", class = "data.frame")
+      expect_cols(eff_top10, c("store_name", "location", "sales_per_m2"))
+      expect_df_equal(eff_top10, .sol$eff_top10, ignore_row_order = TRUE)
+      expect_ggplot(geom = "col", y = "sales_per_m2", fill = "location")
+      check_that(inherits(.plot$coordinates, "CoordFlip"),
+                 "縦と横が入れ替わっていません。最後に + coord_flip() を足しましょう。")
+      x_order <- function(p) ggplot2::ggplot_build(p)$layout$panel_scales_x[[1]]$get_limits()
+      check_that(identical(as.character(x_order(.plot)), as.character(x_order(.sol_plot))),
+                 "棒が売場効率の順に並んでいないか、10店舗の図になっていません。ggplot(eff_top10, ...) とし、横軸を fct_reorder(store_name, sales_per_m2) にしましょう。")
+    hints:
+      - 表づくりは「売場効率の列を作る → 上位10店を取り出す」の2段のパイプ（第7ステップの slice_max）です。図は b と同じ形で、データと列を入れ替え、fill を足します。
+      - 表は mutate(sales_per_m2 = sales / floor_m2) |> slice_max(sales_per_m2, n = 10)。棒の塗り分けは aes() の中に fill = location と書きます（colour だと棒のふちの色になります）。
+      - "eff_top10 <- stores |> mutate(sales_per_m2 = sales / floor_m2) |> slice_max(sales_per_m2, n = 10) の後に ggplot(eff_top10, aes(x = fct_reorder(store_name, sales_per_m2), y = sales_per_m2, fill = location)) + geom_col() + coord_flip()"
+    tests:
+      fail:
+        - |
+          eff_top10 <- stores |>
+            mutate(sales_per_m2 = sales / floor_m2) |>
+            slice_max(sales, n = 10)
+          ggplot(eff_top10, aes(x = fct_reorder(store_name, sales_per_m2), y = sales_per_m2, fill = location)) +
+            geom_col() +
+            coord_flip()
+        - |
+          eff_top10 <- stores |>
+            mutate(sales_per_m2 = sales / floor_m2) |>
+            slice_max(sales_per_m2, n = 10)
+          ggplot(eff_top10, aes(x = fct_reorder(store_name, sales_per_m2), y = sales_per_m2, colour = location)) +
+            geom_col() +
+            coord_flip()
+        - |
+          eff_top10 <- stores |>
+            mutate(sales_per_m2 = sales / floor_m2) |>
+            slice_max(sales_per_m2, n = 10)
+          ggplot(mutate(stores, sales_per_m2 = sales / floor_m2), aes(x = fct_reorder(store_name, sales_per_m2), y = sales_per_m2, fill = location)) +
+            geom_col() +
+            coord_flip()
+  - id: d
+    type: fix
+    prompt: |
+      同僚が、立地ごとの売上の合計を棒グラフにしようとして次のコードを書きましたが、「stat_count() must only have an x or y aesthetic.」というエラーで止まります。
+      geom_bar() は、表の行の数を数えて棒の高さにする関数なので、縦軸 y を指定するとエラーになります。表の値（ここでは集計済みの sales）をそのまま棒の高さにする関数に直してください。loc_sales を作る行は変えなくてかまいません。
+    starter: |
+      loc_sales <- stores |>
+        group_by(location) |>
+        summarise(sales = sum(sales))
+      ggplot(loc_sales, aes(x = location, y = sales)) +
+        geom_bar()
+    solution: |
+      loc_sales <- stores |>
+        group_by(location) |>
+        summarise(sales = sum(sales))
+      ggplot(loc_sales, aes(x = location, y = sales)) +
+        geom_col()
+    check: |
+      expect_ggplot(geom = "col", x = "location", y = "sales")
+      geoms <- vapply(.plot$layers, function(l) class(l$geom)[1], "")
+      check_that(!"GeomBar" %in% geoms,
+                 "geom_bar() の層が残っています。geom_bar() を geom_col() に置き換えましょう。")
+      expect_df_equal(.plot$data, .sol_plot$data, ignore_row_order = TRUE)
+    hints:
+      - 棒グラフの関数は2つあります。行の数を数えるのが geom_bar()、表の値をそのまま高さにするのが geom_col() です。
+      - loc_sales は立地ごとに1行で、sales はすでに合計した値です。数える必要はありません。
+      - "ggplot(loc_sales, aes(x = location, y = sales)) + geom_col()"
+    tests:
+      fail:
+        - |
+          loc_sales <- stores |>
+            group_by(location) |>
+            summarise(sales = sum(sales))
+          ggplot(loc_sales, aes(x = location)) +
+            geom_bar()
+        - |
+          ggplot(stores, aes(x = location)) +
+            geom_bar()
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第21ステップの復習】立地によって売場の広さがどう違うかを見ます。売場面積 floor_m2 のヒストグラムを geom_histogram(bins = 10) で描き、facet_wrap() で立地 location ごとに図を分けてください。
+    starter: |
+      ggplot(stores, aes(x = floor_m2)) +
+    solution: |
+      ggplot(stores, aes(x = floor_m2)) +
+        geom_histogram(bins = 10) +
+        facet_wrap(~ location)
+    check: |
+      stats <- vapply(.plot$layers, function(l) class(l$stat)[1], "")
+      check_that("StatBin" %in% stats,
+                 "ヒストグラムの層がありません。geom_histogram(bins = 10) を足しましょう。")
+      expect_ggplot(x = "floor_m2", facet = "location")
+    hints:
+      - 「ヒストグラムの層を足す → 立地で分割する」の2つを + でつなぎます。
+      - ヒストグラムは geom_histogram(bins = 10)、分割は facet_wrap(~ location) です。
+      - "ggplot(stores, aes(x = floor_m2)) + geom_histogram(bins = 10) + facet_wrap(~ location)"
+    tests:
+      fail:
+        - |
+          ggplot(stores, aes(x = floor_m2)) +
+            geom_histogram(bins = 10)
+        - |
+          ggplot(stores, aes(x = floor_m2)) +
+            geom_density() +
+            facet_wrap(~ location)

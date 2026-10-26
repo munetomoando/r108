@@ -1,0 +1,315 @@
+id: "081"
+part: 9
+title: 総合演習・第III段階の関門：来年の失業率を予測する
+question: 1年後の完全失業率はどの範囲にあると予測できるか
+minutes: 60
+mode: browser
+packages: [readr, dplyr, lubridate, ggplot2]
+data: [lfs_monthly.csv]
+learn: []
+allow: []
+setup: |
+  library(readr); library(dplyr); library(lubridate); library(ggplot2)
+  # 総務省統計局「労働力調査」長期時系列（2026年8月分公表時点）。2000年1月〜2026年8月の月次
+  lfs <- read_csv("data/lfs_monthly.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      【2つのモデルを推定する】完全失業率の季節調整値 unemp_rate_sa を使います。
+      1. lfs を2024年8月まで（date < ymd("2024-09-01")）の訓練期間 train と、2024年9月から2026年8月までの24か月のテスト期間 test に分ける
+      2. train$unemp_rate_sa を、2000年1月始まりの月次の時系列（ts()、frequency = 12）にして y_train に代入する
+      3. y_train に AR(1) モデル（arima() の order = c(1, 0, 0)）を当てはめて m_ar に、ARIMA(1,1,0) モデル（order = c(1, 1, 0)）を当てはめて m_ari に代入する
+      4. 2つのモデルの AIC を c(AIC(m_ar), AIC(m_ari)) で表示する
+    starter: |
+      train <-
+      test <-
+      y_train <-
+      m_ar <-
+      m_ari <-
+      c(AIC(m_ar), AIC(m_ari))
+    solution: |
+      train <- filter(lfs, date < ymd("2024-09-01"))
+      test <- filter(lfs, date >= ymd("2024-09-01"))
+      y_train <- ts(train$unemp_rate_sa, start = c(2000, 1), frequency = 12)
+      m_ar <- arima(y_train, order = c(1, 0, 0))
+      m_ari <- arima(y_train, order = c(1, 1, 0))
+      c(AIC(m_ar), AIC(m_ari))
+    check: |
+      expect_object("train", class = "data.frame")
+      expect_object("test", class = "data.frame")
+      check_that(nrow(test) == 24 && nrow(train) == nrow(.sol$train),
+                 "期間の分け方が違います。2024年8月までを train（296か月）、2024年9月以降を test（24か月）にしましょう。")
+      expect_df_equal(train, .sol$train)
+      expect_df_equal(test, .sol$test)
+      expect_object("y_train", class = "ts")
+      check_that(frequency(y_train) == 12 && identical(start(y_train), start(.sol$y_train)),
+                 "y_train は start = c(2000, 1)、frequency = 12 の時系列にしましょう。")
+      check_that(isTRUE(all.equal(as.numeric(y_train), as.numeric(.sol$y_train))),
+                 "y_train の中身が違います。訓練期間の季節調整値 train$unemp_rate_sa を使いましょう。")
+      expect_object("m_ar", class = "Arima")
+      expect_object("m_ari", class = "Arima")
+      check_that(identical(m_ar$arma, .sol$m_ar$arma),
+                 "m_ar の次数が違います。AR(1) は order = c(1, 0, 0) です。")
+      check_that(identical(m_ari$arma, .sol$m_ari$arma),
+                 "m_ari の次数が違います。ARIMA(1,1,0) は order = c(1, 1, 0) です。")
+      expect_value(coef(m_ar), coef(.sol$m_ar), tol = 1e-4, label = "m_ar の係数")
+      expect_value(coef(m_ari), coef(.sol$m_ari), tol = 1e-4, label = "m_ari の係数")
+      expect_value(.value, .sol_value, tol = 1e-4, label = "表示した2つの AIC")
+    hints:
+      - 期間は filter() と ymd() で分けます（第78ステップ）。モデルは第76・77ステップの arima() です。AR(1) は水準のまま、ARIMA(1,1,0) は前月差（階差）をとってから当てはめるモデルです。
+      - filter(lfs, date < ymd("2024-09-01")) と filter(lfs, date >= ymd("2024-09-01"))、ts(train$unemp_rate_sa, start = c(2000, 1), frequency = 12)、arima(y_train, order = c(1, 0, 0)) です。
+      - |
+        train <- filter(lfs, date < ymd("2024-09-01"))
+        test <- filter(lfs, date >= ymd("2024-09-01"))
+        y_train <- ts(train$unemp_rate_sa, start = c(2000, 1), frequency = 12)
+        m_ar <- arima(y_train, order = c(1, 0, 0))
+        m_ari <- arima(y_train, order = c(1, 1, 0))
+        c(AIC(m_ar), AIC(m_ari))
+    tests:
+      fail:
+        - |
+          train <- filter(lfs, date < ymd("2024-09-01"))
+          test <- filter(lfs, date >= ymd("2024-09-01"))
+          y_train <- ts(train$unemp_rate_nsa, start = c(2000, 1), frequency = 12)
+          m_ar <- arima(y_train, order = c(1, 0, 0))
+          m_ari <- arima(y_train, order = c(1, 1, 0))
+          c(AIC(m_ar), AIC(m_ari))
+        - |
+          train <- filter(lfs, date < ymd("2025-09-01"))
+          test <- filter(lfs, date >= ymd("2025-09-01"))
+          y_train <- ts(train$unemp_rate_sa, start = c(2000, 1), frequency = 12)
+          m_ar <- arima(y_train, order = c(1, 0, 0))
+          m_ari <- arima(y_train, order = c(1, 1, 0))
+          c(AIC(m_ar), AIC(m_ari))
+        - |
+          train <- filter(lfs, date < ymd("2024-09-01"))
+          test <- filter(lfs, date >= ymd("2024-09-01"))
+          y_train <- ts(train$unemp_rate_sa, start = c(2000, 1), frequency = 12)
+          m_ar <- arima(y_train, order = c(1, 0, 0))
+          m_ari <- arima(y_train, order = c(0, 1, 1))
+          c(AIC(m_ar), AIC(m_ari))
+  - id: b
+    type: write
+    prompt: |
+      【テスト期間で比べる】訓練期間の終わり（2024年8月）から、テスト期間の24か月を一度に予測し、実際の値と比べます。
+      1. m_ar と m_ari で24か月先まで予測し（predict(モデル, n.ahead = 24)$pred）、as.numeric() で数のベクトルにして pred_ar、pred_ari に代入する
+      2. ナイーブ予測として、訓練期間の最後の月の値 tail(train$unemp_rate_sa, 1) を24個並べ（rep()）、pred_naive に代入する
+      3. model（"AR(1)"、"ARIMA(1,1,0)"、"ナイーブ" の順）、rmse、mae の3列の表を tibble() で作り、acc に代入して表示する。誤差は test$unemp_rate_sa − 予測値 です
+    starter: |
+      pred_ar <-
+      pred_ari <-
+      pred_naive <-
+      acc <- tibble(model = c("AR(1)", "ARIMA(1,1,0)", "ナイーブ"),
+                    rmse = ,
+                    mae = )
+      acc
+    solution: |
+      pred_ar <- as.numeric(predict(m_ar, n.ahead = 24)$pred)
+      pred_ari <- as.numeric(predict(m_ari, n.ahead = 24)$pred)
+      pred_naive <- rep(tail(train$unemp_rate_sa, 1), 24)
+      acc <- tibble(model = c("AR(1)", "ARIMA(1,1,0)", "ナイーブ"),
+                    rmse = c(sqrt(mean((test$unemp_rate_sa - pred_ar)^2)),
+                             sqrt(mean((test$unemp_rate_sa - pred_ari)^2)),
+                             sqrt(mean((test$unemp_rate_sa - pred_naive)^2))),
+                    mae = c(mean(abs(test$unemp_rate_sa - pred_ar)),
+                            mean(abs(test$unemp_rate_sa - pred_ari)),
+                            mean(abs(test$unemp_rate_sa - pred_naive))))
+      acc
+    check: |
+      check_that(exists("pred_ar") && length(pred_ar) == 24 &&
+                   isTRUE(all.equal(as.numeric(pred_ar), .sol$pred_ar, tolerance = 1e-6)),
+                 "pred_ar が違います。as.numeric(predict(m_ar, n.ahead = 24)$pred) で24か月分を予測しましょう。")
+      check_that(exists("pred_ari") && length(pred_ari) == 24 &&
+                   isTRUE(all.equal(as.numeric(pred_ari), .sol$pred_ari, tolerance = 1e-6)),
+                 "pred_ari が違います。as.numeric(predict(m_ari, n.ahead = 24)$pred) で24か月分を予測しましょう。")
+      check_that(exists("pred_naive") && length(pred_naive) == 24 &&
+                   isTRUE(all.equal(as.numeric(pred_naive), .sol$pred_naive)),
+                 "pred_naive が違います。訓練期間の最後の値 tail(train$unemp_rate_sa, 1) を rep() で24個並べましょう。")
+      expect_object("acc", class = "data.frame")
+      expect_cols(acc, c("model", "rmse", "mae"))
+      expect_nrow(acc, 3)
+      check_that(isTRUE(all.equal(acc$rmse, .sol$acc$rmse, tolerance = 1e-6)),
+                 "rmse が違います。RMSE は sqrt(mean((実際の値 - 予測値)^2)) です。モデルの順番も確かめましょう。")
+      check_that(isTRUE(all.equal(acc$mae, .sol$acc$mae, tolerance = 1e-6)),
+                 "mae が違います。MAE は mean(abs(実際の値 - 予測値)) です。モデルの順番も確かめましょう。")
+      expect_df_equal(acc, .sol$acc)
+      expect_value(.value, .sol_value, label = "表示した acc")
+    hints:
+      - 第78ステップと同じ手順です。どのモデルも「2024年8月までのデータだけで、その先24か月を予測した値」を、テスト期間の実際の値と比べます。
+      - predict(m_ar, n.ahead = 24)$pred を as.numeric() で包みます。RMSE は sqrt(mean((test$unemp_rate_sa - pred_ar)^2))、MAE は mean(abs(test$unemp_rate_sa - pred_ar)) です。
+      - |
+        pred_ar <- as.numeric(predict(m_ar, n.ahead = 24)$pred)
+        pred_ari <- as.numeric(predict(m_ari, n.ahead = 24)$pred)
+        pred_naive <- rep(tail(train$unemp_rate_sa, 1), 24)
+        acc <- tibble(model = c("AR(1)", "ARIMA(1,1,0)", "ナイーブ"),
+                      rmse = c(sqrt(mean((test$unemp_rate_sa - pred_ar)^2)),
+                               sqrt(mean((test$unemp_rate_sa - pred_ari)^2)),
+                               sqrt(mean((test$unemp_rate_sa - pred_naive)^2))),
+                      mae = c(mean(abs(test$unemp_rate_sa - pred_ar)),
+                              mean(abs(test$unemp_rate_sa - pred_ari)),
+                              mean(abs(test$unemp_rate_sa - pred_naive))))
+        acc
+    tests:
+      fail:
+        - |
+          pred_ar <- as.numeric(predict(m_ar, n.ahead = 24)$pred)
+          pred_ari <- as.numeric(predict(m_ari, n.ahead = 24)$pred)
+          pred_naive <- rep(tail(train$unemp_rate_sa, 1), 24)
+          acc <- tibble(model = c("AR(1)", "ARIMA(1,1,0)", "ナイーブ"),
+                        rmse = c(mean((test$unemp_rate_sa - pred_ar)^2),
+                                 mean((test$unemp_rate_sa - pred_ari)^2),
+                                 mean((test$unemp_rate_sa - pred_naive)^2)),
+                        mae = c(mean(abs(test$unemp_rate_sa - pred_ar)),
+                                mean(abs(test$unemp_rate_sa - pred_ari)),
+                                mean(abs(test$unemp_rate_sa - pred_naive))))
+          acc
+        - |
+          pred_ar <- as.numeric(predict(m_ar, n.ahead = 24)$pred)
+          pred_ari <- as.numeric(predict(m_ari, n.ahead = 24)$pred)
+          pred_naive <- rep(mean(train$unemp_rate_sa), 24)
+          acc <- tibble(model = c("AR(1)", "ARIMA(1,1,0)", "ナイーブ"),
+                        rmse = c(sqrt(mean((test$unemp_rate_sa - pred_ar)^2)),
+                                 sqrt(mean((test$unemp_rate_sa - pred_ari)^2)),
+                                 sqrt(mean((test$unemp_rate_sa - pred_naive)^2))),
+                        mae = c(mean(abs(test$unemp_rate_sa - pred_ar)),
+                                mean(abs(test$unemp_rate_sa - pred_ari)),
+                                mean(abs(test$unemp_rate_sa - pred_naive))))
+          acc
+  - id: c
+    type: write
+    prompt: |
+      【12か月先の予測区間つきの図】ARIMA(1,1,0) を全期間（2000年1月〜2026年8月）の季節調整値で推定し直し、2026年9月から2027年8月までの12か月を予測します。
+      1. ts(lfs$unemp_rate_sa, start = c(2000, 1), frequency = 12) に order = c(1, 1, 0) の arima() を当てはめて m_full に代入する
+      2. predict(m_full, n.ahead = 12) を fc_raw に代入する
+      3. date（seq(ymd("2026-09-01"), by = "month", length.out = 12)）、予測値 pred（as.numeric(fc_raw$pred)）、95%予測区間の下限 lower と上限 upper（pred ∓ 1.96 × as.numeric(fc_raw$se)）の4列の表を tibble() で作り、fc に代入する
+      4. lfs の2020年以降の実績 recent と fc を1枚の図にする。実績は geom_line()、予測区間は geom_ribbon(aes(ymin = lower, ymax = upper))、予測値は geom_line() で描く（各層に data = を指定する）
+    starter: |
+      m_full <-
+      fc_raw <-
+      fc <- tibble(date = ,
+                   pred = ,
+                   lower = ,
+                   upper = )
+      recent <- filter(lfs, date >= ymd("2020-01-01"))
+      ggplot() +
+        geom_line(data = recent, aes(x = date, y = unemp_rate_sa))
+    solution: |
+      m_full <- arima(ts(lfs$unemp_rate_sa, start = c(2000, 1), frequency = 12),
+                      order = c(1, 1, 0))
+      fc_raw <- predict(m_full, n.ahead = 12)
+      fc <- tibble(date = seq(ymd("2026-09-01"), by = "month", length.out = 12),
+                   pred = as.numeric(fc_raw$pred),
+                   lower = pred - 1.96 * as.numeric(fc_raw$se),
+                   upper = pred + 1.96 * as.numeric(fc_raw$se))
+      recent <- filter(lfs, date >= ymd("2020-01-01"))
+      ggplot() +
+        geom_line(data = recent, aes(x = date, y = unemp_rate_sa)) +
+        geom_ribbon(data = fc, aes(x = date, ymin = lower, ymax = upper), alpha = 0.3) +
+        geom_line(data = fc, aes(x = date, y = pred), linetype = "dashed")
+    check: |
+      expect_object("m_full", class = "Arima")
+      check_that(identical(m_full$arma, .sol$m_full$arma) && m_full$nobs == .sol$m_full$nobs,
+                 "m_full が違います。全期間（320か月）の季節調整値に order = c(1, 1, 0) を当てはめましょう。")
+      expect_value(coef(m_full), coef(.sol$m_full), tol = 1e-4, label = "m_full の係数")
+      expect_object("fc", class = "data.frame")
+      expect_cols(fc, c("date", "pred", "lower", "upper"))
+      expect_nrow(fc, 12)
+      check_that(isTRUE(all.equal(fc$date, .sol$fc$date)),
+                 "fc の date が違います。seq(ymd(\"2026-09-01\"), by = \"month\", length.out = 12) で2026年9月からの12か月にしましょう。")
+      check_that(isTRUE(all.equal(fc$lower, .sol$fc$lower, tolerance = 1e-6)) &&
+                   isTRUE(all.equal(fc$upper, .sol$fc$upper, tolerance = 1e-6)),
+                 "予測区間が違います。95%予測区間は 予測値 ∓ 1.96 × 標準誤差（fc_raw$se）です。")
+      expect_df_equal(fc, .sol$fc, tol = 1e-6)
+      expect_ggplot(geom = c("line", "ribbon"), x = "date", y = "unemp_rate_sa")
+      lab <- function(l, nm) if (is.null(l$mapping[[nm]])) "" else rlang::as_label(l$mapping[[nm]])
+      check_that(any(vapply(.plot$layers, function(l) lab(l, "ymin") == "lower" && lab(l, "ymax") == "upper", logical(1))),
+                 "予測区間の層がありません。geom_ribbon(data = fc, aes(x = date, ymin = lower, ymax = upper)) を加えましょう。")
+      check_that(any(vapply(.plot$layers, function(l) lab(l, "y") == "pred", logical(1))),
+                 "予測値の線がありません。geom_line(data = fc, aes(x = date, y = pred)) を加えましょう。")
+      check_that(any(vapply(.plot$layers, function(l) is.data.frame(l$data) && nrow(l$data) == nrow(.sol$recent), logical(1))),
+                 "実績の線のデータが違います。recent（2020年1月以降の lfs）を使いましょう。")
+    hints:
+      - 第77ステップの予測区間つきの図と同じ形です。テスト期間で比べた後は、全期間のデータで推定し直してから将来を予測します。
+      - predict() の結果は pred（予測値）と se（標準誤差）を持ちます。lower = pred - 1.96 * as.numeric(fc_raw$se) のように、tibble() の中では先に作った列 pred を使えます。
+      - |
+        m_full <- arima(ts(lfs$unemp_rate_sa, start = c(2000, 1), frequency = 12),
+                        order = c(1, 1, 0))
+        fc_raw <- predict(m_full, n.ahead = 12)
+        fc <- tibble(date = seq(ymd("2026-09-01"), by = "month", length.out = 12),
+                     pred = as.numeric(fc_raw$pred),
+                     lower = pred - 1.96 * as.numeric(fc_raw$se),
+                     upper = pred + 1.96 * as.numeric(fc_raw$se))
+        recent <- filter(lfs, date >= ymd("2020-01-01"))
+        ggplot() +
+          geom_line(data = recent, aes(x = date, y = unemp_rate_sa)) +
+          geom_ribbon(data = fc, aes(x = date, ymin = lower, ymax = upper), alpha = 0.3) +
+          geom_line(data = fc, aes(x = date, y = pred), linetype = "dashed")
+    tests:
+      fail:
+        - |
+          m_full <- arima(y_train, order = c(1, 1, 0))
+          fc_raw <- predict(m_full, n.ahead = 12)
+          fc <- tibble(date = seq(ymd("2026-09-01"), by = "month", length.out = 12),
+                       pred = as.numeric(fc_raw$pred),
+                       lower = pred - 1.96 * as.numeric(fc_raw$se),
+                       upper = pred + 1.96 * as.numeric(fc_raw$se))
+          recent <- filter(lfs, date >= ymd("2020-01-01"))
+          ggplot() +
+            geom_line(data = recent, aes(x = date, y = unemp_rate_sa)) +
+            geom_ribbon(data = fc, aes(x = date, ymin = lower, ymax = upper), alpha = 0.3) +
+            geom_line(data = fc, aes(x = date, y = pred), linetype = "dashed")
+        - |
+          m_full <- arima(ts(lfs$unemp_rate_sa, start = c(2000, 1), frequency = 12),
+                          order = c(1, 1, 0))
+          fc_raw <- predict(m_full, n.ahead = 12)
+          fc <- tibble(date = seq(ymd("2026-09-01"), by = "month", length.out = 12),
+                       pred = as.numeric(fc_raw$pred),
+                       lower = pred - as.numeric(fc_raw$se),
+                       upper = pred + as.numeric(fc_raw$se))
+          recent <- filter(lfs, date >= ymd("2020-01-01"))
+          ggplot() +
+            geom_line(data = recent, aes(x = date, y = unemp_rate_sa)) +
+            geom_ribbon(data = fc, aes(x = date, ymin = lower, ymax = upper), alpha = 0.3) +
+            geom_line(data = fc, aes(x = date, y = pred), linetype = "dashed")
+        - |
+          m_full <- arima(ts(lfs$unemp_rate_sa, start = c(2000, 1), frequency = 12),
+                          order = c(1, 1, 0))
+          fc_raw <- predict(m_full, n.ahead = 12)
+          fc <- tibble(date = seq(ymd("2026-09-01"), by = "month", length.out = 12),
+                       pred = as.numeric(fc_raw$pred),
+                       lower = pred - 1.96 * as.numeric(fc_raw$se),
+                       upper = pred + 1.96 * as.numeric(fc_raw$se))
+          recent <- filter(lfs, date >= ymd("2020-01-01"))
+          ggplot() +
+            geom_line(data = recent, aes(x = date, y = unemp_rate_sa)) +
+            geom_line(data = fc, aes(x = date, y = pred), linetype = "dashed")
+  - id: d
+    type: interpret
+    free: true
+    prompt: |
+      a〜c の結果をもとに、「1年後の完全失業率はどの範囲にあると予測できるか」への結論を3行（3文）で書き、続けて注意点を書いてください。
+      1文目に b のテスト期間での比較（RMSE・MAE の数字と、どのモデルがナイーブ予測に勝ったか）を、2文目に c の12か月先（2027年8月）の予測値と95%予測区間を、3文目にこの予測をどう使えるかを書きます。
+      注意点には、予測が外れうる理由（2020年のような急なショック、季節調整値の改定 など）と、予測が当たっても因果関係は分からないことを書きましょう。
+    solution: |
+      テスト期間（2024年9月〜2026年8月）の24か月では、ARIMA(1,1,0) の RMSE が約0.083、MAE が約0.067、AR(1) が約0.108と0.081、ナイーブ予測が約0.087と0.058で、AR(1) はナイーブ予測に負け、ARIMA(1,1,0) は RMSE ではわずかに勝ったが MAE では負け、どのモデルも差は0.03ポイントほどにすぎなかった。
+      全期間で推定し直した ARIMA(1,1,0) では、2027年8月の完全失業率（季節調整値）は約2.5%と予測され、95%予測区間は約1.8〜3.2%である。
+      したがって「来年も失業率は2.5%前後で横ばい」が中心の見通しだが、区間の幅は1年先で約1.4ポイントあり、採用計画などに使うときは上下の幅も含めて見込むべきである。
+      注意点として、このモデルは過去の動きのくり返しを前提にしており、2008年や2020年のような急なショックが起これば区間の外に出うる。また季節調整値は毎年さかのぼって改定されるので、数字は2026年8月分公表時点のものである。予測がよく当たっても、何が失業率を動かしたかという因果関係は分からない。
+    check: |
+      expect_min_chars(180)
+      expect_text("[0-9０-９]", "RMSE や予測値などの数字を入れて書きましょう。")
+      expect_text("RMSE|MAE|誤差", "1文目に、テスト期間での誤差（RMSE・MAE）の比較を書きましょう。")
+      expect_text("ナイーブ|前月|素朴", "ナイーブ予測と比べた結果を書きましょう。")
+      expect_text("予測区間|区間|範囲", "2文目に、95%予測区間を書きましょう。")
+      expect_text("2027|1年後|12か月", "何年何月（いつ）の予測かを書きましょう。")
+      expect_text("ショック|2020|コロナ|リーマン|急変|構造変化|改定", "注意点に、予測が外れうる理由（急なショックや季節調整値の改定など）を書きましょう。")
+      expect_text("因果", "予測が当たっても因果関係は分からないことに触れましょう。")
+    hints:
+      - b の acc の表、c の fc の最後の行（2027年8月）を見直しましょう。3つのモデルの差が、数字の大きさとしてどれくらいかにも注目します。
+      - 「どのモデルがどれだけ当たったか」「1年後はいくつで、区間はどこからどこまでか」「その予測をどう使えるか」を1文ずつ書き、最後に注意点を2〜3文添えます。
+      - 例「テスト期間の24か月では ARIMA(1,1,0) の RMSE が約〇、MAE が約〇、ナイーブ予測が約〇と〇で、差はわずかだった。2027年8月の失業率は約〇%、95%予測区間は約〇〜〇%と予測される。採用計画では上下の幅も見込んで使う。注意点として、2020年のような急なショックは予測できず、季節調整値は改定される。予測が当たっても因果関係は分からない。」
+    tests:
+      fail:
+        - 来年の失業率は2.5%くらいになると思う。
+        - テスト期間では ARIMA(1,1,0) の RMSE が約0.083でナイーブ予測より小さかった。2027年8月の失業率は約2.5%、95%予測区間は約1.8〜3.2%と予測されるので、来年の失業率は確実に2.5%になる。採用計画にそのまま使える。

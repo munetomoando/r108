@@ -1,0 +1,201 @@
+id: "028"
+part: 4
+title: 平均・中央値・ばらつき
+question: 「平均的な時給」とはいくらか
+minutes: 40
+mode: browser
+packages: [readr, dplyr, ggplot2]
+data: [wage_survey.csv]
+learn: [median, sd, quantile, IQR]
+review_of: "027"
+setup: |
+  library(readr); library(dplyr); library(ggplot2)
+  # 架空の賃金調査の個票（3,000人）
+  wage <- read_csv("data/wage_survey.csv", show_col_types = FALSE)
+  # 保存先（このアプリの作業用フォルダにある png ファイル。名前は自動で付く）
+  out_png <- tempfile("wage_hist_", fileext = ".png")
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      wage の時給 hourly_wage の平均を mean() で求めて wage_mean に、中央値を median() で求めて wage_median に代入してください。
+      最後に c(wage_mean, wage_median) を表示して、2つを見比べましょう。
+    starter: |
+      wage_mean <-
+      wage_median <-
+
+    solution: |
+      wage_mean <- mean(wage$hourly_wage)
+      wage_median <- median(wage$hourly_wage)
+      c(wage_mean, wage_median)
+    check: |
+      expect_object("wage_mean", class = "numeric")
+      expect_value(wage_mean, .sol$wage_mean)
+      expect_object("wage_median", class = "numeric")
+      expect_value(wage_median, .sol$wage_median)
+      expect_uses("median")
+      expect_value(.value, .sol_value)
+    hints:
+      - 1つの列を取り出して、平均は mean()、中央値は median() に渡します。最後に c() で2つを並べて表示します。
+      - 列は wage$hourly_wage のように $ で取り出します。median(wage$hourly_wage) は、時給を小さい順に並べたときの真ん中の値です。
+      - |
+        wage_mean <- mean(wage$hourly_wage)
+        wage_median <- median(wage$hourly_wage)
+        c(wage_mean, wage_median)
+    tests:
+      fail:
+        - |
+          wage_mean <- mean(wage$hourly_wage)
+          wage_median <- mean(wage$hourly_wage)
+          c(wage_mean, wage_median)
+        - |
+          wage_mean <- mean(wage$log_wage)
+          wage_median <- median(wage$log_wage)
+          c(wage_mean, wage_median)
+  - id: b
+    type: write
+    prompt: |
+      時給のばらつきを標準偏差で測ります。
+      1. wage 全体の時給 hourly_wage の標準偏差を sd() で求めて wage_sd に代入する
+      2. wage を教育年数 educ_years ごとにまとめ、人数 n_person（n()）、平均時給 mean_wage、時給の標準偏差 sd_wage の3列をもつ表を sd_by_educ に代入し、表示する
+    starter: |
+      wage_sd <-
+      sd_by_educ <- wage |>
+
+      sd_by_educ
+    solution: |
+      wage_sd <- sd(wage$hourly_wage)
+      sd_by_educ <- wage |>
+        group_by(educ_years) |>
+        summarise(n_person = n(), mean_wage = mean(hourly_wage), sd_wage = sd(hourly_wage))
+      sd_by_educ
+    check: |
+      expect_object("wage_sd", class = "numeric")
+      expect_value(wage_sd, .sol$wage_sd)
+      expect_object("sd_by_educ", class = "data.frame")
+      expect_cols(sd_by_educ, c("educ_years", "n_person", "mean_wage", "sd_wage"))
+      expect_df_equal(sd_by_educ, .sol$sd_by_educ, ignore_row_order = TRUE)
+    hints:
+      - 全体の標準偏差は sd() に列を渡すだけです。グループごとの標準偏差は、第6ステップの group_by() → summarise() の中で sd() を使います。
+      - summarise(n_person = n(), mean_wage = mean(hourly_wage), sd_wage = sd(hourly_wage)) のように、3つの集計をカンマで区切って書きます。
+      - |
+        wage_sd <- sd(wage$hourly_wage)
+        sd_by_educ <- wage |> group_by(educ_years) |> summarise(n_person = n(), mean_wage = mean(hourly_wage), sd_wage = sd(hourly_wage))
+        sd_by_educ
+    tests:
+      fail:
+        - |
+          wage_sd <- sd(wage$hourly_wage)
+          sd_by_educ <- wage |>
+            summarise(n_person = n(), mean_wage = mean(hourly_wage), sd_wage = sd(hourly_wage))
+          sd_by_educ
+        - |
+          wage_sd <- sd(wage$hourly_wage)
+          sd_by_educ <- wage |>
+            group_by(educ_years) |>
+            summarise(n_person = n(), mean_wage = mean(hourly_wage), sd_wage = IQR(hourly_wage))
+          sd_by_educ
+  - id: c
+    type: write
+    prompt: |
+      四分位で分布の形を見ます。
+      1. quantile() で時給 hourly_wage の最小値・第1四分位（25%）・中央値・第3四分位（75%）・最大値を求めて wage_q に代入し、表示する
+      2. 四分位範囲（第3四分位 − 第1四分位）を IQR() で求めて wage_iqr に代入し、表示する
+    starter: |
+      wage_q <-
+      wage_q
+      wage_iqr <-
+      wage_iqr
+    solution: |
+      wage_q <- quantile(wage$hourly_wage)
+      wage_q
+      wage_iqr <- IQR(wage$hourly_wage)
+      wage_iqr
+    check: |
+      expect_object("wage_q", class = "numeric")
+      check_that(length(wage_q) == 5,
+                 "wage_q が5つの値になっていません。quantile() に時給の列だけを渡しましょう（probs は指定しません）。")
+      expect_value(unname(wage_q), unname(.sol$wage_q))
+      expect_object("wage_iqr", class = "numeric")
+      expect_value(wage_iqr, .sol$wage_iqr)
+      expect_uses("IQR")
+    hints:
+      - quantile() に列を1つ渡すと、0%・25%・50%・75%・100% の5つの値が返ります。四分位範囲は IQR() で1つの数として求めます。
+      - quantile(wage$hourly_wage) と IQR(wage$hourly_wage) です。IQR はすべて大文字で書きます。
+      - |
+        wage_q <- quantile(wage$hourly_wage)
+        wage_q
+        wage_iqr <- IQR(wage$hourly_wage)
+        wage_iqr
+    tests:
+      fail:
+        - |
+          wage_q <- quantile(wage$hourly_wage, c(0.1, 0.5, 0.9))
+          wage_q
+          wage_iqr <- IQR(wage$hourly_wage)
+          wage_iqr
+        - |
+          wage_q <- quantile(wage$hourly_wage)
+          wage_q
+          wage_iqr <- sd(wage$hourly_wage)
+          wage_iqr
+  - id: d
+    type: interpret
+    prompt: |
+      a の結果では、平均（約2,077円）が中央値（1,900円）より170円以上高くなりました。その理由として最も適切なものはどれですか。
+    choices:
+      - "中央値は時給の高い人を除いて計算するから"
+      - "時給の分布は右に裾が長く、ごく一部の非常に高い時給が平均を引き上げるが、中央値は真ん中の人の値なのでほとんど動かないから"
+      - "3,000人は偶数なので、中央値は真ん中の2人の時給を切り捨てた値になるから"
+      - "平均は男性の時給だけで、中央値は女性の時給だけで計算されるから"
+    answer: 1
+    explain: 平均はすべての人の時給を足して人数で割るので、時給8,594円のような極端に高い値に引っ張られます。中央値は小さい順に並べた真ん中の人の値なので、最も高い人の時給が2倍になっても変わりません。時給は「多くの人が中ほどからやや低めに集まり、右に長い裾がある」分布（第21ステップ）なので、平均＞中央値になります。実際、時給が平均を上回る人は全体の約41%しかいません。「平均的な時給」を1つの数で伝えるなら、典型的な人を表す中央値も添えるのが安全です。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第27ステップの復習】時給のヒストグラムを画像ファイルに保存します。
+      1. wage の hourly_wage のヒストグラム（geom_histogram(binwidth = 100)）に、labs() で横軸の名前「時給（円）」・縦軸の名前「人数」を付けて p に代入する
+      2. ggsave() で p を out_png に、幅 6・高さ 4（インチ）で保存する
+      3. file.exists(out_png) を表示して、TRUE になることを確かめる
+    starter: |
+      p <- ggplot(wage, aes(x = hourly_wage)) +
+
+      ggsave()
+      file.exists(out_png)
+    solution: |
+      p <- ggplot(wage, aes(x = hourly_wage)) +
+        geom_histogram(binwidth = 100) +
+        labs(x = "時給（円）", y = "人数")
+      ggsave(out_png, plot = p, width = 6, height = 4)
+      file.exists(out_png)
+    check: |
+      expect_object("p", class = "ggplot")
+      expect_ggplot(geom = "histogram", x = "hourly_wage")
+      for (k in c("x", "y")) {
+        check_that(identical(p$labels[[k]], .sol$p$labels[[k]]),
+                   paste0("labs() の ", k, " が指示の文字と違います。問題文の文字をそのまま書きましょう。"))
+      }
+      expect_uses("ggsave")
+      check_that(file.exists(out_png) && file.size(out_png) > 0,
+                 "out_png に画像が保存されていません。ggsave() の最初の引数（保存先）に、引用符を付けずに out_png と書きましょう。")
+      check_that(isTRUE(.value), "最後に file.exists(out_png) を表示して、TRUE になることを確かめましょう。")
+    hints:
+      - 「図を作って p に代入する → ggsave() で保存する → file.exists() で確かめる」の3行です。
+      - 図は geom_histogram(binwidth = 100) と labs(x = "時給（円）", y = "人数") を + で足します。保存は ggsave(out_png, plot = p, width = 6, height = 4) です。
+      - |
+        p <- ggplot(wage, aes(x = hourly_wage)) + geom_histogram(binwidth = 100) + labs(x = "時給（円）", y = "人数")
+        ggsave(out_png, plot = p, width = 6, height = 4)
+        file.exists(out_png)
+    tests:
+      fail:
+        - |
+          p <- ggplot(wage, aes(x = hourly_wage)) +
+            geom_histogram(binwidth = 100)
+          ggsave(out_png, plot = p, width = 6, height = 4)
+          file.exists(out_png)
+        - |
+          p <- ggplot(wage, aes(x = hourly_wage)) +
+            geom_histogram(binwidth = 100) +
+            labs(x = "時給（円）", y = "人数")
+          file.exists(out_png)

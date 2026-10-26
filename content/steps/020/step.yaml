@@ -1,0 +1,165 @@
+id: "020"
+part: 3
+title: 時系列の折れ線
+question: コロナ禍でGDPと失業率はどう動いたか
+minutes: 45
+mode: browser
+packages: [readr, dplyr, lubridate, ggplot2, gapminder]
+data: [gdp_quarterly.csv, lfs_monthly.csv]
+learn: [geom_line, scale_x_date]
+review_of: "019"
+setup: |
+  library(readr); library(dplyr); library(lubridate); library(ggplot2); library(gapminder)
+  # 内閣府「四半期別GDP速報」2026年4–6月期2次速報の実質GDP（季節調整済み・年率表示、兆円）
+  gdp <- read_csv("data/gdp_quarterly.csv", show_col_types = FALSE)
+  # 総務省統計局「労働力調査」の完全失業率（％）と就業者数（万人）
+  lfs <- read_csv("data/lfs_monthly.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      gdp は1994年1–3月期から2026年4–6月期までの130四半期の表です。横軸に四半期 quarter、縦軸に実質GDP real_gdp をとった折れ線グラフを描いてください。
+      折れ線の層は geom_line() です。図はそのまま実行して表示します。
+    starter: |
+      ggplot(gdp, aes(x = , y = )) +
+    solution: |
+      ggplot(gdp, aes(x = quarter, y = real_gdp)) + geom_line()
+    check: |
+      expect_ggplot(geom = "line", x = "quarter", y = "real_gdp")
+      check_that(nrow(.plot$data) == nrow(.sol_plot$data),
+                 "図のデータの行数が違います。ggplot() には gdp をそのまま渡しましょう。")
+      expect_df_equal(.plot$data, .sol_plot$data, ignore_row_order = TRUE)
+    hints:
+      - 第19ステップの散布図と同じ形で、点の層 geom_point() を線の層 geom_line() に替えるだけです。横軸は時間の列にします。
+      - aes(x = quarter, y = real_gdp) と書き、+ geom_line() をつなぎます。
+      - ggplot(gdp, aes(x = quarter, y = real_gdp)) + geom_line()
+    tests:
+      fail:
+        - |
+          ggplot(gdp, aes(x = quarter, y = real_gdp)) + geom_point()
+        - |
+          ggplot(gdp, aes(x = quarter, y = growth_qoq)) + geom_line()
+  - id: b
+    type: write
+    prompt: |
+      lfs は2000年1月から2026年8月までの月次の表です。横軸に月 date、縦軸に完全失業率の季節調整値 unemp_rate_sa をとった折れ線グラフを描いてください。
+    starter: |
+
+    solution: |
+      ggplot(lfs, aes(x = date, y = unemp_rate_sa)) + geom_line()
+    check: |
+      expect_ggplot(geom = "line", x = "date", y = "unemp_rate_sa")
+      check_that(nrow(.plot$data) == nrow(.sol_plot$data),
+                 "図のデータの行数が違います。ggplot() には lfs をそのまま渡しましょう。")
+      expect_df_equal(.plot$data, .sol_plot$data, ignore_row_order = TRUE)
+    hints:
+      - a の図のデータと列を、lfs のものに入れ替えます。縦軸は季節調整値（sa）の列です。
+      - ggplot(lfs, aes(x = date, y = unemp_rate_sa)) に + geom_line() をつなぎます。原数値の unemp_rate_nsa と取り違えないようにしましょう。
+      - ggplot(lfs, aes(x = date, y = unemp_rate_sa)) + geom_line()
+    tests:
+      fail:
+        - |
+          ggplot(lfs, aes(x = date, y = unemp_rate_nsa)) + geom_line()
+        - |
+          ggplot(lfs, aes(x = date, y = unemp_rate_sa)) + geom_point()
+  - id: c
+    type: write
+    prompt: |
+      a の図ではコロナ禍の前後が細かくて読みにくいので、2019年から2022年までに絞ります。
+      gdp を quarter が2019年1月1日以上・2022年12月31日以下の行に絞って gdp_covid に代入し（日付は第15ステップの ymd() で作ります）、a と同じ折れ線を描いてください。
+      さらに scale_x_date(date_breaks = "6 months", date_labels = "%Y-%m") を足して、横軸に半年おきの「年-月」の目盛りを付けます。
+    starter: |
+      gdp_covid <- filter(gdp, )
+
+    solution: |
+      gdp_covid <- filter(gdp, quarter >= ymd("2019-01-01"), quarter <= ymd("2022-12-31"))
+      ggplot(gdp_covid, aes(x = quarter, y = real_gdp)) +
+        geom_line() +
+        scale_x_date(date_breaks = "6 months", date_labels = "%Y-%m")
+    check: |
+      expect_object("gdp_covid", class = "data.frame")
+      check_that(nrow(gdp_covid) == nrow(.sol$gdp_covid),
+                 "gdp_covid の行数が違います。2019年1–3月期から2022年10–12月期までの16四半期に絞りましょう。")
+      expect_df_equal(gdp_covid, .sol$gdp_covid, ignore_row_order = TRUE)
+      expect_ggplot(geom = "line", x = "quarter", y = "real_gdp")
+      expect_df_equal(.plot$data, .sol_plot$data, ignore_row_order = TRUE)
+      sx <- .plot$scales$get_scales("x")
+      check_that(inherits(sx, "ScaleContinuousDate"),
+                 "横軸の目盛りを指定していません。+ scale_x_date(date_breaks = \"6 months\", date_labels = \"%Y-%m\") を足しましょう。")
+      x_labels <- function(p) {
+        lab <- ggplot_build(p)$layout$panel_params[[1]]$x$get_labels()
+        unname(lab[!is.na(lab)])
+      }
+      check_that(identical(x_labels(.plot), x_labels(.sol_plot)),
+                 "横軸の目盛りが指示と違います。date_breaks = \"6 months\" と date_labels = \"%Y-%m\" を確かめましょう。")
+    hints:
+      - 「filter() で期間を絞って代入する」「折れ線を描く」「目盛りを足す」の3つです。日付どうしは数と同じく >= や <= で比べられます。
+      - 絞り込みは filter(gdp, quarter >= ymd("2019-01-01"), quarter <= ymd("2022-12-31"))。図は a の gdp を gdp_covid にして、+ scale_x_date(date_breaks = "6 months", date_labels = "%Y-%m") を足します。
+      - |
+        gdp_covid <- filter(gdp, quarter >= ymd("2019-01-01"), quarter <= ymd("2022-12-31"))
+        ggplot(gdp_covid, aes(x = quarter, y = real_gdp)) + geom_line() + scale_x_date(date_breaks = "6 months", date_labels = "%Y-%m")
+    tests:
+      fail:
+        - |
+          gdp_covid <- filter(gdp, quarter >= ymd("2019-01-01"), quarter <= ymd("2022-12-31"))
+          ggplot(gdp_covid, aes(x = quarter, y = real_gdp)) + geom_line()
+        - |
+          gdp_covid <- filter(gdp, quarter >= ymd("2019-01-01"), quarter < ymd("2022-01-01"))
+          ggplot(gdp_covid, aes(x = quarter, y = real_gdp)) + geom_line() + scale_x_date(date_breaks = "6 months", date_labels = "%Y-%m")
+        - |
+          gdp_covid <- filter(gdp, quarter >= ymd("2019-01-01"), quarter <= ymd("2022-12-31"))
+          ggplot(gdp_covid, aes(x = quarter, y = real_gdp)) + geom_line() + scale_x_date(date_breaks = "1 year", date_labels = "%Y")
+        - |
+          gdp_covid <- filter(gdp, quarter >= ymd("2019-01-01"), quarter <= ymd("2022-12-31"))
+          ggplot(gdp, aes(x = quarter, y = real_gdp)) + geom_line() + scale_x_date(date_breaks = "6 months", date_labels = "%Y-%m")
+  - id: d
+    type: interpret
+    prompt: |
+      c の図と、b の失業率の図の2020年前後を見比べます（失業率も同じように filter() で絞ると見やすくなります）。2020年の動きの説明として、データに合うものはどれですか。
+    choices:
+      - "GDPも失業率も2020年4–6月期に同じくらい大きく悪化し、どちらも翌期にはほぼ元の水準に戻った"
+      - "GDPは2020年4–6月期に前期比7%余り落ち込み、翌7–9月期に5%反発した。失業率は2.4%前後から3.1%まで上がったが、上昇は1ポイントに満たず、その後ゆっくりと下がった"
+      - "失業率は2020年に5%を超え、GDPよりも大きく、速く動いた"
+      - "GDPは2020年中は前期比でマイナスにならず、失業率だけが上がった"
+    answer: 1
+    explain: 実質GDPは2020年1–3月期の569.2兆円から4–6月期の528.2兆円へ、前期比−7.2%と急落し、7–9月期に+5.0%反発しました。完全失業率（季節調整値）は2020年初めの2.4%から上がり、10月と12月に3.1%になりましたが、上昇幅は0.7ポイントです。その後は少しずつ下がり、2022年7月に2.5%になりました。GDPは鋭く落ちてすぐ戻り始めた一方、失業率は小さく上がってゆっくり戻りました。雇用調整助成金などで解雇が抑えられ、企業が休業や労働時間の短縮で対応したことが、失業率の動きを小さくしたと考えられています。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第19ステップの復習】gapminder を1952年の行に絞って gap52 に代入し、横軸に1人当たりGDP gdpPercap、縦軸に平均寿命 lifeExp をとり、大陸 continent で色分けした散布図を描いてください。横軸は scale_x_log10() で対数目盛りにします。第19ステップの2007年の図と比べてみましょう。
+    starter: |
+      gap52 <-
+
+    solution: |
+      gap52 <- filter(gapminder, year == 1952)
+      ggplot(gap52, aes(x = gdpPercap, y = lifeExp, colour = continent)) +
+        geom_point() +
+        scale_x_log10()
+    check: |
+      expect_object("gap52", class = "data.frame")
+      expect_df_equal(gap52, .sol$gap52, ignore_row_order = TRUE)
+      expect_ggplot(geom = "point", x = "gdpPercap", y = "lifeExp", colour = "continent")
+      expect_df_equal(.plot$data, .sol_plot$data, ignore_row_order = TRUE)
+      sx <- .plot$scales$get_scales("x")
+      check_that(!is.null(sx) &&
+                   identical(sx$get_transformation()$name,
+                             .sol_plot$scales$get_scales("x")$get_transformation()$name),
+                 "横軸が対数目盛りになっていません。+ scale_x_log10() を足しましょう。")
+    hints:
+      - 「1952年に絞る」と「散布図を描く」の2行です。色分けは aes() の中、対数目盛りは + でつなぐ部品でした。
+      - 1行目は filter(gapminder, year == 1952)。2行目は ggplot(gap52, aes(x = gdpPercap, y = lifeExp, colour = continent)) + geom_point() に + scale_x_log10() を足します。
+      - |
+        gap52 <- filter(gapminder, year == 1952)
+        ggplot(gap52, aes(x = gdpPercap, y = lifeExp, colour = continent)) + geom_point() + scale_x_log10()
+    tests:
+      fail:
+        - |
+          gap52 <- filter(gapminder, year == 1952)
+          ggplot(gap52, aes(x = gdpPercap, y = lifeExp, colour = continent)) + geom_point()
+        - |
+          gap52 <- filter(gapminder, year == 1952)
+          ggplot(gap52, aes(x = gdpPercap, y = lifeExp)) + geom_point() + scale_x_log10()
+        - |
+          gap52 <- filter(gapminder, year == 2007)
+          ggplot(gap52, aes(x = gdpPercap, y = lifeExp, colour = continent)) + geom_point() + scale_x_log10()

@@ -1,0 +1,24 @@
+title: 給付型奨学金と30歳時の年収（回帰不連続デザイン）
+file: scholarship_rdd.csv
+source: 合成データ（data-raw/synth_scholarship_rdd.R、乱数シード108）
+rows: 5000
+unit_of_observation: 学生
+notes: >-
+  gpa ~ N(2.8, 0.5²) を0〜4に切り詰め、GPA 3.0以上で奨学金。earn30 = 400 + 60×(gpa − 3) + 25×scholarship + ε、ε ~ N(0, 80²)。
+  閾値で +25万円の不連続
+columns:
+  - name: id
+    description: 学生ID
+    unit: なし
+  - name: gpa
+    description: 1年次のGPA（0〜4、小数2桁）
+    unit: なし
+  - name: scholarship
+    description: 給付型奨学金の受給（1=受給、gpa ≥ 3.0 と一致）
+    unit: なし（0/1）
+  - name: female
+    description: 女性ダミー（年収には影響しない）
+    unit: なし（0/1）
+  - name: earn30
+    description: 30歳時点の年収
+    unit: 万円

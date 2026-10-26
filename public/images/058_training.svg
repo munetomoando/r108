@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="340" height="280" viewBox="0 0 340 280" role="img" aria-label="訓練の効果の因果関係図：前年収入は訓練参加と年収に、訓練参加は資格取得と年収と追跡調査への回答に、資格取得は年収に、年収は追跡調査への回答に影響する">
+<style>
+.bg{fill:#ffffff;stroke:#d9d6e8;stroke-width:1}
+.node{fill:#ffffff;stroke:#1d2140;stroke-width:2}
+.x{fill:#e7ecff}.y{fill:#ffe6e0}.q{fill:#fff2c7}
+.t{fill:#1d2140;font-family:'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI',Meiryo,sans-serif;font-size:14px;text-anchor:middle;dominant-baseline:central}
+.s{fill:#4a4f6a;font-size:12px}
+.e{stroke:#1d2140;stroke-width:2;fill:none}
+.h{fill:#1d2140}
+@media (prefers-color-scheme: dark){
+.bg{fill:#1f2452;stroke:#3d4378}
+.node{fill:#1f2452;stroke:#fff8ea}
+.x{fill:#2a3170}.y{fill:#4a2633}.q{fill:#3f3826}
+.t{fill:#fff8ea}.s{fill:#c3c6e0}
+.e{stroke:#fff8ea}.h{fill:#fff8ea}
+}
+</style>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="h" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<rect class="bg" x="0.5" y="0.5" width="339" height="279" rx="16"/>
+<line class="e" x1="140.7" y1="55.0" x2="93.3" y2="89.0" marker-end="url(#a)"/>
+<line class="e" x1="199.3" y1="55.0" x2="246.7" y2="89.0" marker-end="url(#a)"/>
+<line class="e" x1="99.9" y1="131.0" x2="134.1" y2="151.0" marker-end="url(#a)"/>
+<line class="e" x1="205.9" y1="151.0" x2="240.1" y2="131.0" marker-end="url(#a)"/>
+<line class="e" x1="123.0" y1="110.0" x2="222.0" y2="110.0" marker-end="url(#a)"/>
+<line class="e" x1="80.4" y1="131.0" x2="153.6" y2="225.0" marker-end="url(#a)"/>
+<line class="e" x1="259.6" y1="131.0" x2="186.4" y2="225.0" marker-end="url(#a)"/>
+<rect class="node q" x="110.0" y="17.0" width="120" height="34" rx="10"/>
+<text class="t" x="170" y="34">前年収入</text>
+<rect class="node x" x="9.0" y="93.0" width="110" height="34" rx="10"/>
+<text class="t" x="64" y="110">訓練参加 X</text>
+<rect class="node y" x="226.0" y="93.0" width="100" height="34" rx="10"/>
+<text class="t" x="276" y="110">年収 Y</text>
+<rect class="node q" x="122.0" y="155.0" width="96" height="34" rx="10"/>
+<text class="t" x="170" y="172">資格取得</text>
+<rect class="node q" x="95.0" y="229.0" width="150" height="34" rx="10"/>
+<text class="t" x="170" y="246">追跡調査に回答</text>
+</svg>

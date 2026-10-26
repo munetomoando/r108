@@ -1,0 +1,25 @@
+id: "108"
+part: 12
+title: 修了課題：自分の問いを立て、分析し、報告する
+question: 自分で立てた問いに、データとモデルで答え、再現できる報告書にして GitHub で共有できるか
+minutes: 120
+mode: local
+packages: [tidyverse, modelsummary, knitr, rmarkdown]
+data: [ec_orders.csv, ec_customers.csv, ec_products.csv]
+learn: []
+local:
+  script: check_108.R
+  code_sha256: "5aa6b260215bf8ad5dc0a0f6df8585de92a290a9b4a7092b4b9da41641caa9f5"
+  instructions: |
+    **実行する前に**
+    - 修了課題のプロジェクトのフォルダに `final.qmd`・`README.md`・`.gitignore` と使うデータ（`data/` の中）がそろい、Render で `final.html` が出力できること
+    - 5つ以上のコミットを GitHub の **非公開**（Private）のリポジトリに push し、そのあと変更していないこと
+    - 本文の「自分で見直す点検表」をすべて確かめたこと
+
+    ダウンロードした `check_108.R` をプロジェクトのフォルダ（`final.qmd` のあるフォルダ）に置き、コンソールで次を実行します。
+
+    ```r
+    source("check_108.R", encoding = "UTF-8")
+    ```
+
+    確認スクリプトは、final.qmd・README.md・Git の記録を調べ、final.qmd を HTML にレンダリングして図と表を数えます。インターネットにはつながず、リポジトリも書き換えません。見るのは形だけです。内容は点検表で自分で確かめてください。

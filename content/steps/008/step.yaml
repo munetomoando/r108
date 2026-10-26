@@ -1,0 +1,117 @@
+id: "008"
+part: 1
+title: エラーとAIのコードを読む
+question: このコードはなぜ動かないか
+minutes: 45
+mode: browser
+packages: [readr, dplyr]
+data: [sora_stores.csv]
+learn: [library, "?"]
+setup: |
+  library(readr); library(dplyr)
+  stores <- read_csv("data/sora_stores.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: fix
+    prompt: |
+      売上（sales）が多い上位3店の store_name と sales を取り出して big3 に代入したいのですが、次のコードは「object '…' not found」というエラーになります。
+      エラーの原因を見つけて直してください。
+    starter: |
+      big3 <- stors |>
+        slice_max(sales, n = 3) |>
+        select(store_name, sales)
+    solution: |
+      big3 <- stores |>
+        slice_max(sales, n = 3) |>
+        select(store_name, sales)
+    check: |
+      expect_object("big3", class = "data.frame")
+      expect_df_equal(big3, .sol$big3)
+    hints:
+      - "エラーメッセージの ' ' で囲まれた部分が、R が見つけられなかったオブジェクトの名前です。"
+      - データの名前は setup で読み込んだ stores です。1文字ずつ見比べましょう。
+      - 1行目を big3 <- stores |> に直します。
+    tests:
+      fail:
+        - |
+          big3 <- stores |>
+            slice_max(sales, n = 3)
+        - |
+          big3 <- stores |>
+            slice_min(sales, n = 3) |>
+            select(store_name, sales)
+  - id: b
+    type: fix
+    prompt: |
+      関東（region が "関東"）の店舗だけを取り出し、store_name, location, sales の3列を kanto に代入したいのですが、次のコードは「could not find function」というエラーになります。
+      直してください。
+    starter: |
+      kanto <- stores |>
+        fliter(region == "関東") |>
+        select(store_name, location, sales)
+    solution: |
+      kanto <- stores |>
+        filter(region == "関東") |>
+        select(store_name, location, sales)
+    check: |
+      expect_object("kanto", class = "data.frame")
+      expect_df_equal(kanto, .sol$kanto, ignore_row_order = TRUE)
+    hints:
+      - "could not find function \"…\" は、その名前の関数が見つからないという意味です。関数名の綴りか、library() を忘れていないかを疑います。"
+      - dplyr はすでに読み込まれています。行を絞り込む関数の正しい綴りを思い出しましょう。
+      - 2行目を filter(region == "関東") |> に直します。
+    tests:
+      fail:
+        - |
+          kanto <- stores |>
+            filter(region == "東京") |>
+            select(store_name, location, sales)
+        - |
+          kanto <- stores |>
+            filter(region == "関東")
+  - id: c
+    type: interpret
+    prompt: |
+      上司から「売上10億円（sales が 100000 万円）以上の大型店だけを対象に、地域別の平均客単価を出して」と頼まれ、AIにコードを書いてもらいました。エラーは出ずに6地域の表が表示されます。
+
+      ```r
+      stores |>
+        mutate(spend = sales * 10000 / customers) |>
+        group_by(region) |>
+        summarise(mean_spend = mean(spend),
+                  total = sum(sales)) |>
+        filter(total >= 100000)
+      ```
+
+      このコードの問題として正しいものはどれですか。
+    choices:
+      - "問題はない。エラーが出ていないので、頼まれたとおりの結果になっている"
+      - "mean() ではなく sum() で客単価を集計すべきである"
+      - "filter() が集計の後にあるため、店舗ではなく地域の売上合計で絞っている。filter(sales >= 100000) を group_by() の前に置くべきである"
+      - "group_by(region) を group_by(store_name) にすべきである"
+    answer: 2
+    explain: |
+      summarise() の後の total は地域の売上合計です。どの地域も店舗の売上を合計すれば10億円を超えるので、filter() は1行も落とさず、小さな店舗も平均に入ったままになります。
+      店舗の売上で絞るには、集計の前に filter(sales >= 100000) を置きます。エラーが出ないことは、正しいことの証明になりません。
+  - id: d
+    type: interpret
+    review: true
+    prompt: |
+      【第7ステップの復習】次のコードの各行の働きを正しく説明しているものはどれですか。
+
+      ```r
+      stores |>
+        filter(sales < sales_last) |>
+        count(region) |>
+        slice_max(n, n = 1)
+      ```
+    choices:
+      - "2行目で前年より売上が落ちた店舗に絞り、3行目で地域ごとにその店舗数を数え、4行目で店舗数が最も多い地域を取り出す"
+      - "2行目で前年より売上が落ちた地域に絞り、3行目で地域の数を数え、4行目で先頭の1行を取り出す"
+      - "2行目で前年より売上が落ちた店舗に絞り、3行目で地域ごとの売上を合計し、4行目で売上が最も多い地域を取り出す"
+      - "2行目で売上と前年売上の差を計算し、3行目で地域を並べ替え、4行目で最後の1行を取り出す"
+    answer: 0
+    explain: |
+      filter() は行（ここでは店舗）を条件で絞ります。count(region) は地域ごとの行数を数えて列 n に入れます。slice_max(n, n = 1) は、列 n が最も大きい1行を取り出します。
+      1つ目の n は列の名前、2つ目の n = 1 は取り出す行数を指定する引数です。なお、店舗数が多い地域は、もともと店舗の多い地域であることもあります。割合で比べたいときは、地域の店舗数でも割ってみましょう。
+review_of: "007"

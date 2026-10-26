@@ -1,0 +1,32 @@
+title: そらまめマーケット 注文明細（2024〜2025年）
+file: ec_orders.csv
+source: 合成データ（data-raw/synth_ec.R、乱数シード108）
+rows: 61275
+unit_of_observation: 注文明細（1注文に1〜5商品。注文数は54,717件）
+notes: >-
+  注文件数は12月に+30%、8月に−10%（季節性）。土日はやや多い。
+  クーポン（20%引き）は注文単位で無作為に約20%の注文に付与。クーポンありの平均数量は約1.40倍（価格弾力性 −1.5）。
+  2025年6月から10県（pref_code 4, 8, 9, 10, 22, 26, 28, 34, 40, 43）で広告キャンペーンを実施し、注文件数が+8%。
+  顧客マスタにない顧客ID（退会済み）の注文が25件ある（anti_join の練習用）。売上 = qty × unit_price
+columns:
+  - name: order_id
+    description: 注文ID（O000001〜、注文日の順）。同じ注文の明細は同じID
+    unit: なし
+  - name: customer_id
+    description: 顧客ID（ec_customers.csv と結合する）
+    unit: なし
+  - name: order_date
+    description: 注文日（2024-01-01〜2025-12-31）
+    unit: 日付
+  - name: product_id
+    description: 商品ID（先頭0の5桁。ec_products.csv と結合する）
+    unit: なし
+  - name: qty
+    description: 数量
+    unit: 個
+  - name: unit_price
+    description: 販売単価（税込）。クーポンありは定価の8割（1円未満四捨五入）
+    unit: 円
+  - name: coupon
+    description: クーポン使用（1=あり、0=なし）
+    unit: なし（0/1）

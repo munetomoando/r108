@@ -1,0 +1,24 @@
+id: "105"
+part: 12
+title: GitHubで共有する
+question: 分析を上司や同僚と共有するとき、何を公開してよく、何を出してはいけないか
+minutes: 60
+mode: local
+packages: []
+data: []
+learn: []
+local:
+  script: check_105.R
+  code_sha256: "ee6057f980b2670dad16da7dea4a0caf4cb729371d725a5f0e0d112360df0606"
+  instructions: |
+    **実行する前に**
+    - 本文の手順を終え、`README.md` をコミットして、GitHub の **非公開**（Private）のリポジトリに push してあること
+    - GitHub のリポジトリのページで、`data` フォルダや `.Renviron` が見えないことを自分の目で確かめたこと
+
+    ダウンロードした `check_105.R` をプロジェクトのフォルダ（`app.R` のあるフォルダ）に置き、コンソールで次を実行します。
+
+    ```r
+    source("check_105.R", encoding = "UTF-8")
+    ```
+
+    確認スクリプトはインターネットにつながず、手元のリポジトリの記録（リモートの設定、最後に push したときの記録）だけを読みます。push したあとにコミットした分は「まだ送っていない」と表示されます。

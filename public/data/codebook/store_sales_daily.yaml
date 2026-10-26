@@ -1,0 +1,31 @@
+title: そらまめマーケット 店舗別の日次売上（30店舗、2023〜2025年）
+file: store_sales_daily.csv
+source: 合成データ（data-raw/synth_store_sales_daily.R、乱数シード108）。店舗は sora_stores の50店舗から選んだ30店舗で、store_id と所在地は sora_stores と同じ
+rows: 32880
+unit_of_observation: 店舗×日
+notes: >-
+  log(sales) = 店舗の水準 + 曜日効果 + 月効果 + 店舗ごとの年の伸び（sora_stores の前年比） + log(1.01)×temp + log(1.15)×holiday + log(0.90)×rain + ε、ε ~ N(0, 0.08²)。
+  気温1℃で +1%、祝日 +15%、雨 −10%。土日の違いは曜日効果で表す。
+  2025年の店舗別の合計（円）は sora_stores の sales（万円）×10,000 に一致する（四捨五入の誤差を除く）。2024年の合計は sales_last と最大3%ほどずれる
+columns:
+  - name: date
+    description: 日付
+    unit: 日付
+  - name: store_id
+    description: 店舗ID（sora_stores の store_id。50店舗のうち30店舗）
+    unit: なし
+  - name: pref_code
+    description: 店舗のある都道府県のコード（1〜47）
+    unit: なし（整数）
+  - name: temp
+    description: 日平均気温（架空）
+    unit: ℃
+  - name: rain
+    description: 雨の日（1=雨、0=雨でない）
+    unit: なし（0/1）
+  - name: holiday
+    description: 国民の祝日・振替休日（1=祝日、0=それ以外。土日は含まない）
+    unit: なし（0/1）
+  - name: sales
+    description: 1日の売上
+    unit: 円

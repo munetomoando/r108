@@ -1,0 +1,180 @@
+id: "038"
+part: 5
+title: 最小二乗法の中身
+question: 傾きは手で計算できるか
+minutes: 45
+mode: browser
+packages: [readr, dplyr]
+data: [wage_survey.csv]
+learn: [cov, var, residuals, fitted]
+review_of: "037"
+setup: |
+  library(readr); library(dplyr)
+  # 架空の賃金調査の個票（3,000人）
+  wage <- read_csv("data/wage_survey.csv", show_col_types = FALSE)
+  # 第37ステップの単回帰
+  m <- lm(log_wage ~ educ_years, data = wage)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      最小二乗法の傾きは「x と y の共分散 ÷ x の分散」で計算できます。lm() を使わずに求めてみましょう。
+      1. cov(wage$educ_years, wage$log_wage) / var(wage$educ_years) を slope に代入する
+      2. 切片 mean(wage$log_wage) - slope * mean(wage$educ_years) を intercept に代入する
+      3. c(intercept, slope) と coef(m) を順に表示して見比べる
+    starter: |
+      slope <-
+      intercept <-
+      c(intercept, slope)
+      coef(m)
+    solution: |
+      slope <- cov(wage$educ_years, wage$log_wage) / var(wage$educ_years)
+      intercept <- mean(wage$log_wage) - slope * mean(wage$educ_years)
+      c(intercept, slope)
+      coef(m)
+    check: |
+      expect_uses("cov")
+      expect_uses("var")
+      expect_not_uses("lm")
+      expect_object("slope", class = "numeric")
+      expect_value(slope, .sol$slope, label = "slope")
+      expect_object("intercept", class = "numeric")
+      expect_value(intercept, .sol$intercept, label = "intercept")
+    hints:
+      - 傾きは「2つの変数が一緒に動く度合い（共分散）」を「x の散らばり（分散）」で割ったものです。切片は、直線が平均の点（x の平均, y の平均）を通るように決まります。
+      - cov(x, y) が共分散、var(x) が分散です。x は wage$educ_years、y は wage$log_wage です。
+      - |
+        slope <- cov(wage$educ_years, wage$log_wage) / var(wage$educ_years)
+        intercept <- mean(wage$log_wage) - slope * mean(wage$educ_years)
+        c(intercept, slope)
+        coef(m)
+    tests:
+      fail:
+        - |
+          slope <- cov(wage$educ_years, wage$log_wage) / var(wage$log_wage)
+          intercept <- mean(wage$log_wage) - slope * mean(wage$educ_years)
+          c(intercept, slope)
+          coef(m)
+        - |
+          slope <- cov(wage$educ_years, wage$log_wage) / var(wage$educ_years)
+          intercept <- mean(wage$log_wage)
+          c(intercept, slope)
+          coef(m)
+        - |
+          slope <- coef(lm(log_wage ~ educ_years, data = wage))[["educ_years"]]
+          intercept <- mean(wage$log_wage) - slope * mean(wage$educ_years)
+          c(intercept, slope)
+          coef(m)
+  - id: b
+    type: write
+    prompt: |
+      当てはめ値（直線の上の値）と残差（実際の値 − 当てはめ値）を取り出します。
+      1. fitted(m) を fit に、residuals(m) を res に代入する
+      2. 残差の合計 sum(res) を表示する
+    starter: |
+      fit <-
+      res <-
+
+    solution: |
+      fit <- fitted(m)
+      res <- residuals(m)
+      sum(res)
+    check: |
+      expect_uses("fitted")
+      expect_uses("residuals")
+      expect_object("fit", class = "numeric")
+      expect_value(fit, .sol$fit, label = "fit")
+      expect_object("res", class = "numeric")
+      expect_value(res, .sol$res, label = "res")
+      expect_value(.value, .sol_value, label = "最後に表示した残差の合計")
+    hints:
+      - fitted() はモデルの当てはめ値、residuals() は残差を、1人1つずつのベクトルで返します（3,000個）。
+      - fit <- fitted(m)、res <- residuals(m) と代入し、最後に sum(res) を書きます。
+      - |
+        fit <- fitted(m)
+        res <- residuals(m)
+        sum(res)
+    tests:
+      fail:
+        - |
+          fit <- fitted(m)
+          res <- residuals(m)
+          sum(res^2)
+        - |
+          fit <- fitted(m)
+          res <- fitted(m)
+          sum(res)
+  - id: c
+    type: write
+    prompt: |
+      決定係数 R² を手で計算します。R² は「y の散らばりのうち、直線で説明できた割合」で、1 − 残差の二乗和 ÷ 全体の二乗和 です。
+      1. 1 - sum(res^2) / sum((wage$log_wage - mean(wage$log_wage))^2) を r2 に代入する
+      2. c(r2, summary(m)$r.squared) を表示して、summary() の値と見比べる
+    starter: |
+      r2 <-
+      c(r2, summary(m)$r.squared)
+    solution: |
+      r2 <- 1 - sum(res^2) / sum((wage$log_wage - mean(wage$log_wage))^2)
+      c(r2, summary(m)$r.squared)
+    check: |
+      expect_object("r2", class = "numeric")
+      expect_value(r2, .sol$r2, label = "r2")
+      expect_value(.value, .sol_value, label = "最後に表示した値")
+    hints:
+      - 分子は残差 res の二乗の合計、分母は「log_wage と平均の差」の二乗の合計です。
+      - sum(res^2) と sum((wage$log_wage - mean(wage$log_wage))^2) を割り、1 から引きます。
+      - |
+        r2 <- 1 - sum(res^2) / sum((wage$log_wage - mean(wage$log_wage))^2)
+        c(r2, summary(m)$r.squared)
+    tests:
+      fail:
+        - |
+          r2 <- sum(res^2) / sum((wage$log_wage - mean(wage$log_wage))^2)
+          c(r2, summary(m)$r.squared)
+        - |
+          r2 <- 1 - sum(res) / sum(wage$log_wage - mean(wage$log_wage))
+          c(r2, summary(m)$r.squared)
+  - id: d
+    type: predict
+    prompt: |
+      第29ステップ c と同じように、wage に「教育年数12年で時給10万円（log_wage = log(100000)）」の1人を加えて、log_wage ~ educ_years の単回帰をやり直します。
+      教育年数の係数（いまは約0.0489）はどうなるでしょうか。
+    choices:
+      - "大きく上がって0.1を超える"
+      - "わずかに下がる（0.048前後）"
+      - "符号が変わってマイナスになる"
+      - "1人加えても最小二乗法の傾きはまったく変わらない"
+    answer: 1
+    explain: 実際に計算すると、傾きは約0.0489から約0.0480へわずかに下がります。教育年数の短い12年のところに飛び抜けて高い時給の人が入ると、直線の左側が持ち上げられ、傾きが緩やかになるからです。ただし3,000人のうちの1人で、しかも対数をとって値の差が縮んでいるので、変化は小さくて済みます。対数をとらずに hourly_wage で回帰すると、傾きは1年あたり約118円から約97円へと大きく下がります。最小二乗法は残差の二乗を小さくするので、遠く離れた点に強く引っ張られます。外れ値がないかを散布図で確かめる習慣をつけましょう。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第37ステップの復習】勤続年数 tenure と対数時給の関係を単回帰で調べます。
+      1. lm(log_wage ~ tenure, data = wage) を m_ten に代入する
+      2. 勤続年数の係数を、(exp(係数) - 1) * 100 で「1年あたり何%」に直して表示する
+    starter: |
+      m_ten <-
+
+    solution: |
+      m_ten <- lm(log_wage ~ tenure, data = wage)
+      (exp(coef(m_ten)[["tenure"]]) - 1) * 100
+    check: |
+      expect_object("m_ten", class = "lm")
+      expect_model(m_ten, like = .sol$m_ten)
+      expect_uses("exp")
+      expect_value(.value, .sol_value, label = "最後に表示した%の値")
+    hints:
+      - 第37ステップの a・b と同じ手順で、説明変数を tenure に変えます。
+      - 係数は coef(m_ten)[["tenure"]] で取り出せます。
+      - |
+        m_ten <- lm(log_wage ~ tenure, data = wage)
+        (exp(coef(m_ten)[["tenure"]]) - 1) * 100
+    tests:
+      fail:
+        - |
+          m_ten <- lm(log_wage ~ exper, data = wage)
+          (exp(coef(m_ten)[["exper"]]) - 1) * 100
+        - |
+          m_ten <- lm(log_wage ~ tenure, data = wage)
+          exp(coef(m_ten)[["tenure"]]) * 100

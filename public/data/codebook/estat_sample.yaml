@@ -1,0 +1,26 @@
+title: 都道府県別 完全失業率（総数・男・女、2010・2015・2020年度）の e-Stat API 応答
+file: estat_sample.json
+source: 総務省統計局「社会・人口統計体系 都道府県データ 社会生活統計指標 F 労働」（e-Stat API getStatsData、統計表ID 0000010206、2026-10-23取得）。完全失業率の元の値は国勢調査による。応答をそのまま保存し、アプリケーションIDだけを YOUR_APP_ID に置き換えた（data-raw/fetch_estat_sample.R）
+format: json
+layout: GET_STATS_DATA の下に RESULT（STATUS 0 で成功）、PARAMETER（問い合わせの条件）、STATISTICAL_DATA がある。STATISTICAL_DATA$CLASS_INF$CLASS_OBJ がコード表（tab, cat01, area, time の4つ）、STATISTICAL_DATA$DATA_INF$VALUE が値の表。下の rows と columns は値の表のもの
+rows: 432
+unit_of_observation: 項目（総数・男・女）× 地域（全国と47都道府県）× 年（2010・2015・2020年度）
+columns:
+  - name: "@tab"
+    description: 表章事項のコード。00001（観測値）だけ
+    unit: なし
+  - name: "@cat01"
+    description: 分類事項のコード。#F01301 が完全失業率（総数）、#F0130101 が男、#F0130102 が女
+    unit: なし
+  - name: "@area"
+    description: 地域コード（5桁）。00000 が全国、先頭2桁が県コード（01000 北海道〜47000 沖縄県）
+    unit: なし
+  - name: "@time"
+    description: 時間コード（10桁）。先頭4桁が年（2010100000 は2010年度）
+    unit: なし
+  - name: "@unit"
+    description: 値の単位。％だけ
+    unit: なし
+  - name: "$"
+    description: 完全失業率（完全失業者 ÷ 労働力人口 × 100）。JSON では文字列で入っている
+    unit: ％

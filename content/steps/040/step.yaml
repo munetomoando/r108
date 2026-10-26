@@ -1,0 +1,175 @@
+id: "040"
+part: 5
+title: ダミー変数とカテゴリ
+question: 大企業ほど賃金は高いか
+minutes: 50
+mode: browser
+packages: [readr, dplyr]
+data: [wage_survey.csv]
+learn: [relevel, levels]
+review_of: "039"
+setup: |
+  library(readr); library(dplyr)
+  # 架空の賃金調査の個票（3,000人）
+  wage <- read_csv("data/wage_survey.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      female は「1=女性、0=男性」の**ダミー変数**です。対数時給 log_wage を、female・教育年数 educ_years・経験年数 exper・勤続年数 tenure で説明する重回帰を推定して m_f に代入し、coef(m_f) で係数を表示してください。
+      続けて、female の係数を「何%違うか」に直した値 (exp(係数) - 1) * 100 を表示してください。係数は coef(m_f)[["female"]] で取り出せます。
+    starter: |
+      m_f <- lm(log_wage ~ , data = wage)
+      coef(m_f)
+
+    solution: |
+      m_f <- lm(log_wage ~ female + educ_years + exper + tenure, data = wage)
+      coef(m_f)
+      (exp(coef(m_f)[["female"]]) - 1) * 100
+    check: |
+      expect_object("m_f", class = "lm")
+      expect_model(m_f, like = .sol$m_f)
+      expect_value(as.numeric(.value), as.numeric(.sol_value), label = "最後に表示した値（female の係数を%に直したもの）")
+    hints:
+      - 第39ステップの重回帰と同じ書き方です。0/1 のダミー変数は、ほかの数値の変数と同じように + でつなぐだけで説明変数にできます。
+      - 式は log_wage ~ female + educ_years + exper + tenure です。%に直すには exp() を使い、(exp(b) - 1) * 100 とします。
+      - |
+        m_f <- lm(log_wage ~ female + educ_years + exper + tenure, data = wage)
+        coef(m_f)
+        (exp(coef(m_f)[["female"]]) - 1) * 100
+    tests:
+      fail:
+        - |
+          m_f <- lm(log_wage ~ female, data = wage)
+          coef(m_f)
+          (exp(coef(m_f)[["female"]]) - 1) * 100
+        - |
+          m_f <- lm(log_wage ~ female + educ_years + exper + tenure, data = wage)
+          coef(m_f)
+          coef(m_f)[["female"]] * 100
+  - id: b
+    type: write
+    prompt: |
+      企業規模 firm_size は「〜29人」「30〜299人」「300〜999人」「1000人以上」の4つの文字です。mutate() と factor() で、firm_size を小さい順に並べたカテゴリ（因子）に置き換えて wage に代入し直し、levels(wage$firm_size) で並び順を表示してください。factor() の levels には c("〜29人", "30〜299人", "300〜999人", "1000人以上") を指定します。
+      続けて、log_wage を firm_size・female・educ_years・exper・tenure で説明する重回帰を推定して m_s に代入し、coef(m_s) を表示してください。
+    starter: |
+      wage <- mutate(wage, firm_size = factor(firm_size, levels = ))
+      levels(wage$firm_size)
+      m_s <-
+
+    solution: |
+      wage <- mutate(wage, firm_size = factor(firm_size, levels = c("〜29人", "30〜299人", "300〜999人", "1000人以上")))
+      levels(wage$firm_size)
+      m_s <- lm(log_wage ~ firm_size + female + educ_years + exper + tenure, data = wage)
+      coef(m_s)
+    check: |
+      expect_object("wage", class = "data.frame")
+      check_that(is.factor(wage$firm_size),
+                 "wage の firm_size がまだ因子（factor）になっていません。mutate() の中で firm_size = factor(firm_size, levels = ...) とし、結果を wage に代入し直しましょう。")
+      check_that(identical(levels(wage$firm_size), c("〜29人", "30〜299人", "300〜999人", "1000人以上")),
+                 "firm_size の並び順（levels）が指示と違います。levels = c(\"〜29人\", \"30〜299人\", \"300〜999人\", \"1000人以上\") と、小さい順に書きましょう。")
+      expect_object("m_s", class = "lm")
+      expect_model(m_s, like = .sol$m_s)
+    hints:
+      - 「firm_size を因子に置き換える → lm() の式に firm_size を加える」の2段階です。因子を式に入れると、R が自動でダミー変数を作ります。
+      - factor(firm_size, levels = c("〜29人", "30〜299人", "300〜999人", "1000人以上")) で並び順を決めます。式は log_wage ~ firm_size + female + educ_years + exper + tenure です。
+      - |
+        wage <- mutate(wage, firm_size = factor(firm_size, levels = c("〜29人", "30〜299人", "300〜999人", "1000人以上")))
+        levels(wage$firm_size)
+        m_s <- lm(log_wage ~ firm_size + female + educ_years + exper + tenure, data = wage)
+        coef(m_s)
+    tests:
+      fail:
+        - |
+          wage <- mutate(wage, firm_size = factor(firm_size, levels = c("1000人以上", "300〜999人", "30〜299人", "〜29人")))
+          levels(wage$firm_size)
+          m_s <- lm(log_wage ~ firm_size + female + educ_years + exper + tenure, data = wage)
+          coef(m_s)
+        - |
+          wage <- mutate(wage, firm_size = factor(firm_size, levels = c("〜29人", "30〜299人", "300〜999人", "1000人以上")))
+          levels(wage$firm_size)
+          m_s <- lm(log_wage ~ firm_size, data = wage)
+          coef(m_s)
+  - id: c
+    type: write
+    prompt: |
+      b の結果では「〜29人」が基準（係数が表に出てこないカテゴリ）でした。大企業と比べた差を直接読めるように、relevel() で基準を「1000人以上」に変えます。
+      mutate() の中で firm_size = relevel(firm_size, ref = "1000人以上") として wage に代入し直し、levels(wage$firm_size) を表示してください。続けて、b と同じ式の重回帰を推定して m_r に代入し、coef(m_r) を表示してください。
+    starter: |
+      wage <- mutate(wage, firm_size = )
+      levels(wage$firm_size)
+      m_r <-
+
+    solution: |
+      wage <- mutate(wage, firm_size = relevel(firm_size, ref = "1000人以上"))
+      levels(wage$firm_size)
+      m_r <- lm(log_wage ~ firm_size + female + educ_years + exper + tenure, data = wage)
+      coef(m_r)
+    check: |
+      expect_object("wage", class = "data.frame")
+      check_that(is.factor(wage$firm_size) && identical(levels(wage$firm_size)[1], "1000人以上"),
+                 "firm_size の基準（levels の1番目）が「1000人以上」になっていません。relevel(firm_size, ref = \"1000人以上\") とし、wage に代入し直しましょう。")
+      expect_uses("relevel")
+      expect_object("m_r", class = "lm")
+      expect_model(m_r, like = .sol$m_r)
+    hints:
+      - relevel() は因子の並び順のうち、基準（1番目）だけを入れ替える関数です。基準を変えたら、b と同じ lm() をもう一度推定します。
+      - ref = "1000人以上" で基準を指定します。文字は levels の表示と1文字も違わないように書きます。
+      - |
+        wage <- mutate(wage, firm_size = relevel(firm_size, ref = "1000人以上"))
+        levels(wage$firm_size)
+        m_r <- lm(log_wage ~ firm_size + female + educ_years + exper + tenure, data = wage)
+        coef(m_r)
+    tests:
+      fail:
+        - |
+          wage <- mutate(wage, firm_size = relevel(firm_size, ref = "〜29人"))
+          levels(wage$firm_size)
+          m_r <- lm(log_wage ~ firm_size + female + educ_years + exper + tenure, data = wage)
+          coef(m_r)
+        - |
+          wage <- mutate(wage, firm_size = relevel(firm_size, ref = "1000人以上"))
+          levels(wage$firm_size)
+          m_r <- lm(log_wage ~ firm_size + educ_years + exper + tenure, data = wage)
+          coef(m_r)
+  - id: d
+    type: interpret
+    prompt: |
+      c の m_r では、firm_size〜29人 の係数が約 −0.184 でした。この係数の読み方として最も適切なものはどれですか。
+    choices:
+      - "29人以下の企業で働く人の平均時給は、0.184円低い"
+      - "性別・教育年数・経験年数・勤続年数が同じなら、29人以下の企業で働く人の時給は、1000人以上の企業で働く人よりおよそ17%低い傾向がある"
+      - "企業規模が1段階小さくなるごとに、時給はおよそ18%下がる"
+      - "29人以下の企業の人が1000人以上の企業に転職すれば、時給は必ず約20%上がる"
+    answer: 1
+    explain: 因子のダミー変数の係数は、いつも「基準のカテゴリとの差」です。c では基準が「1000人以上」なので、−0.184 は1000人以上の企業との対数時給の差で、ほかの説明変数を一定とした差です。被説明変数が対数なので、正確には (exp(−0.184) − 1) × 100 ≈ −16.8%、つまりおよそ17%低いと読みます（−18.4% は近似）。単位は円ではありません。また、4つのカテゴリには別々の係数があるので「1段階ごとに同じだけ下がる」とは仮定していません。転職したら上がるという因果の読み方も、この回帰だけではできません（大企業に入る人と小さい企業に入る人では、データにない能力や職種が違うかもしれません）。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第39ステップの復習】log_wage を educ_years・exper・tenure の3つで説明する重回帰を推定して m39 に代入し、confint(m39) で係数の95%信頼区間を表示してください。
+    starter: |
+      m39 <-
+
+    solution: |
+      m39 <- lm(log_wage ~ educ_years + exper + tenure, data = wage)
+      confint(m39)
+    check: |
+      expect_object("m39", class = "lm")
+      expect_model(m39, like = .sol$m39)
+      expect_uses("confint")
+      expect_value(.value, .sol_value, label = "最後に表示した信頼区間")
+    hints:
+      - lm() で重回帰を推定し、その結果を confint() に渡します。
+      - 式は log_wage ~ educ_years + exper + tenure、データは wage です。
+      - |
+        m39 <- lm(log_wage ~ educ_years + exper + tenure, data = wage)
+        confint(m39)
+    tests:
+      fail:
+        - |
+          m39 <- lm(log_wage ~ educ_years + exper + tenure, data = wage)
+          coef(m39)
+        - |
+          m39 <- lm(log_wage ~ educ_years, data = wage)
+          confint(m39)

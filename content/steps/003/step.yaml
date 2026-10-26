@@ -1,0 +1,104 @@
+id: "003"
+part: 1
+title: データフレームを眺める
+question: 売上が最も多い店舗はどこか
+minutes: 45
+mode: browser
+packages: [readr, dplyr]
+data: [sora_stores.csv]
+learn: [read_csv, head, glimpse, nrow, "$", summary]
+allow: [which.max]
+review_of: "002"
+setup: |
+  library(readr); library(dplyr)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      read_csv() で "data/sora_stores.csv" を読み込み、stores に代入してください。
+      続けて nrow() で行数（店舗の数）を数え、n_stores に代入してください。
+    starter: |
+      # 1行目: read_csv() で読み込んで stores に代入
+      # 2行目: nrow() で行数を n_stores に代入
+    solution: |
+      stores <- read_csv("data/sora_stores.csv", show_col_types = FALSE)
+      n_stores <- nrow(stores)
+    check: |
+      expect_object("stores", class = "data.frame")
+      expect_df_equal(stores, .sol$stores)
+      expect_object("n_stores")
+      expect_value(n_stores, .sol$n_stores, label = "n_stores")
+    hints:
+      - 1行目でデータを読み込んで代入し、2行目でその行数を数えます。
+      - read_csv("ファイルの場所") で読み込めます。行数は nrow(データフレーム) で求められます。
+      - "stores <- read_csv(\"data/sora_stores.csv\", show_col_types = FALSE) と書き、次の行に n_stores <- nrow(stores)"
+    tests:
+      fail:
+        - "stores <- read_csv(\"data/sora_stores.csv\", show_col_types = FALSE)\nn_stores <- length(stores)"
+  - id: b
+    type: write
+    prompt: |
+      stores の sales 列（今年の売上高、万円）を $ で取り出し、sum() で全50店舗の売上の合計を求めて total_sales に代入してください。
+    starter: |
+      # データフレーム$列名 で1つの列をベクトルとして取り出せます
+    solution: |
+      total_sales <- sum(stores$sales)
+    check: |
+      expect_object("total_sales")
+      expect_value(total_sales, .sol$total_sales, label = "total_sales")
+    hints:
+      - まず stores$sales で売上の列を取り出します。
+      - 取り出した列はベクトルなので、第2ステップの sum() がそのまま使えます。
+      - total_sales <- sum(stores$sales)
+    tests:
+      fail:
+        - "total_sales <- sum(stores$sales_last)"
+        - "total_sales <- mean(stores$sales)"
+  - id: c
+    type: fill
+    prompt: |
+      which.max() は、ベクトルの中で最大の値が「何番目」にあるかを返します。
+      これを使って、今年の売上 sales が最も多い店舗の名前（store_name 列）を取り出し、top_store に代入してください。
+    starter: |
+      top_store <- stores$store_name[___(stores$sales)]
+    solution: |
+      top_store <- stores$store_name[which.max(stores$sales)]
+    check: |
+      expect_object("top_store", class = "character")
+      expect_value(top_store, .sol$top_store, label = "top_store")
+    hints:
+      - "[ ] の中に「何番目か」を入れると、その位置の要素が取り出せます。"
+      - 売上が最大の位置は which.max(stores$sales) で分かります。
+      - top_store <- stores$store_name[which.max(stores$sales)]
+    tests:
+      fail:
+        - "top_store <- stores$store_name[which.min(stores$sales)]"
+        - "top_store <- stores$region[which.max(stores$sales)]"
+  - id: d
+    type: predict
+    prompt: stores には列（変数）がいくつありますか。glimpse(stores) の結果を思い浮かべて答えてください。
+    choices: ["6", "10", "11", "50"]
+    answer: 2
+    explain: "列は store_id, store_name, region, pref, location, open_year, floor_m2, staff, customers, sales, sales_last の11個です。50 は行（店舗）の数、6 は地域の数です。glimpse() の1行目に Columns: 11 と表示されます。"
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【復習：第2ステップ】stores$sales - stores$sales_last を計算すると、店舗ごとの「前年からの売上の増減額」のベクトルになります。
+      その平均を mean() で求め、diff_mean に代入してください（1店舗あたり平均で何万円増えたか、を表します）。
+    starter: |
+      # ベクトル同士の引き算は、要素ごとに計算されます
+    solution: |
+      diff_mean <- mean(stores$sales - stores$sales_last)
+    check: |
+      expect_object("diff_mean")
+      expect_uses("mean")
+      expect_value(diff_mean, .sol$diff_mean, label = "diff_mean")
+    hints:
+      - 店舗ごとに「今年の売上 − 前年の売上」を計算し、その50個の値の平均を取ります。
+      - stores$sales - stores$sales_last は長さ50のベクトルです。これを mean() に渡します。
+      - diff_mean <- mean(stores$sales - stores$sales_last)
+    tests:
+      fail:
+        - "diff_mean <- sum(stores$sales - stores$sales_last)"
+        - "diff_mean <- mean(stores$sales_last - stores$sales)"

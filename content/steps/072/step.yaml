@@ -1,0 +1,285 @@
+id: "072"
+part: 8
+title: 総合演習：最低賃金の特別引上げの効果を報告する
+question: 特別引上げは若年の就業率をどれだけ下げたと報告できるか
+minutes: 60
+mode: browser
+packages: [readr, dplyr, ggplot2, fixest]
+data: [minwage_panel.csv]
+learn: []
+setup: |
+  library(readr); library(dplyr); library(ggplot2); library(fixest)
+  # 47県×2012〜2024年の架空パネル。12県で2019年から最低賃金の特別引上げ（架空の政策）
+  mw <- read_csv("data/minwage_panel.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      【二元固定効果の差の差】youth_emp_rate を treated:post で説明し、県（pref_code）と年（year）の固定効果を入れ、県でクラスタした標準誤差を使うモデルを mw で推定して m_did に代入してください。
+      続けて coeftable(m_did) と confint(m_did) を表示します。
+    starter: |
+      m_did <-
+      coeftable(m_did)
+      confint(m_did)
+    solution: |
+      m_did <- feols(youth_emp_rate ~ treated:post | pref_code + year,
+                   data = mw, cluster = ~pref_code)
+      coeftable(m_did)
+      confint(m_did)
+    check: |
+      expect_object("m_did", class = "fixest")
+      expect_model(m_did, like = .sol$m_did)
+      check_that(isTRUE(all.equal(as.numeric(se(m_did)), as.numeric(se(.sol$m_did)), tolerance = 1e-6)),
+                 "標準誤差が違います。cluster = ~pref_code で県ごとにクラスタしましょう。")
+      expect_value(.value, .sol_value, label = "表示した confint(m_did)")
+    hints:
+      - 第66ステップの差の差の回帰です。処置県（treated）と処置後（post）の交差項 treated:post の係数が効果の推定値です。
+      - feols(youth_emp_rate ~ treated:post | pref_code + year, data = mw, cluster = ~pref_code) です。
+      - |
+        m_did <- feols(youth_emp_rate ~ treated:post | pref_code + year,
+                     data = mw, cluster = ~pref_code)
+        coeftable(m_did)
+        confint(m_did)
+    tests:
+      fail:
+        - |
+          m_did <- feols(youth_emp_rate ~ treated:post | pref_code + year, data = mw)
+          coeftable(m_did)
+          confint(m_did)
+        - |
+          m_did <- feols(youth_emp_rate ~ treated:post | year,
+                       data = mw, cluster = ~pref_code)
+          coeftable(m_did)
+          confint(m_did)
+        - |
+          m_did <- feols(youth_emp_rate ~ treated + post, data = mw, cluster = ~pref_code)
+          coeftable(m_did)
+          confint(m_did)
+  - id: b
+    type: write
+    prompt: |
+      【イベントスタディの図】第67ステップと同じ手順で、経過年ごとの効果を図にします。
+      1. mw に rel_year = year - 2019 を加えて mw_es に代入する
+      2. youth_emp_rate を i(rel_year, treated, ref = -1) で説明し、県と年の固定効果、県でクラスタした標準誤差を使うモデルを mw_es で推定して es に代入する
+      3. confint(es) を ci に代入し、rel_year（parse_number(names(coef(es)))）、estimate（coef(es)）、lower（ci[[1]]）、upper（ci[[2]]）の4列の表を tibble() で作って es_tab に代入する
+      4. es_tab で、横軸 rel_year・縦軸 estimate の geom_pointrange()（ymin = lower、ymax = upper）と、geom_hline(yintercept = 0) の図を描く
+    starter: |
+      mw_es <-
+      es <-
+      ci <-
+      es_tab <-
+
+    solution: |
+      mw_es <- mw |>
+        mutate(rel_year = year - 2019)
+      es <- feols(youth_emp_rate ~ i(rel_year, treated, ref = -1) | pref_code + year,
+                  data = mw_es, cluster = ~pref_code)
+      ci <- confint(es)
+      es_tab <- tibble(rel_year = parse_number(names(coef(es))),
+                       estimate = coef(es),
+                       lower = ci[[1]],
+                       upper = ci[[2]])
+      ggplot(es_tab, aes(x = rel_year, y = estimate)) +
+        geom_pointrange(aes(ymin = lower, ymax = upper)) +
+        geom_hline(yintercept = 0)
+    check: |
+      expect_object("mw_es", class = "data.frame")
+      expect_cols(mw_es, "rel_year")
+      expect_df_equal(mw_es, .sol$mw_es)
+      expect_object("es", class = "fixest")
+      check_that(length(coef(es)) == 12,
+                 "係数は12個（相対年 −7〜5 のうち基準年 −1 を除く）になるはずです。i(rel_year, treated, ref = -1) を確認しましょう。")
+      expect_model(es, like = .sol$es)
+      check_that(isTRUE(all.equal(as.numeric(se(es)), as.numeric(se(.sol$es)), tolerance = 1e-6)),
+                 "標準誤差が違います。cluster = ~pref_code で県ごとにクラスタしましょう。")
+      expect_object("es_tab", class = "data.frame")
+      expect_cols(es_tab, c("rel_year", "estimate", "lower", "upper"))
+      expect_df_equal(es_tab, .sol$es_tab)
+      expect_ggplot(geom = "pointrange", x = "rel_year", y = "estimate")
+      check_that(any(vapply(.plot$layers, function(l) inherits(l$geom, "GeomHline"), logical(1))),
+                 "0 の水平線がありません。+ geom_hline(yintercept = 0) を加えましょう。")
+      expect_df_equal(.plot$data, .sol_plot$data)
+    hints:
+      - 第67ステップの a〜c をまとめて書きます。「相対年を作る → 推定する → 係数と信頼区間の表を作る → 図にする」の順です。
+      - 推定は feols(youth_emp_rate ~ i(rel_year, treated, ref = -1) | pref_code + year, data = mw_es, cluster = ~pref_code)、図は ggplot(es_tab, aes(x = rel_year, y = estimate)) + geom_pointrange(aes(ymin = lower, ymax = upper)) + geom_hline(yintercept = 0) です。
+      - |
+        mw_es <- mw |>
+          mutate(rel_year = year - 2019)
+        es <- feols(youth_emp_rate ~ i(rel_year, treated, ref = -1) | pref_code + year,
+                    data = mw_es, cluster = ~pref_code)
+        ci <- confint(es)
+        es_tab <- tibble(rel_year = parse_number(names(coef(es))),
+                         estimate = coef(es),
+                         lower = ci[[1]],
+                         upper = ci[[2]])
+        ggplot(es_tab, aes(x = rel_year, y = estimate)) +
+          geom_pointrange(aes(ymin = lower, ymax = upper)) +
+          geom_hline(yintercept = 0)
+    tests:
+      fail:
+        - |
+          mw_es <- mw |>
+            mutate(rel_year = year - 2019)
+          es <- feols(youth_emp_rate ~ i(rel_year, treated, ref = 0) | pref_code + year,
+                      data = mw_es, cluster = ~pref_code)
+          ci <- confint(es)
+          es_tab <- tibble(rel_year = parse_number(names(coef(es))),
+                           estimate = coef(es),
+                           lower = ci[[1]],
+                           upper = ci[[2]])
+          ggplot(es_tab, aes(x = rel_year, y = estimate)) +
+            geom_pointrange(aes(ymin = lower, ymax = upper)) +
+            geom_hline(yintercept = 0)
+        - |
+          mw_es <- mw |>
+            mutate(rel_year = year - 2019)
+          es <- feols(youth_emp_rate ~ i(rel_year, treated, ref = -1) | pref_code + year,
+                      data = mw_es, cluster = ~pref_code)
+          ci <- confint(es)
+          es_tab <- tibble(rel_year = parse_number(names(coef(es))),
+                           estimate = coef(es),
+                           lower = ci[[1]],
+                           upper = ci[[2]])
+          ggplot(es_tab, aes(x = rel_year, y = estimate)) +
+            geom_point()
+  - id: c
+    type: write
+    prompt: |
+      【プラセボ】特別引上げの影響を受けにくい成人（25〜64歳）の就業率 adult_emp_rate で、a と同じ差の差の回帰を推定して m_placebo に代入し、coeftable(m_placebo) と confint(m_placebo) を表示してください。
+    starter: |
+      m_placebo <-
+      coeftable(m_placebo)
+      confint(m_placebo)
+    solution: |
+      m_placebo <- feols(adult_emp_rate ~ treated:post | pref_code + year,
+                         data = mw, cluster = ~pref_code)
+      coeftable(m_placebo)
+      confint(m_placebo)
+    check: |
+      expect_object("m_placebo", class = "fixest")
+      expect_model(m_placebo, like = .sol$m_placebo)
+      check_that(isTRUE(all.equal(as.numeric(se(m_placebo)), as.numeric(se(.sol$m_placebo)), tolerance = 1e-6)),
+                 "標準誤差が違います。cluster = ~pref_code で県ごとにクラスタしましょう。")
+      expect_value(.value, .sol_value, label = "表示した confint(m_placebo)")
+    hints:
+      - a の式で、結果の変数だけを adult_emp_rate に替えます。
+      - feols(adult_emp_rate ~ treated:post | pref_code + year, data = mw, cluster = ~pref_code) です。
+      - |
+        m_placebo <- feols(adult_emp_rate ~ treated:post | pref_code + year,
+                           data = mw, cluster = ~pref_code)
+        coeftable(m_placebo)
+        confint(m_placebo)
+    tests:
+      fail:
+        - |
+          m_placebo <- feols(youth_emp_rate ~ treated:post | pref_code + year,
+                             data = mw, cluster = ~pref_code)
+          coeftable(m_placebo)
+          confint(m_placebo)
+        - |
+          m_placebo <- feols(adult_emp_rate ~ treated:post | pref_code + year, data = mw)
+          coeftable(m_placebo)
+          confint(m_placebo)
+  - id: d
+    type: fill
+    prompt: |
+      【頑健性】推定に使う期間を変えても、a の結論が変わらないかを確かめます。`___` を埋めてください。
+      1. 2020年（全国一律に就業率が下がった年）を除いた mw で、a と同じ回帰を推定して m_no2020 に代入する
+      2. 処置の前後3年ずつ（2016〜2022年）に絞った mw で、a と同じ回帰を推定して m_short に代入する
+      3. 期間 と 推定値（treated:post の係数）の2列の表を tibble() で作り、rob に代入して表示する
+    starter: |
+      m_no2020 <- feols(youth_emp_rate ~ treated:post | pref_code + year,
+                          data = filter(mw, ___), cluster = ~pref_code)
+      m_short <- feols(youth_emp_rate ~ treated:post | pref_code + year,
+                         data = filter(mw, ___), cluster = ~pref_code)
+      rob <- tibble(期間 = c("全期間", "2020年を除く", "2016〜2022年"),
+                    推定値 = c(coef(m_did)[["treated:post"]],
+                               ___,
+                               ___))
+      rob
+    solution: |
+      m_no2020 <- feols(youth_emp_rate ~ treated:post | pref_code + year,
+                          data = filter(mw, year != 2020), cluster = ~pref_code)
+      m_short <- feols(youth_emp_rate ~ treated:post | pref_code + year,
+                         data = filter(mw, between(year, 2016, 2022)), cluster = ~pref_code)
+      rob <- tibble(期間 = c("全期間", "2020年を除く", "2016〜2022年"),
+                    推定値 = c(coef(m_did)[["treated:post"]],
+                               coef(m_no2020)[["treated:post"]],
+                               coef(m_short)[["treated:post"]]))
+      rob
+    check: |
+      expect_object("m_no2020", class = "fixest")
+      check_that(nobs(m_no2020) == nobs(.sol$m_no2020),
+                 "m_no2020 の観測数が違います。filter(mw, year != 2020) で2020年だけを除きましょう。")
+      expect_model(m_no2020, like = .sol$m_no2020)
+      expect_object("m_short", class = "fixest")
+      check_that(nobs(m_short) == nobs(.sol$m_short),
+                 "m_short の観測数が違います。2016年から2022年まで（両端を含む）に絞りましょう。")
+      expect_model(m_short, like = .sol$m_short)
+      expect_object("rob", class = "data.frame")
+      expect_cols(rob, c("期間", "推定値"))
+      expect_nrow(rob, 3)
+      expect_df_equal(rob, .sol$rob)
+    hints:
+      - 式は a と同じで、data に渡す mw を filter() で絞るだけです。表の 推定値 には、3つのモデルの treated:post の係数を、期間の順に並べます。
+      - 2020年を除くのは filter(mw, year != 2020)、2016〜2022年は filter(mw, between(year, 2016, 2022)) です。係数は coef(m_no2020)[["treated:post"]] のように取り出します。
+      - |
+        m_no2020 <- feols(youth_emp_rate ~ treated:post | pref_code + year,
+                            data = filter(mw, year != 2020), cluster = ~pref_code)
+        m_short <- feols(youth_emp_rate ~ treated:post | pref_code + year,
+                           data = filter(mw, between(year, 2016, 2022)), cluster = ~pref_code)
+        rob <- tibble(期間 = c("全期間", "2020年を除く", "2016〜2022年"),
+                      推定値 = c(coef(m_did)[["treated:post"]],
+                                 coef(m_no2020)[["treated:post"]],
+                                 coef(m_short)[["treated:post"]]))
+        rob
+    tests:
+      fail:
+        - |
+          m_no2020 <- feols(youth_emp_rate ~ treated:post | pref_code + year,
+                              data = filter(mw, year == 2020), cluster = ~pref_code)
+          m_short <- feols(youth_emp_rate ~ treated:post | pref_code + year,
+                             data = filter(mw, between(year, 2016, 2022)), cluster = ~pref_code)
+          rob <- tibble(期間 = c("全期間", "2020年を除く", "2016〜2022年"),
+                        推定値 = c(coef(m_did)[["treated:post"]],
+                                   coef(m_no2020)[["treated:post"]],
+                                   coef(m_short)[["treated:post"]]))
+          rob
+        - |
+          m_no2020 <- feols(youth_emp_rate ~ treated:post | pref_code + year,
+                              data = filter(mw, year != 2020), cluster = ~pref_code)
+          m_short <- feols(youth_emp_rate ~ treated:post | pref_code + year,
+                             data = filter(mw, between(year, 2017, 2021)), cluster = ~pref_code)
+          rob <- tibble(期間 = c("全期間", "2020年を除く", "2016〜2022年"),
+                        推定値 = c(coef(m_did)[["treated:post"]],
+                                   coef(m_no2020)[["treated:post"]],
+                                   coef(m_short)[["treated:post"]]))
+          rob
+  - id: e
+    type: interpret
+    free: true
+    prompt: |
+      a〜d の結果をもとに、「最低賃金の特別引上げは若年の就業率を下げたか」への結論を3行（3文）で報告してください。
+      1文目に差の差の推定値（数字と信頼区間）とイベントスタディで見た効果の時間の変化を、2文目にプラセボと頑健性の結果を、3文目にこの結論が成り立つための仮定（平行トレンド など）と、それをデータで証明できないことを書くと書きやすいでしょう。
+    solution: |
+      二元固定効果の差の差分析では、特別引上げにより対象県の若年就業率が約0.98ポイント（95%信頼区間 約−1.20〜−0.75）低下したと推定され、イベントスタディでは引上げの年に約0.4ポイント、翌年以降は約0.9〜1.1ポイントの低下が続いた。
+      影響を受けにくい成人就業率では推定値が約−0.11ポイントで信頼区間が0をまたぎ、2020年を除いても約−0.95、2016〜2022年に絞っても約−0.91と、結論は期間の選び方によってほとんど変わらなかった。
+      ただしこれは、引上げがなければ対象県と対象外の県の若年就業率が同じように推移したという平行トレンドの仮定のもとでの結論であり、処置前の係数が0に近いことはこの仮定と矛盾しない証拠にすぎず、仮定そのものを証明するものではない。
+    check: |
+      expect_min_chars(150)
+      expect_text("[0-9０-９]", "推定値などの数字を入れて書きましょう。")
+      expect_text("若年", "1文目に、若年就業率への効果を書きましょう。")
+      expect_text("信頼区間|標準誤差|有意", "推定値の不確かさ（信頼区間など）にも触れましょう。")
+      expect_text("イベントスタディ|経過|翌年|年目|時間", "イベントスタディで見た、効果の時間の変化を書きましょう。")
+      expect_text("プラセボ|成人", "2文目に、成人就業率のプラセボの結果を書きましょう。")
+      expect_text("2020|期間|頑健", "2文目に、期間を変えた頑健性の結果を書きましょう。")
+      expect_text("平行トレンド|平行", "3文目に、平行トレンドの仮定を書きましょう。")
+      expect_text("証明|確かめられない|検証できない|保証", "仮定はデータで証明できないことを書きましょう。")
+    hints:
+      - a の係数と信頼区間、b の図の処置前と処置後の係数、c の成人就業率の係数、d の表の3つの値を見直しましょう。
+      - 「効果はどれくらいで、時間とともにどう変わったか」「プラセボと期間を変えた結果はどうだったか」「どんな仮定のもとで言えるか」の3点を1文ずつ書きます。
+      - 例「差の差分析では若年就業率が約〇ポイント（95%信頼区間 約〇〜〇）低下し、イベントスタディでは引上げの年に約〇、翌年以降は約〇ポイントの低下だった。成人就業率のプラセボでは約〇で信頼区間が0をまたぎ、2020年を除いても2016〜2022年に絞っても約〇〜〇と結論は変わらなかった。ただし平行トレンドの仮定のもとでの結論であり、仮定そのものはデータで証明できない。」
+    tests:
+      fail:
+        - 特別引上げは若年の就業率を下げた。
+        - 差の差分析では若年就業率が約0.98ポイント低下し、信頼区間は0をまたがなかった。イベントスタディでも翌年以降に約1ポイントの低下が続いた。成人就業率のプラセボでは効果がなく、2020年を除いても結果は同じだったので、特別引上げが若年雇用を減らしたことが確実に示された。

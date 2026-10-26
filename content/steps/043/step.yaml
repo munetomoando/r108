@@ -1,0 +1,160 @@
+id: "043"
+part: 5
+title: 頑健な標準誤差
+question: 標準誤差は信じてよいか
+minutes: 45
+mode: browser
+packages: [readr, dplyr, ggplot2, fixest]
+data: [wage_survey.csv]
+learn: [feols, se]
+review_of: "042"
+setup: |
+  library(readr); library(dplyr); library(ggplot2); library(fixest)
+  # 架空の賃金調査の個票（3,000人）
+  wage <- read_csv("data/wage_survey.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      log_wage を educ_years・exper・tenure で説明する重回帰を lm() で推定して m に代入します。
+      続けて、mutate() で残差の列 resid = residuals(m) を wage に加えた表を wage_r に代入し、横軸を factor(educ_years)、縦軸を resid とした箱ひげ図を geom_boxplot() で描いてください。
+      教育年数は12・14・16・18年の4通りなので、factor() で区分として扱うと、学歴ごとに1つずつ箱が並びます。
+    starter: |
+      m <- lm(log_wage ~ , data = wage)
+      wage_r <- mutate(wage, resid = )
+      ggplot(wage_r, aes()) +
+    solution: |
+      m <- lm(log_wage ~ educ_years + exper + tenure, data = wage)
+      wage_r <- mutate(wage, resid = residuals(m))
+      ggplot(wage_r, aes(x = factor(educ_years), y = resid)) +
+        geom_boxplot()
+    check: |
+      expect_object("m", class = "lm")
+      expect_model(m, like = .sol$m)
+      expect_object("wage_r", class = "data.frame")
+      expect_cols(wage_r, "resid")
+      expect_df_equal(wage_r, .sol$wage_r)
+      expect_ggplot(geom = "boxplot", x = "factor(educ_years)", y = "resid")
+      expect_df_equal(.plot$data, .sol_plot$data)
+    hints:
+      - 「回帰を推定する → 残差の列を足す → 学歴ごとに残差の箱ひげ図を描く」の3段階です。
+      - 残差は residuals(m) で取り出せます。図は aes(x = factor(educ_years), y = resid) に + geom_boxplot() をつなぎます。
+      - |
+        m <- lm(log_wage ~ educ_years + exper + tenure, data = wage)
+        wage_r <- mutate(wage, resid = residuals(m))
+        ggplot(wage_r, aes(x = factor(educ_years), y = resid)) +
+          geom_boxplot()
+    tests:
+      fail:
+        - |
+          m <- lm(log_wage ~ educ_years + exper + tenure, data = wage)
+          wage_r <- mutate(wage, resid = fitted(m))
+          ggplot(wage_r, aes(x = factor(educ_years), y = resid)) +
+            geom_boxplot()
+        - |
+          m <- lm(log_wage ~ educ_years + exper + tenure, data = wage)
+          wage_r <- mutate(wage, resid = residuals(m))
+          ggplot(wage_r, aes(x = educ_years, y = resid)) +
+            geom_boxplot()
+        - |
+          m <- lm(log_wage ~ educ_years, data = wage)
+          wage_r <- mutate(wage, resid = residuals(m))
+          ggplot(wage_r, aes(x = factor(educ_years), y = resid)) +
+            geom_boxplot()
+  - id: b
+    type: write
+    prompt: |
+      a と同じ回帰を fixest パッケージの feols() で2通りに推定し、標準誤差を比べます。
+      1. 通常の標準誤差のモデルを f_iid に、vcov = "hetero" を付けた不均一分散に頑健な標準誤差のモデルを f_het に代入する（式と data は a と同じ）
+      2. se(f_iid) と se(f_het) を表示する
+      3. 最後に、頑健な標準誤差が通常の標準誤差の何倍かを se(f_het) / se(f_iid) で表示する
+    starter: |
+      f_iid <- feols(log_wage ~ educ_years + exper + tenure, data = wage)
+      f_het <-
+      se(f_iid)
+      se(f_het)
+
+    solution: |
+      f_iid <- feols(log_wage ~ educ_years + exper + tenure, data = wage)
+      f_het <- feols(log_wage ~ educ_years + exper + tenure, data = wage, vcov = "hetero")
+      se(f_iid)
+      se(f_het)
+      se(f_het) / se(f_iid)
+    check: |
+      expect_object("f_iid", class = "fixest")
+      expect_object("f_het", class = "fixest")
+      expect_model(f_iid, like = .sol$f_iid)
+      expect_model(f_het, like = .sol$f_het)
+      expect_value(se(f_iid), se(.sol$f_iid), label = "f_iid の標準誤差")
+      check_that(isTRUE(all.equal(as.numeric(se(f_het)), as.numeric(se(.sol$f_het)), tolerance = 1e-6)),
+                 "f_het の標準誤差が頑健な標準誤差になっていません。feols() の中に vcov = \"hetero\" を書きましょう。")
+      expect_value(.value, .sol_value, label = "最後に表示した比（頑健 ÷ 通常）")
+    hints:
+      - 係数は2つのモデルで同じです。違うのは標準誤差の計算方法だけなので、f_het は f_iid の式に引数を1つ足すだけです。
+      - feols(式, data = wage, vcov = "hetero") と書きます。標準誤差は se(モデル) で取り出せ、2つの se() を割り算すると項目ごとの比になります。
+      - |
+        f_iid <- feols(log_wage ~ educ_years + exper + tenure, data = wage)
+        f_het <- feols(log_wage ~ educ_years + exper + tenure, data = wage, vcov = "hetero")
+        se(f_iid)
+        se(f_het)
+        se(f_het) / se(f_iid)
+    tests:
+      fail:
+        - |
+          f_iid <- feols(log_wage ~ educ_years + exper + tenure, data = wage)
+          f_het <- feols(log_wage ~ educ_years + exper + tenure, data = wage)
+          se(f_iid)
+          se(f_het)
+          se(f_het) / se(f_iid)
+        - |
+          f_iid <- feols(log_wage ~ educ_years + exper + tenure, data = wage)
+          f_het <- feols(log_wage ~ educ_years + exper + tenure, data = wage, vcov = "hetero")
+          se(f_iid)
+          se(f_het)
+          se(f_iid) / se(f_het)
+  - id: c
+    type: interpret
+    prompt: |
+      a の図では、残差のばらつきが学歴とともに大きくなっていました（残差の標準偏差は12年で約0.29、18年で約0.42）。一方 b では、educ_years の頑健な標準誤差は通常の標準誤差の約1.004倍で、ほとんど変わりませんでした。論文や社内の報告書には、どちらの標準誤差を載せるべきですか。
+    choices:
+      - "通常の標準誤差。値がほとんど変わらないので、このデータに不均一分散の問題はない"
+      - "頑健な標準誤差。誤差のばらつきが一定という通常の標準誤差の前提が成り立っていない。今回は値がほぼ同じでも、前提に頼らない頑健な標準誤差を載せ、そのことを表の注記に書く"
+      - "頑健な標準誤差。頑健な標準誤差を使うと、係数の推定値の偏りもなくなるから"
+      - "2つのうち小さいほう。t値が大きくなり、有意な結果を示しやすいから"
+    answer: 1
+    explain: 通常の標準誤差は「誤差のばらつきがどの人でも同じ（均一分散）」という前提で計算します。a の図のように学歴とともにばらつきが大きいと前提が崩れ、通常の標準誤差は正しい大きさを示す保証がなくなります。頑健な標準誤差はこの前提がなくても使えるので、迷ったら頑健な方を報告し、「括弧内は不均一分散に頑健な標準誤差」と注記するのが今の実証研究の標準です。今回ほとんど変わらなかったのはこのデータでの結果で、いつもそうなるとは限りません（選択肢1は誤り）。頑健な標準誤差は標準誤差の計算方法を変えるだけで、係数の値は b の2つのモデルで同じです（選択肢3は誤り）。都合のよい方を選ぶのは、結果をゆがめる不適切な報告です（選択肢4は誤り）。
+  - id: d
+    type: write
+    review: true
+    prompt: |
+      【第42ステップの復習】log_wage を educ_years・exper・exper の2乗・tenure で説明する回帰を推定して m42 に代入し、対数時給が最も高くなる経験年数 −b1/(2b2) を peak42 に代入して表示してください（b1 は exper の係数、b2 は I(exper^2) の係数です）。
+    starter: |
+      m42 <-
+      peak42 <-
+      peak42
+    solution: |
+      m42 <- lm(log_wage ~ educ_years + exper + I(exper^2) + tenure, data = wage)
+      peak42 <- -coef(m42)[["exper"]] / (2 * coef(m42)[["I(exper^2)"]])
+      peak42
+    check: |
+      expect_object("m42", class = "lm")
+      expect_model(m42, like = .sol$m42)
+      expect_object("peak42", class = "numeric")
+      expect_value(peak42, .sol$peak42, label = "ピークの経験年数 peak42")
+    hints:
+      - 第42ステップのモデルの female を tenure に替えます。ピークは「−b1 ÷ (2 × b2)」です。
+      - 2乗の項は I(exper^2) と書きます。係数は coef(m42)[["exper"]] と coef(m42)[["I(exper^2)"]] で取り出せます。
+      - |
+        m42 <- lm(log_wage ~ educ_years + exper + I(exper^2) + tenure, data = wage)
+        peak42 <- -coef(m42)[["exper"]] / (2 * coef(m42)[["I(exper^2)"]])
+        peak42
+    tests:
+      fail:
+        - |
+          m42 <- lm(log_wage ~ educ_years + exper + exper^2 + tenure, data = wage)
+          peak42 <- -coef(m42)[["exper"]] / (2 * coef(m42)[["exper"]])
+          peak42
+        - |
+          m42 <- lm(log_wage ~ educ_years + exper + I(exper^2) + tenure, data = wage)
+          peak42 <- -coef(m42)[["exper"]] / 2 * coef(m42)[["I(exper^2)"]]
+          peak42

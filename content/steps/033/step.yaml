@@ -1,0 +1,217 @@
+id: "033"
+part: 4
+title: 仮説検定とp値
+question: 男女の平均時給の差は偶然か
+minutes: 50
+mode: browser
+packages: [readr, dplyr, ggplot2]
+data: [wage_survey.csv]
+learn: [abs, pull]
+review_of: "032"
+setup: |
+  library(readr); library(dplyr); library(ggplot2)
+  # 架空の賃金調査の個票（3,000人）
+  wage <- read_csv("data/wage_survey.csv", show_col_types = FALSE)
+  # そのうち、卸売業・小売業の300〜999人規模の企業で働く77人
+  retail <- filter(wage, industry == "卸売業・小売業", firm_size == "300〜999人")
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      retail（卸売業・小売業の300〜999人規模の企業で働く77人）で、男性（female = 0）と女性（female = 1）の平均時給に差があるかを t検定で調べます。
+      t.test(hourly_wage ~ female, data = retail) の結果を tt に代入し、tt を表示してから、最後に p値 tt$p.value を表示してください。
+    starter: |
+      tt <-
+      tt
+
+    solution: |
+      tt <- t.test(hourly_wage ~ female, data = retail)
+      tt
+      tt$p.value
+    check: |
+      expect_uses("t.test")
+      expect_object("tt", class = "htest")
+      expect_value(tt$statistic, .sol$tt$statistic, label = "t値")
+      expect_value(tt$p.value, .sol$tt$p.value, label = "tt$p.value")
+      expect_value(.value, .sol_value, label = "最後に表示した p値")
+    hints:
+      - t.test(数値の列 ~ グループの列, data = データ) と書くと、2つのグループの平均の差を検定します。~ の左に時給、右に男女の列を書きます。
+      - tt <- t.test(hourly_wage ~ female, data = retail) と代入し、tt と tt$p.value を順に書きます。
+      - |
+        tt <- t.test(hourly_wage ~ female, data = retail)
+        tt
+        tt$p.value
+    tests:
+      fail:
+        - |
+          tt <- t.test(hourly_wage ~ female, data = wage)
+          tt
+          tt$p.value
+        - |
+          tt <- t.test(log_wage ~ female, data = retail)
+          tt
+          tt$p.value
+  - id: b
+    type: write
+    prompt: |
+      「男女で時給の分布に違いはない」と仮定すると、男女の印（female）を無作為に付け替えても、平均の差は同じような大きさになるはずです。
+      そこで、female を無作為に並べ替えて「男性の平均 − 女性の平均」を計算することを1000回くり返し、偶然だけで生じる差の分布を作ります（置換検定）。
+      1. set.seed(108) を書いてから、replicate(1000, { … }) の { } の中で、sample(retail$female) を f に代入し、mean(retail$hourly_wage[f == 0]) - mean(retail$hourly_wage[f == 1]) を最後に書く。結果を perm_diff に代入する
+      2. tibble(diff = perm_diff) を perm に代入し、diff のヒストグラムを geom_histogram(binwidth = 50) で描く
+    starter: |
+      set.seed(108)
+      perm_diff <- replicate(1000, {
+        f <-
+        mean(retail$hourly_wage[f == 0]) - mean(retail$hourly_wage[f == 1])
+      })
+      perm <-
+
+    solution: |
+      set.seed(108)
+      perm_diff <- replicate(1000, {
+        f <- sample(retail$female)
+        mean(retail$hourly_wage[f == 0]) - mean(retail$hourly_wage[f == 1])
+      })
+      perm <- tibble(diff = perm_diff)
+      ggplot(perm, aes(x = diff)) + geom_histogram(binwidth = 50)
+    check: |
+      expect_uses("set.seed")
+      expect_uses("sample")
+      expect_object("perm_diff", class = "numeric")
+      check_that(length(perm_diff) == 1000, "perm_diff の長さが1000ではありません。replicate() の最初の引数を 1000 にしましょう。")
+      expect_value(perm_diff, .sol$perm_diff, label = "perm_diff")
+      expect_object("perm", class = "data.frame")
+      expect_df_equal(perm, .sol$perm)
+      expect_ggplot(geom = "histogram", x = "diff")
+      expect_df_equal(.plot$data, .sol_plot$data)
+    hints:
+      - sample() にベクトルを1つだけ渡すと、中身を無作為に並べ替えます。並べ替えた f を男女の印とみなして平均の差を計算します。
+      - f <- sample(retail$female) です。retail$hourly_wage[f == 0] は「f が 0 の人の時給」を取り出します。図は ggplot(perm, aes(x = diff)) + geom_histogram(binwidth = 50) です。
+      - |
+        set.seed(108)
+        perm_diff <- replicate(1000, {
+          f <- sample(retail$female)
+          mean(retail$hourly_wage[f == 0]) - mean(retail$hourly_wage[f == 1])
+        })
+        perm <- tibble(diff = perm_diff)
+        ggplot(perm, aes(x = diff)) + geom_histogram(binwidth = 50)
+    tests:
+      fail:
+        - |
+          set.seed(108)
+          perm_diff <- replicate(1000, {
+            f <- retail$female
+            mean(retail$hourly_wage[f == 0]) - mean(retail$hourly_wage[f == 1])
+          })
+          perm <- tibble(diff = perm_diff)
+          ggplot(perm, aes(x = diff)) + geom_histogram(binwidth = 50)
+        - |
+          perm_diff <- replicate(1000, {
+            f <- sample(retail$female)
+            mean(retail$hourly_wage[f == 0]) - mean(retail$hourly_wage[f == 1])
+          })
+          perm <- tibble(diff = perm_diff)
+          ggplot(perm, aes(x = diff)) + geom_histogram(binwidth = 50)
+  - id: c
+    type: write
+    prompt: |
+      実際の差と比べて、置換検定のp値を求めます。
+      1. retail を female でグループに分けて平均時給 m を集計し、pull(m) で取り出したベクトルを means に代入する（1番目が男性、2番目が女性の平均です）
+      2. 実際の差（男性 − 女性）means[1] - means[2] を obs_diff に代入する
+      3. 並べ替えた差の絶対値が実際の差の絶対値以上になった割合 mean(abs(perm_diff) >= abs(obs_diff)) を p_perm に代入し、p_perm を表示する
+    starter: |
+      means <- retail |>
+        group_by(female) |>
+        summarise(m = mean(hourly_wage)) |>
+
+      obs_diff <-
+      p_perm <-
+      p_perm
+    solution: |
+      means <- retail |>
+        group_by(female) |>
+        summarise(m = mean(hourly_wage)) |>
+        pull(m)
+      obs_diff <- means[1] - means[2]
+      p_perm <- mean(abs(perm_diff) >= abs(obs_diff))
+      p_perm
+    check: |
+      expect_uses("pull")
+      expect_uses("abs")
+      expect_object("means", class = "numeric")
+      expect_value(means, .sol$means, label = "means")
+      expect_value(obs_diff, .sol$obs_diff, label = "obs_diff")
+      expect_value(p_perm, .sol$p_perm, label = "p_perm")
+      expect_value(.value, .sol_value, label = "表示した p_perm")
+    hints:
+      - p値は「偶然だけで、実際と同じかそれ以上に大きな差が出る割合」です。差の向き（男性が高い・女性が高い）を問わないので、絶対値 abs() で大きさを比べます。
+      - pull(m) は表から列 m を取り出してベクトルにします。TRUE/FALSE のベクトルに mean() を使うと、TRUE の割合になります。
+      - |
+        means <- retail |> group_by(female) |> summarise(m = mean(hourly_wage)) |> pull(m)
+        obs_diff <- means[1] - means[2]
+        p_perm <- mean(abs(perm_diff) >= abs(obs_diff))
+        p_perm
+    tests:
+      fail:
+        - |
+          means <- retail |>
+            group_by(female) |>
+            summarise(m = mean(hourly_wage)) |>
+            pull(m)
+          obs_diff <- means[1] - means[2]
+          p_perm <- mean(perm_diff >= obs_diff)
+          p_perm
+        - |
+          means <- retail |>
+            group_by(female) |>
+            summarise(m = mean(hourly_wage)) |>
+            pull(m)
+          obs_diff <- means[1] - means[2]
+          p_perm <- sum(abs(perm_diff) >= abs(obs_diff))
+          p_perm
+  - id: d
+    type: interpret
+    prompt: |
+      retail の77人では、男性の平均時給が女性より約214円高く、t検定のp値は約0.19（置換検定では約0.20）でした。このp値の読み方として正しいものはどれですか。
+    choices:
+      - "男女の差が偶然である確率が約19%で、本当に差がある確率が約81%である"
+      - "p値が0.05より大きいので、この業種・規模の企業では男女の平均時給は等しいことが示された"
+      - "もし母集団で男女の平均時給が等しいなら、偶然だけで約214円以上の差（向きは問わない）が出る確率は約19%である。偶然でも珍しくない差なので、77人の調査からは差があるとは言い切れない"
+      - "差の約19%は偶然によるもので、残りの約81%（約173円）が本当の差である"
+    answer: 2
+    explain: p値は「帰無仮説（差がない）が正しいと仮定したとき、実際と同じかそれ以上に極端な結果が偶然に出る確率」です。b の図でいえば、偶然だけの差の分布の中で、実際の差（±約214円）より外側にある割合です。仮説が正しい確率でも、差が偶然である確率でもありません（選択肢1・4は誤り）。また、p値が大きいことは「差がない」ことの証明ではありません（選択肢2は誤り）。実際、このデータは作るときに女性の時給を低めに設定してあり、3,000人全体で検定すると p値は 0.001 よりはるかに小さくなります。77人では人数が少なく、差を偶然と見分けられなかったのです。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第32ステップの復習】retail の女性（female = 1）だけを filter() で取り出して women に代入し、women の平均時給の95%信頼区間を t.test() で求めて ci_women に代入し、ci_women を表示してください。
+    starter: |
+      women <-
+      ci_women <-
+      ci_women
+    solution: |
+      women <- filter(retail, female == 1)
+      ci_women <- t.test(women$hourly_wage)$conf.int
+      ci_women
+    check: |
+      expect_object("women", class = "data.frame")
+      expect_df_equal(women, .sol$women, ignore_row_order = TRUE)
+      expect_value(ci_women, .sol$ci_women, label = "ci_women")
+      expect_value(.value, .sol_value, label = "表示した区間")
+    hints:
+      - 女性だけの表を作り、その時給の列を t.test() に渡して、結果から信頼区間を取り出します。
+      - women <- filter(retail, female == 1) です。区間は t.test(women$hourly_wage)$conf.int で取り出せます。
+      - |
+        women <- filter(retail, female == 1)
+        ci_women <- t.test(women$hourly_wage)$conf.int
+        ci_women
+    tests:
+      fail:
+        - |
+          women <- filter(retail, female == 0)
+          ci_women <- t.test(women$hourly_wage)$conf.int
+          ci_women
+        - |
+          women <- filter(wage, female == 1)
+          ci_women <- t.test(women$hourly_wage)$conf.int
+          ci_women

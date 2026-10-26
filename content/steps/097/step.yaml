@@ -1,0 +1,216 @@
+id: "097"
+part: 11
+title: 決定木
+question: 解約しやすい顧客の条件は
+minutes: 45
+mode: browser
+packages: [readr, dplyr, rsample, recipes, parsnip, workflows, yardstick, rpart]
+data: [churn.csv]
+learn: [decision_tree, set_engine, set_mode, extract_fit_engine]
+review_of: "096"
+setup: |
+  library(readr); library(dplyr)
+  library(rsample); library(recipes); library(parsnip); library(workflows); library(yardstick)
+  # そらまめマーケット（架空の会社）のネット通販の顧客5,000人。churned は yes（解約）・no（継続）の因子
+  churn <- read_csv("data/churn.csv", show_col_types = FALSE) |>
+    mutate(churned = factor(churned, levels = c(1, 0), labels = c("yes", "no")))
+  # 第95ステップと同じ分け方（75%を訓練、解約の割合で層化）とレシピ
+  set.seed(108)
+  churn_split <- initial_split(churn, prop = 0.75, strata = churned)
+  churn_train <- training(churn_split)
+  churn_test <- testing(churn_split)
+  churn_rec <- recipe(churned ~ recency + frequency + monetary + age + channel + rank,
+                      data = churn_train)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      【決定木を学習する】
+      1. decision_tree() で深さ4（tree_depth = 4）、枝を刈らない（cost_complexity = 0）の決定木を指定し、set_engine("rpart") と set_mode("classification") を付けて tree_spec に代入する
+      2. workflow() に churn_rec と tree_spec を加え、fit() で churn_train に当てはめて tree_fit に代入する
+      3. extract_fit_engine(tree_fit) で、学習した木を表示する
+    starter: |
+      tree_spec <- decision_tree() |>
+
+      tree_fit <-
+
+    solution: |
+      tree_spec <- decision_tree(tree_depth = 4, cost_complexity = 0) |>
+        set_engine("rpart") |>
+        set_mode("classification")
+      tree_fit <- workflow() |>
+        add_recipe(churn_rec) |>
+        add_model(tree_spec) |>
+        fit(data = churn_train)
+      extract_fit_engine(tree_fit)
+    check: |
+      expect_object("tree_spec", class = "decision_tree")
+      check_that(identical(tree_spec$mode, "classification"),
+                 "set_mode(\"classification\") を付けましょう。解約する・しないの分類です。")
+      expect_object("tree_fit", class = "workflow")
+      check_that(isTRUE(tree_fit$trained),
+                 "tree_fit がまだ学習されていません。最後に fit(data = churn_train) を付けましょう。")
+      check_that(inherits(extract_fit_engine(tree_fit), "rpart"),
+                 "エンジンが違います。set_engine(\"rpart\") を付けましょう。")
+      check_that(identical(extract_fit_engine(tree_fit)$frame$var, extract_fit_engine(.sol$tree_fit)$frame$var) &&
+                   isTRUE(all.equal(extract_fit_engine(tree_fit)$frame$n, extract_fit_engine(.sol$tree_fit)$frame$n)),
+                 "木の形が違います。tree_depth = 4、cost_complexity = 0 を指定し、churn_train で学習しましょう。")
+      check_that(inherits(.value, "rpart"),
+                 "最後に extract_fit_engine(tree_fit) を表示しましょう。")
+    hints:
+      - 第95ステップの logistic_reg() の代わりに decision_tree() を使います。決定木は回帰にも分類にも使えるので、set_mode() でどちらかを指定します。
+      - decision_tree(tree_depth = 4, cost_complexity = 0) |> set_engine("rpart") |> set_mode("classification") です。ワークフローは workflow() |> add_recipe(churn_rec) |> add_model(tree_spec) |> fit(data = churn_train) です。
+      - |
+        tree_spec <- decision_tree(tree_depth = 4, cost_complexity = 0) |>
+          set_engine("rpart") |>
+          set_mode("classification")
+        tree_fit <- workflow() |>
+          add_recipe(churn_rec) |>
+          add_model(tree_spec) |>
+          fit(data = churn_train)
+        extract_fit_engine(tree_fit)
+    tests:
+      fail:
+        - |
+          tree_spec <- decision_tree(tree_depth = 4) |>
+            set_engine("rpart") |>
+            set_mode("classification")
+          tree_fit <- workflow() |>
+            add_recipe(churn_rec) |>
+            add_model(tree_spec) |>
+            fit(data = churn_train)
+          extract_fit_engine(tree_fit)
+        - |
+          tree_spec <- decision_tree(tree_depth = 2, cost_complexity = 0) |>
+            set_engine("rpart") |>
+            set_mode("classification")
+          tree_fit <- workflow() |>
+            add_recipe(churn_rec) |>
+            add_model(tree_spec) |>
+            fit(data = churn_train)
+          extract_fit_engine(tree_fit)
+  - id: b
+    type: interpret
+    prompt: |
+      a で表示した木の一部です（各行は「番号) 分け方 人数 外れの人数 多い側 (yesの割合 noの割合)」。* は最後の葉）。
+      ```
+      1) root 3749 962 no (0.2566018 0.7433982)
+        2) recency>=250.5 260 54 yes (0.7923077 0.2076923)
+        3) recency< 250.5 3489 756 no (0.2166810 0.7833190)
+          6) rank=ブロンズ 1701 509 no (0.2992357 0.7007643)
+            12) frequency< 6.5 902 332 no (0.3680710 0.6319290)
+            13) frequency>=6.5 799 177 no (0.2215269 0.7784731) *
+          7) rank=ゴールド,シルバー 1788 247 no (0.1381432 0.8618568) *
+      ```
+      この木の読み方として最も適切なものはどれですか。
+    choices:
+      - "最後の注文から251日以上たった260人は、約79%が解約していた。それより最近注文した人では、ブロンズ会員で注文が6件以下の902人の解約率が約37%と高く、ゴールド・シルバー会員は約14%と低い"
+      - "最後の注文から251日以上たった260人のうち、解約したのは54人（約21%）だけである"
+      - "木で最初に分けた変数は recency なので、最後の注文からの日数を縮める施策をすれば、解約率は79%から14%に下がる"
+      - "会員ランクは2回目に使われているので、recency より解約の予測に役立つ"
+    answer: 0
+    explain: |
+      括弧の中は葉に入った人のうち yes（解約）と no（継続）の割合で、2) は260人のうち79%が解約です。54人は「多い側（yes）と予測したときの外れ」、つまり継続した人の数です。木は、上から「その時点で解約と継続を最もよく分ける条件」で分けていくので、最初の recency が最も分ける力の強い変数ですが、どの条件も「その条件の顧客で解約が多かった」という予測上の関係にすぎません。最後の注文から日がたっていることは、解約しかけているという結果の表れでもあり、日数を縮める施策で解約が減るとは限りません（第91ステップ）。施策の効果は実験で確かめます。
+  - id: c
+    type: write
+    prompt: |
+      【深さを変えて比べる】深さを30にした決定木で、過学習（第92ステップ）が起きるかを確かめます。
+      1. a と同じ設定で tree_depth = 30 にした決定木を churn_train で学習し、tree_deep に代入する
+      2. augment() で tree_deep の予測を churn_train と churn_test に付け、それぞれ deep_train と deep_test に代入する
+      3. accuracy() で、deep_train と deep_test の正解率をこの順に表示する
+    starter: |
+      tree_deep <- workflow() |>
+
+      deep_train <-
+      deep_test <-
+
+    solution: |
+      tree_deep <- workflow() |>
+        add_recipe(churn_rec) |>
+        add_model(decision_tree(tree_depth = 30, cost_complexity = 0) |>
+                    set_engine("rpart") |>
+                    set_mode("classification")) |>
+        fit(data = churn_train)
+      deep_train <- augment(tree_deep, new_data = churn_train)
+      deep_test <- augment(tree_deep, new_data = churn_test)
+      accuracy(deep_train, truth = churned, estimate = .pred_class)
+      accuracy(deep_test, truth = churned, estimate = .pred_class)
+    check: |
+      expect_object("tree_deep", class = "workflow")
+      check_that(isTRUE(tree_deep$trained) && inherits(extract_fit_engine(tree_deep), "rpart"),
+                 "tree_deep は rpart の決定木を churn_train で学習したものにしましょう。")
+      check_that(nrow(extract_fit_engine(tree_deep)$frame) == nrow(extract_fit_engine(.sol$tree_deep)$frame),
+                 "木の大きさが違います。tree_depth = 30、cost_complexity = 0 を指定しましょう。")
+      expect_object("deep_train", class = "data.frame")
+      expect_object("deep_test", class = "data.frame")
+      expect_df_equal(deep_train, .sol$deep_train, ignore_row_order = TRUE)
+      expect_df_equal(deep_test, .sol$deep_test, ignore_row_order = TRUE)
+      expect_value(.value, .sol_value, label = "最後に表示したテストデータの正解率")
+    hints:
+      - 木を深くするほど、訓練データの細かい違いまで覚えます。訓練データとテストデータの両方で正解率を求め、差を見ます。
+      - モデルは decision_tree(tree_depth = 30, cost_complexity = 0) |> set_engine("rpart") |> set_mode("classification") です。予測は augment(tree_deep, new_data = churn_train) と augment(tree_deep, new_data = churn_test) です。
+      - |
+        tree_deep <- workflow() |>
+          add_recipe(churn_rec) |>
+          add_model(decision_tree(tree_depth = 30, cost_complexity = 0) |>
+                      set_engine("rpart") |>
+                      set_mode("classification")) |>
+          fit(data = churn_train)
+        deep_train <- augment(tree_deep, new_data = churn_train)
+        deep_test <- augment(tree_deep, new_data = churn_test)
+        accuracy(deep_train, truth = churned, estimate = .pred_class)
+        accuracy(deep_test, truth = churned, estimate = .pred_class)
+    tests:
+      fail:
+        - |
+          tree_deep <- workflow() |>
+            add_recipe(churn_rec) |>
+            add_model(decision_tree(tree_depth = 30) |>
+                        set_engine("rpart") |>
+                        set_mode("classification")) |>
+            fit(data = churn_train)
+          deep_train <- augment(tree_deep, new_data = churn_train)
+          deep_test <- augment(tree_deep, new_data = churn_test)
+          accuracy(deep_train, truth = churned, estimate = .pred_class)
+          accuracy(deep_test, truth = churned, estimate = .pred_class)
+        - |
+          tree_deep <- workflow() |>
+            add_recipe(churn_rec) |>
+            add_model(decision_tree(tree_depth = 30, cost_complexity = 0) |>
+                        set_engine("rpart") |>
+                        set_mode("classification")) |>
+            fit(data = churn_train)
+          deep_train <- augment(tree_deep, new_data = churn_train)
+          deep_test <- augment(tree_deep, new_data = churn_test)
+          accuracy(deep_test, truth = churned, estimate = .pred_class)
+          accuracy(deep_train, truth = churned, estimate = .pred_class)
+  - id: d
+    type: write
+    review: true
+    prompt: |
+      【第96ステップの復習】a の深さ4の決定木 tree_fit を、AUC でロジスティック回帰（テストデータで約0.743）と比べます。
+      augment() で tree_fit の予測を churn_test に付けて tree_pred に代入し、roc_auc() に truth = churned と .pred_yes を渡して表示してください。
+    starter: |
+      tree_pred <-
+
+    solution: |
+      tree_pred <- augment(tree_fit, new_data = churn_test)
+      roc_auc(tree_pred, truth = churned, .pred_yes)
+    check: |
+      expect_object("tree_pred", class = "data.frame")
+      expect_df_equal(tree_pred, .sol$tree_pred, ignore_row_order = TRUE)
+      expect_value(.value, .sol_value, label = "表示した AUC")
+    hints:
+      - AUC は、分類 .pred_class ではなく確率 .pred_yes から求めます。テストデータで比べましょう。
+      - augment(tree_fit, new_data = churn_test) のあと、roc_auc(tree_pred, truth = churned, .pred_yes) です。
+      - |
+        tree_pred <- augment(tree_fit, new_data = churn_test)
+        roc_auc(tree_pred, truth = churned, .pred_yes)
+    tests:
+      fail:
+        - |
+          tree_pred <- augment(tree_fit, new_data = churn_train)
+          roc_auc(tree_pred, truth = churned, .pred_yes)
+        - |
+          tree_pred <- augment(tree_fit, new_data = churn_test)
+          roc_auc(tree_pred, truth = churned, .pred_no)

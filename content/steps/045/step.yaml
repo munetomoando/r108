@@ -1,0 +1,212 @@
+id: "045"
+part: 5
+title: 総合演習：教科書の賃金関数を再現する
+question: Wooldridge の教科書の推定結果を自分の手で再現し、日本の架空データと比べると何が分かるか
+minutes: 60
+mode: browser
+packages: [readr, dplyr, modelsummary, sandwich, wooldridge]
+data: [wage_survey.csv]
+learn: []
+setup: |
+  library(readr); library(dplyr); library(modelsummary)
+  # Wooldridge の教科書の賃金データ（米国1976年の526人。wooldridge パッケージ）
+  wage1 <- wooldridge::wage1
+  # 架空の賃金調査の個票（3,000人）
+  wage <- read_csv("data/wage_survey.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      Wooldridge『入門計量経済学』の2つの例を再現します。どちらも被説明変数は時給の対数 log(wage)、data は wage1 です。
+      - 例2.10: educ（教育年数）だけで説明する単回帰を m_ex2 に代入する
+      - 例3.2: educ、exper（経験年数）、tenure（勤続年数）で説明する重回帰を m_ex3 に代入する
+
+      最後に coef(m_ex3) を表示してください。教科書の値は、例2.10が切片0.584・educ 0.083、例3.2が切片0.284・educ 0.092・exper 0.0041・tenure 0.022です。
+    starter: |
+      m_ex2 <- lm(log(wage) ~ , data = wage1)
+      m_ex3 <-
+      coef(m_ex3)
+    solution: |
+      m_ex2 <- lm(log(wage) ~ educ, data = wage1)
+      m_ex3 <- lm(log(wage) ~ educ + exper + tenure, data = wage1)
+      coef(m_ex3)
+    check: |
+      expect_object("m_ex2", class = "lm")
+      check_that(nobs(m_ex2) == 526, "wage1 の526人で推定しましょう。data = wage1 を確認してください。")
+      expect_model(m_ex2, like = .sol$m_ex2)
+      expect_object("m_ex3", class = "lm")
+      expect_model(m_ex3, like = .sol$m_ex3)
+      expect_value(.value, .sol_value, label = "表示した coef(m_ex3)")
+    hints:
+      - wage1 では時給の列が wage です。式の左辺を log(wage) にすると、対数をとってから回帰します。
+      - 単回帰は log(wage) ~ educ、重回帰は log(wage) ~ educ + exper + tenure です。
+      - |
+        m_ex2 <- lm(log(wage) ~ educ, data = wage1)
+        m_ex3 <- lm(log(wage) ~ educ + exper + tenure, data = wage1)
+        coef(m_ex3)
+    tests:
+      fail:
+        - |
+          m_ex2 <- lm(wage ~ educ, data = wage1)
+          m_ex3 <- lm(wage ~ educ + exper + tenure, data = wage1)
+          coef(m_ex3)
+        - |
+          m_ex2 <- lm(log(wage) ~ educ, data = wage1)
+          m_ex3 <- lm(log(wage) ~ educ + exper, data = wage1)
+          coef(m_ex3)
+  - id: b
+    type: write
+    prompt: |
+      教科書の第7章では、例3.2に経験年数と勤続年数の二次項、女性ダミーと教育年数の交差項を加えた式(7.18)を推定しています。
+      log(wage) を female * educ、exper、I(exper^2)、tenure、I(tenure^2) で説明する回帰を m_ex7 に代入し、coef(m_ex7) を表示してください。
+      交差項は female * educ の順に書いてください（係数の名前が female:educ になります）。
+    starter: |
+      m_ex7 <- lm(log(wage) ~ , data = wage1)
+      coef(m_ex7)
+    solution: |
+      m_ex7 <- lm(log(wage) ~ female * educ + exper + I(exper^2) + tenure + I(tenure^2), data = wage1)
+      coef(m_ex7)
+    check: |
+      expect_object("m_ex7", class = "lm")
+      check_that("female:educ" %in% names(coef(m_ex7)),
+                 "交差項 female:educ がありません。female * educ と書きましょう（educ * female の順だと名前が educ:female になります）。")
+      check_that(all(c("I(exper^2)", "I(tenure^2)") %in% names(coef(m_ex7))),
+                 "二次項が足りません。I(exper^2) と I(tenure^2) を、I() で囲んで加えましょう。")
+      expect_model(m_ex7, like = .sol$m_ex7)
+      expect_value(.value, .sol_value, label = "表示した coef(m_ex7)")
+    hints:
+      - 交差項は第41ステップの *、二次項は第42ステップの I() で書きます。勤続年数にも2乗の項を入れます。
+      - 式は log(wage) ~ female * educ + exper + I(exper^2) + tenure + I(tenure^2) です。
+      - |
+        m_ex7 <- lm(log(wage) ~ female * educ + exper + I(exper^2) + tenure + I(tenure^2), data = wage1)
+        coef(m_ex7)
+    tests:
+      fail:
+        - |
+          m_ex7 <- lm(log(wage) ~ female + educ + exper + I(exper^2) + tenure + I(tenure^2), data = wage1)
+          coef(m_ex7)
+        - |
+          m_ex7 <- lm(log(wage) ~ female * educ + exper + exper^2 + tenure + tenure^2, data = wage1)
+          coef(m_ex7)
+        - |
+          m_ex7 <- lm(log(wage) ~ female * educ + exper + I(exper^2) + tenure, data = wage1)
+          coef(m_ex7)
+  - id: c
+    type: write
+    prompt: |
+      3つのモデルを、教科書のように1つの回帰表にまとめます。
+      list("例2.10" = m_ex2, "例3.2" = m_ex3, "式7.18" = m_ex7) を modelsummary() に渡し、output = "markdown"、fmt = 4、gof_map = c("nobs", "r.squared") を付けた表を tab_us に代入して、tab_us を表示してください。
+      教科書と同じく、括弧内は通常の標準誤差のままにします（vcov は付けません）。
+    starter: |
+      tab_us <- modelsummary(list("例2.10" = m_ex2, "例3.2" = m_ex3, "式7.18" = m_ex7),
+        )
+      tab_us
+    solution: |
+      tab_us <- modelsummary(list("例2.10" = m_ex2, "例3.2" = m_ex3, "式7.18" = m_ex7),
+        output = "markdown", fmt = 4, gof_map = c("nobs", "r.squared"))
+      tab_us
+    check: |
+      expect_uses("modelsummary")
+      expect_object("tab_us")
+      check_that(inherits(.value, "tinytable"),
+                 "表が表示されていません。最後の行に tab_us と書きましょう。")
+      check_that(identical(names(.value@data), names(.sol_value@data)),
+                 "表の列見出しが違います。list() の名前を \"例2.10\"、\"例3.2\"、\"式7.18\" にし、この順に並べましょう。")
+      expect_df_equal(.value@data, .sol_value@data)
+    hints:
+      - 第44ステップと同じく、モデルのリストを modelsummary() に渡します。リストの名前が列見出しになります。
+      - 引数は output = "markdown"、fmt = 4、gof_map = c("nobs", "r.squared") の3つです。
+      - |
+        tab_us <- modelsummary(list("例2.10" = m_ex2, "例3.2" = m_ex3, "式7.18" = m_ex7),
+          output = "markdown", fmt = 4, gof_map = c("nobs", "r.squared"))
+        tab_us
+    tests:
+      fail:
+        - |
+          tab_us <- modelsummary(list("例2.10" = m_ex2, "例3.2" = m_ex3, "式7.18" = m_ex7),
+            output = "markdown", fmt = 4, gof_map = c("nobs", "r.squared"), vcov = "HC1")
+          tab_us
+        - |
+          tab_us <- modelsummary(list("例2.10" = m_ex2, "例3.2" = m_ex3, "式7.18" = m_ex7),
+            output = "markdown", gof_map = c("nobs", "r.squared"))
+          tab_us
+        - |
+          tab_us <- modelsummary(list(m_ex2, m_ex3, m_ex7),
+            output = "markdown", fmt = 4, gof_map = c("nobs", "r.squared"))
+          tab_us
+  - id: d
+    type: write
+    prompt: |
+      同じ式を、日本の架空の賃金調査 wage で推定して比べます。wage では列の名前が違うので、log_wage を female * educ_years、exper、I(exper^2)、tenure、I(tenure^2) で説明する回帰を m_jp に代入します。
+      続けて、list("米国1976年" = m_ex7, "日本（架空）" = m_jp) を modelsummary() に渡し、output = "markdown"、fmt = 4、gof_map = c("nobs", "r.squared") に加えて、
+      coef_rename = c(educ_years = "educ", "female:educ_years" = "female:educ") で wage の係数名を wage1 にそろえた表を tab_cmp に代入し、tab_cmp を表示してください（同じ名前になった係数は同じ行に並びます）。
+    starter: |
+      m_jp <- lm(log_wage ~ , data = wage)
+      tab_cmp <- modelsummary(list("米国1976年" = m_ex7, "日本（架空）" = m_jp),
+        output = "markdown", fmt = 4, gof_map = c("nobs", "r.squared"),
+        coef_rename = )
+      tab_cmp
+    solution: |
+      m_jp <- lm(log_wage ~ female * educ_years + exper + I(exper^2) + tenure + I(tenure^2), data = wage)
+      tab_cmp <- modelsummary(list("米国1976年" = m_ex7, "日本（架空）" = m_jp),
+        output = "markdown", fmt = 4, gof_map = c("nobs", "r.squared"),
+        coef_rename = c(educ_years = "educ", "female:educ_years" = "female:educ"))
+      tab_cmp
+    check: |
+      expect_object("m_jp", class = "lm")
+      check_that("female:educ_years" %in% names(coef(m_jp)),
+                 "交差項 female:educ_years がありません。female * educ_years の順に書きましょう。")
+      expect_model(m_jp, like = .sol$m_jp)
+      expect_uses("modelsummary")
+      check_that(inherits(.value, "tinytable"),
+                 "表が表示されていません。最後の行に tab_cmp と書きましょう。")
+      check_that(nrow(.value@data) == nrow(.sol_value@data),
+                 "表の行の数が違います。coef_rename で educ_years を \"educ\" に、\"female:educ_years\" を \"female:educ\" にそろえましょう。")
+      expect_df_equal(.value@data, .sol_value@data)
+    hints:
+      - wage では教育年数が educ_years、対数時給が log_wage という名前です。式の形は b の m_ex7 と同じです。
+      - coef_rename = c(educ_years = "educ", "female:educ_years" = "female:educ") で、日本のモデルの係数名を米国のモデルにそろえます。
+      - |
+        m_jp <- lm(log_wage ~ female * educ_years + exper + I(exper^2) + tenure + I(tenure^2), data = wage)
+        tab_cmp <- modelsummary(list("米国1976年" = m_ex7, "日本（架空）" = m_jp),
+          output = "markdown", fmt = 4, gof_map = c("nobs", "r.squared"),
+          coef_rename = c(educ_years = "educ", "female:educ_years" = "female:educ"))
+        tab_cmp
+    tests:
+      fail:
+        - |
+          m_jp <- lm(log_wage ~ female * educ_years + exper + I(exper^2) + tenure + I(tenure^2), data = wage)
+          tab_cmp <- modelsummary(list("米国1976年" = m_ex7, "日本（架空）" = m_jp),
+            output = "markdown", fmt = 4, gof_map = c("nobs", "r.squared"))
+          tab_cmp
+        - |
+          m_jp <- lm(log_wage ~ female + educ_years + exper + I(exper^2) + tenure + I(tenure^2), data = wage)
+          tab_cmp <- modelsummary(list("米国1976年" = m_ex7, "日本（架空）" = m_jp),
+            output = "markdown", fmt = 4, gof_map = c("nobs", "r.squared"),
+            coef_rename = c(educ_years = "educ", "female:educ_years" = "female:educ"))
+          tab_cmp
+  - id: e
+    type: interpret
+    free: true
+    prompt: |
+      a〜d の結果をもとに、結論を3行（3文）で書いてください。
+      1文目に教科書の推定を再現できたか（例2.10や例3.2の教育年数の係数などを数字で）、2文目に米国1976年と日本（架空）の比較で分かったこと（教育年数の係数、経験年数のピーク、勤続年数など）を数字で、3文目にこの比較を読むときの注意（データの性質、係数は因果効果とは限らないこと、など）を書くと書きやすいでしょう。
+    solution: |
+      wage1 で推定すると、例2.10の教育年数の係数は約0.083（教育1年で時給がおよそ8.3%高い）、例3.2では約0.092となり、教科書の値をそのまま再現できた。
+      同じ式(7.18)で比べると、男性の教育年数の係数は米国1976年が約0.082、日本の架空データが約0.065で、経験年数のピークは米国が約25年、日本の架空データが約29年だった。
+      ただし日本のデータは教材用の架空のもので時代や調査も違い、係数は他の条件を一定とした差にすぎず、能力など観察できない違いを含みうるので、教育の因果効果とは限らない。
+    check: |
+      expect_min_chars(100)
+      expect_text("[0-9０-９]", "推定値などの数字を入れて書きましょう。")
+      expect_text("教科書|Wooldridge|再現|一致|同じ", "1文目に、教科書の推定を再現できたかを書きましょう。")
+      expect_text("日本|架空|wage_survey", "2文目に、日本の架空データとの比較を書きましょう。")
+      expect_text("米国|アメリカ|1976|wage1", "米国1976年のデータ（wage1）との比較だと分かるように書きましょう。")
+      expect_text("因果|他の条件|一定|とは限ら|観察|能力|時代|架空", "3文目に、比較を読むときの注意（データの性質や、係数が因果効果とは限らないこと）を書きましょう。")
+    hints:
+      - a の coef(m_ex3)、c の表（例2.10・例3.2）、d の表を見直しましょう。経験年数のピークは −b1/(2b2) で計算できます。
+      - 「再現できたか」「米国と日本（架空）で何が違うか」「どう読むべきか」の3点を1文ずつ書きます。対数の被説明変数の係数は、×100 でおよそ%として読めます。
+      - 例「例2.10の教育年数の係数は約0.083で、教科書の値を再現できた。同じ式で比べると、教育年数の係数は米国1976年が約〇、日本の架空データが約〇だった。ただし日本のデータは架空で時代も違い、係数は他の条件を一定とした差で因果効果とは限らない。」
+    tests:
+      fail:
+        - 教科書の値を再現できた。日本のほうが低かった。
+        - 例2.10の教育年数の係数は約0.083で、教科書の値を再現できた。同じ式で比べると、教育年数の係数は米国1976年が約0.082で、教育を受けるほど賃金が上がることが証明された。大学に行けば必ず時給が8%上がる。

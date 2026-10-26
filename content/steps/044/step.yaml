@@ -1,0 +1,217 @@
+id: "044"
+part: 5
+title: 回帰表をつくる
+question: 3つのモデルを1つの表に
+minutes: 45
+mode: browser
+packages: [readr, dplyr, fixest, modelsummary, sandwich]
+data: [wage_survey.csv]
+learn: [modelsummary, list]
+review_of: "043"
+setup: |
+  library(readr); library(dplyr); library(fixest); library(modelsummary)
+  # 架空の賃金調査の個票（3,000人）
+  wage <- read_csv("data/wage_survey.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      説明変数を少しずつ増やした3つのモデルを lm() で推定します（被説明変数はどれも log_wage、data は wage）。
+      - m1: educ_years だけ
+      - m2: educ_years、exper、I(exper^2)、tenure
+      - m3: m2 の説明変数に female と regular を加える
+
+      続けて、3つを list("(1)" = m1, "(2)" = m2, "(3)" = m3) で1つのリストにまとめて models に代入し、最後に names(models) を表示してください。
+    starter: |
+      m1 <- lm(log_wage ~ educ_years, data = wage)
+      m2 <-
+      m3 <-
+      models <-
+      names(models)
+    solution: |
+      m1 <- lm(log_wage ~ educ_years, data = wage)
+      m2 <- lm(log_wage ~ educ_years + exper + I(exper^2) + tenure, data = wage)
+      m3 <- lm(log_wage ~ educ_years + exper + I(exper^2) + tenure + female + regular, data = wage)
+      models <- list("(1)" = m1, "(2)" = m2, "(3)" = m3)
+      names(models)
+    check: |
+      expect_object("m1", class = "lm")
+      expect_model(m1, like = .sol$m1)
+      expect_object("m2", class = "lm")
+      expect_model(m2, like = .sol$m2)
+      expect_object("m3", class = "lm")
+      expect_model(m3, like = .sol$m3)
+      expect_object("models", class = "list")
+      check_that(length(models) == 3, "models には3つのモデルを入れましょう。")
+      expect_value(names(models), names(.sol$models), label = "models の名前")
+      check_that(identical(coef(models[[3]]), coef(m3)) && identical(coef(models[[1]]), coef(m1)),
+                 "models の中身の順番が違います。(1) に m1、(2) に m2、(3) に m3 を入れましょう。")
+      expect_value(.value, .sol_value, label = "表示した names(models)")
+    hints:
+      - m2 は第42ステップと同じく、2乗の項を I(exper^2) と書きます。m3 は m2 の式の最後に + female + regular を足します。
+      - list() は「名前 = 中身」を並べて1つにまとめます。名前に ( ) を使うので "(1)" のように引用符で囲みます。
+      - |
+        m1 <- lm(log_wage ~ educ_years, data = wage)
+        m2 <- lm(log_wage ~ educ_years + exper + I(exper^2) + tenure, data = wage)
+        m3 <- lm(log_wage ~ educ_years + exper + I(exper^2) + tenure + female + regular, data = wage)
+        models <- list("(1)" = m1, "(2)" = m2, "(3)" = m3)
+        names(models)
+    tests:
+      fail:
+        - |
+          m1 <- lm(log_wage ~ educ_years, data = wage)
+          m2 <- lm(log_wage ~ educ_years + exper + I(exper^2) + tenure, data = wage)
+          m3 <- lm(log_wage ~ educ_years + exper + I(exper^2) + tenure + female, data = wage)
+          models <- list("(1)" = m1, "(2)" = m2, "(3)" = m3)
+          names(models)
+        - |
+          m1 <- lm(log_wage ~ educ_years, data = wage)
+          m2 <- lm(log_wage ~ educ_years + exper + I(exper^2) + tenure, data = wage)
+          m3 <- lm(log_wage ~ educ_years + exper + I(exper^2) + tenure + female + regular, data = wage)
+          models <- list("(1)" = m3, "(2)" = m2, "(3)" = m1)
+          names(models)
+  - id: b
+    type: write
+    prompt: |
+      modelsummary パッケージの modelsummary() で、models の3つのモデルを1つの表にします。
+      vcov = "HC1" を付けて括弧内の標準誤差を不均一分散に頑健なもの（第43ステップの feols(vcov = "hetero") と同じ計算）にし、output = "markdown" で画面に文字の表として出します。
+      表を tab に代入し、tab を表示してください。
+    starter: |
+      tab <- modelsummary(models, )
+      tab
+    solution: |
+      tab <- modelsummary(models, vcov = "HC1", output = "markdown")
+      tab
+    check: |
+      expect_uses("modelsummary")
+      expect_object("tab")
+      check_that(inherits(.value, "tinytable"),
+                 "表が表示されていません。tab <- modelsummary(...) の次の行に tab と書きましょう。")
+      check_that(ncol(.value@data) == ncol(.sol_value@data),
+                 "表の列の数が違います。modelsummary() には3つのモデルが入った models を渡しましょう。")
+      check_that(isTRUE(all.equal(.value@data[[2]], .sol_value@data[[2]])),
+                 "表の数値が違います。括弧内を頑健な標準誤差にするため vcov = \"HC1\" を付けましょう。")
+      expect_df_equal(.value@data, .sol_value@data)
+    hints:
+      - modelsummary() の最初の引数に、a で作ったモデルのリスト models を渡します。残りは標準誤差の種類と出力の形を指定する引数です。
+      - 引数は vcov = "HC1" と output = "markdown" の2つです。
+      - |
+        tab <- modelsummary(models, vcov = "HC1", output = "markdown")
+        tab
+    tests:
+      fail:
+        - |
+          tab <- modelsummary(models, output = "markdown")
+          tab
+        - |
+          tab <- modelsummary(list(m1, m3), vcov = "HC1", output = "markdown")
+          tab
+        - |
+          tab <- modelsummary(models, vcov = "HC1", output = "markdown")
+  - id: c
+    type: write
+    prompt: |
+      b の表を、論文や報告書に載せられる形に整えます。b の modelsummary() に次の4つの引数を加えて tab2 に代入し、tab2 を表示してください。
+      - fmt = 4 … 小数第4位まで表示する（I(exper^2) の係数が 0.000 と表示されないように）
+      - coef_rename = … 係数名を日本語にする。"(Intercept)" を "定数項"、educ_years を "教育年数"、exper を "経験年数"、"I(exper^2)" を "経験年数の2乗"、tenure を "勤続年数"、female を "女性"、regular を "正規雇用" に
+      - gof_map = c("nobs", "r.squared") … 表の下の行を観測数と決定係数だけにする
+      - notes = "括弧内は不均一分散に頑健な標準誤差（HC1）。データは架空の賃金調査。" … 表の下に注記を付ける
+    starter: |
+      tab2 <- modelsummary(models, vcov = "HC1", output = "markdown",
+        fmt = 4,
+        coef_rename = c("(Intercept)" = "定数項", educ_years = "教育年数", ),
+        gof_map = ,
+        notes = )
+      tab2
+    solution: |
+      tab2 <- modelsummary(models, vcov = "HC1", output = "markdown",
+        fmt = 4,
+        coef_rename = c("(Intercept)" = "定数項", educ_years = "教育年数", exper = "経験年数",
+                        "I(exper^2)" = "経験年数の2乗", tenure = "勤続年数", female = "女性",
+                        regular = "正規雇用"),
+        gof_map = c("nobs", "r.squared"),
+        notes = "括弧内は不均一分散に頑健な標準誤差（HC1）。データは架空の賃金調査。")
+      tab2
+    check: |
+      expect_uses("modelsummary")
+      expect_object("tab2")
+      check_that(inherits(.value, "tinytable"),
+                 "表が表示されていません。最後の行に tab2 と書きましょう。")
+      have <- .value@data[[1]]; want <- .sol_value@data[[1]]
+      miss <- setdiff(want[nzchar(want)], have)
+      check_that(length(miss) == 0,
+                 paste0("表の行の名前が指示と違います（見つからない行: ", paste(miss, collapse = "、"),
+                        "）。coef_rename と gof_map を確認しましょう。"))
+      expect_df_equal(.value@data, .sol_value@data)
+      note <- paste(unlist(.value@notes), collapse = "")
+      check_that(grepl("頑健", note) && grepl("架空", note),
+                 "注記がないか、内容が足りません。notes = \"括弧内は不均一分散に頑健な標準誤差（HC1）。データは架空の賃金調査。\" を付けましょう。")
+    hints:
+      - coef_rename は c(元の名前 = "新しい名前", …) の形で、7つの係数すべてを並べます。( ) や ^ を含む名前は "I(exper^2)" のように引用符で囲みます。
+      - gof_map は c("nobs", "r.squared")、notes は注記の文をそのまま引用符で囲んで渡します。fmt = 4 は数値の桁数です。
+      - |
+        tab2 <- modelsummary(models, vcov = "HC1", output = "markdown",
+          fmt = 4,
+          coef_rename = c("(Intercept)" = "定数項", educ_years = "教育年数", exper = "経験年数",
+                          "I(exper^2)" = "経験年数の2乗", tenure = "勤続年数", female = "女性",
+                          regular = "正規雇用"),
+          gof_map = c("nobs", "r.squared"),
+          notes = "括弧内は不均一分散に頑健な標準誤差（HC1）。データは架空の賃金調査。")
+        tab2
+    tests:
+      fail:
+        - |
+          tab2 <- modelsummary(models, vcov = "HC1", output = "markdown",
+            fmt = 4,
+            coef_rename = c("(Intercept)" = "定数項", educ_years = "教育年数", exper = "経験年数",
+                            "I(exper^2)" = "経験年数の2乗", tenure = "勤続年数", female = "女性",
+                            regular = "正規雇用"),
+            gof_map = c("nobs", "r.squared"))
+          tab2
+        - |
+          tab2 <- modelsummary(models, vcov = "HC1", output = "markdown",
+            coef_rename = c("(Intercept)" = "定数項", educ_years = "教育年数", exper = "経験年数",
+                            "I(exper^2)" = "経験年数の2乗", tenure = "勤続年数", female = "女性",
+                            regular = "正規雇用"),
+            gof_map = c("nobs", "r.squared"),
+            notes = "括弧内は不均一分散に頑健な標準誤差（HC1）。データは架空の賃金調査。")
+          tab2
+        - |
+          tab2 <- modelsummary(models, vcov = "HC1", output = "markdown",
+            fmt = 4,
+            coef_rename = c("(Intercept)" = "定数項", educ_years = "教育年数", exper = "経験年数",
+                            tenure = "勤続年数", female = "女性", regular = "正規雇用"),
+            gof_map = c("nobs", "r.squared"),
+            notes = "括弧内は不均一分散に頑健な標準誤差（HC1）。データは架空の賃金調査。")
+          tab2
+  - id: d
+    type: write
+    review: true
+    prompt: |
+      【第43ステップの復習】log_wage を educ_years と female で説明する回帰を、feols() で不均一分散に頑健な標準誤差（vcov = "hetero"）を付けて推定して f43 に代入し、se(f43) で標準誤差を表示してください。
+    starter: |
+      f43 <-
+      se(f43)
+    solution: |
+      f43 <- feols(log_wage ~ educ_years + female, data = wage, vcov = "hetero")
+      se(f43)
+    check: |
+      expect_object("f43", class = "fixest")
+      expect_model(f43, like = .sol$f43)
+      check_that(isTRUE(all.equal(as.numeric(se(f43)), as.numeric(se(.sol$f43)), tolerance = 1e-6)),
+                 "標準誤差が頑健な標準誤差になっていません。feols() の中に vcov = \"hetero\" を書きましょう。")
+      expect_value(as.numeric(.value), as.numeric(se(.sol$f43)), label = "表示した標準誤差")
+    hints:
+      - 第43ステップの b と同じ書き方で、説明変数を educ_years と female にします。
+      - feols(log_wage ~ educ_years + female, data = wage, vcov = "hetero") です。標準誤差は se() で取り出します。
+      - |
+        f43 <- feols(log_wage ~ educ_years + female, data = wage, vcov = "hetero")
+        se(f43)
+    tests:
+      fail:
+        - |
+          f43 <- feols(log_wage ~ educ_years + female, data = wage)
+          se(f43)
+        - |
+          f43 <- lm(log_wage ~ educ_years + female, data = wage)
+          coef(f43)

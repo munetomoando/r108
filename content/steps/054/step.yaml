@@ -1,0 +1,25 @@
+id: "054"
+part: 6
+title: 総合演習・第II段階の関門：ミニ卒論
+question: 自分で立てた問いに、データと回帰分析で答える4,000字の論文を、再現できる形で書き上げられるか
+minutes: 120
+mode: local
+packages: [readr, dplyr, ggplot2, modelsummary, fixest, knitr, rmarkdown]
+data: [pref_panel.csv]
+learn: []
+local:
+  script: check_054.R
+  code_sha256: "49b89a5549d3d4f0aee6704bd1b11b4fc62ae16734218e180f792bdcecf6250a"
+  instructions: |
+    **実行する前に**
+    - プロジェクトのフォルダに `mini_thesis.qmd`・`references.bib`・使うデータ（例 `data/pref_panel.csv`）がそろい、Render で Word が出力できること
+    - 本文の「自分で見直す点検表」をすべて確かめたこと
+    - `mini_thesis.docx` を Word で開いているなら閉じること（開いたままだと上書きできません）
+
+    ダウンロードした `check_054.R` を同じフォルダに置き、コンソールで次を実行します。
+
+    ```r
+    source("check_054.R", encoding = "UTF-8")
+    ```
+
+    確認スクリプトは、本文の字数（YAML・コードチャンク・`<!-- -->` のメモ・見出し・空白を除く）を数え、mini_thesis.qmd を Word にレンダリングして、図・表・引用を調べます。字数の下限は3,000字です。確認スクリプトが見るのは形だけです。内容の良し悪しは、点検表で自分で確かめてください。

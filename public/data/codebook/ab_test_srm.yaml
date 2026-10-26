@@ -1,0 +1,24 @@
+title: 購入画面のA/Bテスト（割当比率が崩れた版）
+file: ab_test_srm.csv
+source: 合成データ（data-raw/synth_ab_test.R、乱数シード108）
+rows: 20000
+unit_of_observation: 訪問者
+notes: >-
+  本来は50:50の割当が A 10,200人・B 9,800人（51:49）に崩れている（SRM: sample ratio mismatch）。
+  B群の購入しなかったPC利用者の一部が記録から落ちたため、Bの購入率が見かけ上高い。カイ二乗検定で検出できる（第88ステップ）
+columns:
+  - name: visitor_id
+    description: 訪問者ID
+    unit: なし
+  - name: group
+    description: 割り当てられた画面（A=現行、B=新しい画面）
+    unit: なし
+  - name: device
+    description: 端末（スマホ・PC）
+    unit: なし
+  - name: converted
+    description: 購入したか（1=購入、0=購入なし）
+    unit: なし（0/1）
+  - name: revenue
+    description: 売上（購入しなかった人は0）
+    unit: 円

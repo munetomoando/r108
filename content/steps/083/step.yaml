@@ -1,0 +1,280 @@
+id: "083"
+part: 10
+title: 売上の要因分析
+question: 前年より売上が伸びたのは客数か単価か
+minutes: 50
+mode: browser
+packages: [readr, dplyr, lubridate]
+data: [ec_orders.csv, ec_products.csv, ec_customers.csv]
+learn: []
+review_of: "082"
+setup: |
+  library(readr); library(dplyr); library(lubridate)
+  orders <- read_csv("data/ec_orders.csv", show_col_types = FALSE)
+  customers <- read_csv("data/ec_customers.csv", show_col_types = FALSE)
+  products <- read_csv("data/ec_products.csv", show_col_types = FALSE)
+  # 第82ステップで作った表：明細に商品・顧客の情報を結合し、売上 sales と月 ym を加えたもの
+  ec <- orders |>
+    left_join(products, by = "product_id") |>
+    left_join(customers, by = "customer_id") |>
+    mutate(sales = qty * unit_price,
+           ym = floor_date(order_date, unit = "month"))
+  # 月次の KPI 表（売上・客数・注文件数）。2024年1月〜2025年12月の24行
+  kpi <- ec |>
+    group_by(ym) |>
+    summarise(sales = sum(sales),
+              buyers = n_distinct(customer_id),
+              orders = n_distinct(order_id))
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      kpi に4つの列を加えて kpi_yoy に代入し、2025年1月以降（ym >= ymd("2025-01-01")）の行を表示してください。
+      - spend … 客単価（sales ÷ buyers）
+      - sales_yoy … 売上の前年同月比（％）。（今月 ÷ 12か月前 − 1）× 100
+      - buyers_yoy … 客数の前年同月比（％）
+      - spend_yoy … 客単価の前年同月比（％）
+    starter: |
+      kpi_yoy <- kpi |>
+        mutate()
+      filter(kpi_yoy, ym >= ymd("2025-01-01"))
+    solution: |
+      kpi_yoy <- kpi |>
+        mutate(spend = sales / buyers,
+               sales_yoy = (sales / lag(sales, 12) - 1) * 100,
+               buyers_yoy = (buyers / lag(buyers, 12) - 1) * 100,
+               spend_yoy = (spend / lag(spend, 12) - 1) * 100)
+      filter(kpi_yoy, ym >= ymd("2025-01-01"))
+    check: |
+      expect_object("kpi_yoy", class = "data.frame")
+      expect_cols(kpi_yoy, c("spend", "sales_yoy", "buyers_yoy", "spend_yoy"))
+      check_that(sum(is.na(kpi_yoy$sales_yoy)) == 12,
+                 "2024年の12か月は前年の値がないので、sales_yoy は NA になるはずです。lag(sales, 12) で12か月前の値を使いましょう。")
+      check_that(isTRUE(all.equal(kpi_yoy$spend, .sol$kpi_yoy$spend)),
+                 "spend（客単価）が違います。sales / buyers です。")
+      check_that(isTRUE(all.equal(kpi_yoy$sales_yoy, .sol$kpi_yoy$sales_yoy)),
+                 "sales_yoy が違います。(sales / lag(sales, 12) - 1) * 100 で％にしましょう。")
+      check_that(isTRUE(all.equal(kpi_yoy$buyers_yoy, .sol$kpi_yoy$buyers_yoy)) &&
+                   isTRUE(all.equal(kpi_yoy$spend_yoy, .sol$kpi_yoy$spend_yoy)),
+                 "buyers_yoy か spend_yoy が違います。売上と同じ形で、buyers と spend の前年同月比を作りましょう。")
+      expect_df_equal(kpi_yoy, .sol$kpi_yoy)
+      expect_value(.value, .sol_value, label = "表示した2025年の行")
+    hints:
+      - kpi は2024年1月から古い順に1か月1行で並んでいるので、12行前が前年同月です（第73ステップ）。売上・客数のような量は、差ではなく比で比べます。
+      - spend = sales / buyers を先に作れば、同じ mutate() の中で spend_yoy = (spend / lag(spend, 12) - 1) * 100 と使えます。
+      - |
+        kpi_yoy <- kpi |>
+          mutate(spend = sales / buyers,
+                 sales_yoy = (sales / lag(sales, 12) - 1) * 100,
+                 buyers_yoy = (buyers / lag(buyers, 12) - 1) * 100,
+                 spend_yoy = (spend / lag(spend, 12) - 1) * 100)
+        filter(kpi_yoy, ym >= ymd("2025-01-01"))
+    tests:
+      fail:
+        - |
+          kpi_yoy <- kpi |>
+            mutate(spend = sales / buyers,
+                   sales_yoy = (sales / lag(sales) - 1) * 100,
+                   buyers_yoy = (buyers / lag(buyers) - 1) * 100,
+                   spend_yoy = (spend / lag(spend) - 1) * 100)
+          filter(kpi_yoy, ym >= ymd("2025-01-01"))
+        - |
+          kpi_yoy <- kpi |>
+            mutate(spend = sales / orders,
+                   sales_yoy = (sales / lag(sales, 12) - 1) * 100,
+                   buyers_yoy = (buyers / lag(buyers, 12) - 1) * 100,
+                   spend_yoy = (spend / lag(spend, 12) - 1) * 100)
+          filter(kpi_yoy, ym >= ymd("2025-01-01"))
+        - |
+          kpi_yoy <- kpi |>
+            mutate(spend = sales / buyers,
+                   sales_yoy = sales / lag(sales, 12) * 100,
+                   buyers_yoy = buyers / lag(buyers, 12) * 100,
+                   spend_yoy = spend / lag(spend, 12) * 100)
+          filter(kpi_yoy, ym >= ymd("2025-01-01"))
+  - id: b
+    type: write
+    prompt: |
+      売上の伸びを、客数と客単価の寄与に分けます。売上 = 客数 × 客単価 なので、伸び率（％）の間には
+      売上の伸び ＝ 客数の伸び ＋ 客単価の伸び ＋ 客数の伸び × 客単価の伸び ÷ 100
+      が成り立ちます。最後の項を**交差項**と呼びます。
+      kpi_yoy を2025年の行に絞り、交差項 cross（buyers_yoy × spend_yoy ÷ 100）と、3つの和 total（buyers_yoy + spend_yoy + cross）を加え、ym・sales_yoy・buyers_yoy・spend_yoy・cross・total の6列を選んで contrib に代入し、表示してください。total が sales_yoy と一致することを確かめます。
+    starter: |
+      contrib <- kpi_yoy |>
+
+      contrib
+    solution: |
+      contrib <- kpi_yoy |>
+        filter(ym >= ymd("2025-01-01")) |>
+        mutate(cross = buyers_yoy * spend_yoy / 100,
+               total = buyers_yoy + spend_yoy + cross) |>
+        select(ym, sales_yoy, buyers_yoy, spend_yoy, cross, total)
+      contrib
+    check: |
+      expect_object("contrib", class = "data.frame")
+      expect_cols(contrib, c("ym", "sales_yoy", "buyers_yoy", "spend_yoy", "cross", "total"))
+      expect_nrow(contrib, 12)
+      check_that(isTRUE(all.equal(contrib$cross, .sol$contrib$cross)),
+                 "cross が違います。buyers_yoy * spend_yoy / 100 です（％どうしの積なので100で割ります）。")
+      check_that(isTRUE(all.equal(contrib$total, contrib$sales_yoy)),
+                 "total が sales_yoy と一致しません。total = buyers_yoy + spend_yoy + cross です。")
+      expect_df_equal(contrib, .sol$contrib)
+      expect_value(.value, .sol_value, label = "表示した contrib")
+    hints:
+      - 「2025年に絞る → 2列を作る → 6列を選ぶ」の3段です。(1 + 売上の伸び) = (1 + 客数の伸び) × (1 + 客単価の伸び) を展開すると、問題文の式になります。
+      - filter(ym >= ymd("2025-01-01")) のあと、mutate(cross = buyers_yoy * spend_yoy / 100, total = buyers_yoy + spend_yoy + cross) とし、select() で6列を選びます。
+      - |
+        contrib <- kpi_yoy |>
+          filter(ym >= ymd("2025-01-01")) |>
+          mutate(cross = buyers_yoy * spend_yoy / 100,
+                 total = buyers_yoy + spend_yoy + cross) |>
+          select(ym, sales_yoy, buyers_yoy, spend_yoy, cross, total)
+        contrib
+    tests:
+      fail:
+        - |
+          contrib <- kpi_yoy |>
+            filter(ym >= ymd("2025-01-01")) |>
+            mutate(cross = buyers_yoy * spend_yoy,
+                   total = buyers_yoy + spend_yoy + cross) |>
+            select(ym, sales_yoy, buyers_yoy, spend_yoy, cross, total)
+          contrib
+        - |
+          contrib <- kpi_yoy |>
+            filter(ym >= ymd("2025-01-01")) |>
+            mutate(cross = 0,
+                   total = buyers_yoy + spend_yoy + cross) |>
+            select(ym, sales_yoy, buyers_yoy, spend_yoy, cross, total)
+          contrib
+  - id: c
+    type: write
+    prompt: |
+      2025年12月の前年同月比（約 +14.0%）を、カテゴリ別の寄与に分けます。カテゴリ別の寄与度は
+      （そのカテゴリの今年12月の売上 − 前年12月の売上）÷ 前年12月の全カテゴリの売上 × 100
+      で、全カテゴリの寄与度を足すと全体の伸び率になります。
+      1. ec を12月（month(ym) == 12）の行に絞り、category ごとに s2024（2024年12月の売上合計）と s2025（2025年12月の売上合計）を集計する。sum(sales[year(ym) == 2024]) のように、[ ] で年を選んで合計できます
+      2. 寄与度 contrib（(s2025 − s2024) ÷ sum(s2024) × 100）を加え、contrib の大きい順に並べる
+      この表を cat_contrib に代入して表示してください。
+    starter: |
+      cat_contrib <- ec |>
+
+      cat_contrib
+    solution: |
+      cat_contrib <- ec |>
+        filter(month(ym) == 12) |>
+        group_by(category) |>
+        summarise(s2024 = sum(sales[year(ym) == 2024]),
+                  s2025 = sum(sales[year(ym) == 2025])) |>
+        mutate(contrib = (s2025 - s2024) / sum(s2024) * 100) |>
+        arrange(desc(contrib))
+      cat_contrib
+    check: |
+      expect_object("cat_contrib", class = "data.frame")
+      expect_cols(cat_contrib, c("category", "s2024", "s2025", "contrib"))
+      expect_nrow(cat_contrib, 8)
+      check_that(isTRUE(all.equal(sort(cat_contrib$s2024), sort(.sol$cat_contrib$s2024))) &&
+                   isTRUE(all.equal(sort(cat_contrib$s2025), sort(.sol$cat_contrib$s2025))),
+                 "s2024 か s2025 が違います。12月の行に絞ってから、年ごとに sales を合計しましょう。")
+      check_that(isTRUE(all.equal(sum(cat_contrib$contrib), sum(.sol$cat_contrib$contrib))),
+                 "contrib の合計が全体の伸び率（約14.0%）になりません。分母はそのカテゴリではなく、全カテゴリの前年12月の売上 sum(s2024) です。")
+      expect_df_equal(cat_contrib, .sol$cat_contrib)
+      expect_value(.value, .sol_value, label = "表示した cat_contrib")
+    hints:
+      - カテゴリの伸び率（そのカテゴリの前年の売上で割る）ではなく、全体の伸びへの寄与を求めます。分母は全カテゴリ共通の「前年12月の売上の合計」です。
+      - filter(month(ym) == 12) |> group_by(category) |> summarise(s2024 = sum(sales[year(ym) == 2024]), s2025 = sum(sales[year(ym) == 2025])) のあと、mutate() の中の sum(s2024) は8カテゴリの合計になります。
+      - |
+        cat_contrib <- ec |>
+          filter(month(ym) == 12) |>
+          group_by(category) |>
+          summarise(s2024 = sum(sales[year(ym) == 2024]),
+                    s2025 = sum(sales[year(ym) == 2025])) |>
+          mutate(contrib = (s2025 - s2024) / sum(s2024) * 100) |>
+          arrange(desc(contrib))
+        cat_contrib
+    tests:
+      fail:
+        - |
+          cat_contrib <- ec |>
+            filter(month(ym) == 12) |>
+            group_by(category) |>
+            summarise(s2024 = sum(sales[year(ym) == 2024]),
+                      s2025 = sum(sales[year(ym) == 2025])) |>
+            mutate(contrib = (s2025 - s2024) / s2024 * 100) |>
+            arrange(desc(contrib))
+          cat_contrib
+        - |
+          cat_contrib <- ec |>
+            group_by(category) |>
+            summarise(s2024 = sum(sales[year(ym) == 2024]),
+                      s2025 = sum(sales[year(ym) == 2025])) |>
+            mutate(contrib = (s2025 - s2024) / sum(s2024) * 100) |>
+            arrange(desc(contrib))
+          cat_contrib
+        - |
+          cat_contrib <- ec |>
+            filter(month(ym) == 12) |>
+            group_by(category) |>
+            summarise(s2024 = sum(sales[year(ym) == 2024]),
+                      s2025 = sum(sales[year(ym) == 2025])) |>
+            mutate(contrib = (s2025 - s2024) / sum(s2024) * 100) |>
+            arrange(contrib)
+          cat_contrib
+  - id: d
+    type: interpret
+    prompt: |
+      b の結果では、2025年12月の売上の前年同月比 +14.0% は、客数 +17.6、客単価 −3.1、交差項 −0.5（いずれもポイント）に分かれました。2025年1月の売上の前年同月比は約 +114% で、7月は約 +55%、12月は +14.0% と、年の後半ほど小さくなっています。c では衣料品が +4.4 ポイント、家電が −1.8 ポイントでした。経営会議への報告として最も適切なものはどれですか。
+    choices:
+      - "12月の伸びは客数の増加によるもので、客単価はわずかに下がった。前年同月比の伸びは年初から縮んでおり、客数の伸びが鈍っている。客数を保つ手立てを検討すべきである"
+      - "12月は客単価が3.1%下がったので、クーポンの使いすぎで値引きが増えたことが原因である"
+      - "家電の寄与度が −1.8 ポイントなので、家電の販売をやめれば売上は1.8%増える"
+      - "寄与度分解で客数の寄与が最も大きいと分かったので、広告で客数を増やせば売上が必ず伸びるという因果関係が示された"
+    answer: 0
+    explain: 寄与度分解は「伸びがどの要素の動きと一致しているか」を足し算で示す会計上の分解です。12月の +14.0% のうち +17.6 ポイントが客数、−3.1 ポイントが客単価で、伸びは客数によるものです。年初の大きな伸びは、2024年から2025年前半にかけて新しい顧客が増え続けたためで、顧客マスタの登録が2025年6月で止まっている後半は伸びが小さくなっています。客単価の低下の原因は、この分解だけでは分かりません（クーポンの使用率は12月も約20%で前年と変わらないので、選択肢2の説明も支持されません）。家電の売上が減った分は −1.8 ポイントですが、販売をやめれば家電の売上そのもの（前年12月で全体の約16%）がなくなります（選択肢3は誤り）。また、分解は因果関係を示しません。広告の効果は、第87ステップの A/B テストや第90ステップの差の差分析のような方法で確かめます（選択肢4は誤り）。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第82ステップの復習】ec を2025年12月（ym == ymd("2025-12-01")）に絞り、流入経路 channel ごとに、売上 sales（合計）と客数 buyers（customer_id の種類の数）を集計して ch_dec に代入し、表示してください。
+    starter: |
+      ch_dec <- ec |>
+
+      ch_dec
+    solution: |
+      ch_dec <- ec |>
+        filter(ym == ymd("2025-12-01")) |>
+        group_by(channel) |>
+        summarise(sales = sum(sales),
+                  buyers = n_distinct(customer_id))
+      ch_dec
+    check: |
+      expect_object("ch_dec", class = "data.frame")
+      expect_cols(ch_dec, c("channel", "sales", "buyers"))
+      check_that(isTRUE(all.equal(sort(ch_dec$buyers), sort(.sol$ch_dec$buyers))),
+                 "buyers が違います。明細の行数 n() ではなく、n_distinct(customer_id) で顧客の数を数えましょう。")
+      expect_df_equal(ch_dec, .sol$ch_dec, ignore_row_order = TRUE)
+      expect_value(.value, .sol_value, label = "表示した ch_dec")
+    hints:
+      - 第82ステップ b の月次 KPI 表と同じ形で、グループに分ける列が月から流入経路に変わります。
+      - filter(ym == ymd("2025-12-01")) で絞り、group_by(channel) |> summarise(sales = sum(sales), buyers = n_distinct(customer_id)) とします。
+      - |
+        ch_dec <- ec |>
+          filter(ym == ymd("2025-12-01")) |>
+          group_by(channel) |>
+          summarise(sales = sum(sales),
+                    buyers = n_distinct(customer_id))
+        ch_dec
+    tests:
+      fail:
+        - |
+          ch_dec <- ec |>
+            filter(ym == ymd("2025-12-01")) |>
+            group_by(channel) |>
+            summarise(sales = sum(sales),
+                      buyers = n())
+          ch_dec
+        - |
+          ch_dec <- ec |>
+            group_by(channel) |>
+            summarise(sales = sum(sales),
+                      buyers = n_distinct(customer_id))
+          ch_dec

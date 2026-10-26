@@ -1,0 +1,165 @@
+id: "055"
+part: 7
+title: 相関と因果
+question: 訓練を受けた人の年収が低いのはなぜか
+minutes: 45
+mode: browser
+packages: [dplyr]
+learn: []
+review_of: "048"
+setup: |
+  library(dplyr)
+  # 架空の1,000人。全員について「訓練を受けた場合の年収 y1」と「受けなかった場合の年収 y0」の両方が分かる
+  # （現実には決して手に入らない表。単位は万円）。前年収入の低い人ほど訓練に参加しやすい
+  set.seed(55)
+  pop <- tibble(id = 1:1000,
+                prior_earn = round(rnorm(1000, mean = 250, sd = 70), 1)) |>
+    mutate(y0 = round(150 + 0.8 * prior_earn + rnorm(1000, mean = 0, sd = 40), 1),
+           y1 = round(y0 + 30 + rnorm(1000, mean = 0, sd = 10), 1),
+           treat = rbinom(1000, size = 1, prob = plogis(-1 - 0.02 * (prior_earn - 250))),
+           earn_post = if_else(treat == 1, y1, y0))
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      pop には、1,000人それぞれの「訓練を受けた場合の年収 y1」と「受けなかった場合の年収 y0」の両方が入っています（単位は万円）。
+      1人ひとりの訓練の効果は y1 − y0 です。その平均（平均処置効果）を mean() で計算して ate に代入し、ate を表示してください。
+    starter: |
+      ate <-
+      ate
+    solution: |
+      ate <- mean(pop$y1 - pop$y0)
+      ate
+    check: |
+      expect_object("ate", class = "numeric")
+      check_that(length(ate) == 1, "ate は1つの数（平均）にしましょう。mean() で平均をとります。")
+      expect_value(ate, .sol$ate, label = "平均処置効果 ate")
+    hints:
+      - 1人ひとりの効果 y1 − y0 を全員分計算し、その平均をとります。
+      - pop$y1 - pop$y0 は1,000人分の効果の列（ベクトル）です。これを mean() に渡します。
+      - |
+        ate <- mean(pop$y1 - pop$y0)
+        ate
+    tests:
+      fail:
+        - |
+          ate <- mean(pop$y1)
+          ate
+        - |
+          ate <- mean(pop$y0 - pop$y1)
+          ate
+        - |
+          ate <- pop$y1 - pop$y0
+          ate
+  - id: b
+    type: write
+    prompt: |
+      現実のデータで見えるのは、実際に起きたほうの年収 earn_post だけです（訓練を受けた人は y1、受けなかった人は y0）。
+      訓練を受けた人（treat == 1）の earn_post の平均から、受けなかった人（treat == 0）の earn_post の平均を引いた「観察できる差」を diff_obs に代入し、表示してください。
+    starter: |
+      diff_obs <- mean(pop$earn_post[pop$treat == 1]) -
+      diff_obs
+    solution: |
+      diff_obs <- mean(pop$earn_post[pop$treat == 1]) - mean(pop$earn_post[pop$treat == 0])
+      diff_obs
+    check: |
+      expect_object("diff_obs", class = "numeric")
+      check_that(length(diff_obs) == 1, "diff_obs は1つの数（平均の差）にしましょう。")
+      expect_value(diff_obs, .sol$diff_obs, label = "観察できる差 diff_obs")
+    hints:
+      - 「訓練を受けた人の平均 − 受けなかった人の平均」です。使う列は y1・y0 ではなく earn_post です。
+      - pop$earn_post[pop$treat == 0] で、受けなかった人の earn_post だけを取り出せます。
+      - |
+        diff_obs <- mean(pop$earn_post[pop$treat == 1]) - mean(pop$earn_post[pop$treat == 0])
+        diff_obs
+    tests:
+      fail:
+        - |
+          diff_obs <- mean(pop$earn_post[pop$treat == 0]) - mean(pop$earn_post[pop$treat == 1])
+          diff_obs
+        - |
+          diff_obs <- mean(pop$y1[pop$treat == 1]) - mean(pop$y0[pop$treat == 1])
+          diff_obs
+  - id: c
+    type: write
+    prompt: |
+      観察できる差を「効果」と「選択バイアス」に分けます。
+      1. 訓練を受けた人だけの効果の平均 mean(y1 − y0) を att に代入する（処置群の平均処置効果）
+      2. 訓練を受けた人と受けなかった人の y0（受けなかった場合の年収）の平均の差を bias に代入する（選択バイアス）
+      3. c(diff_obs, att + bias) を表示して、2つが等しいことを確かめる
+    starter: |
+      att <- mean(pop$y1[pop$treat == 1] - pop$y0[pop$treat == 1])
+      bias <-
+      c(diff_obs, att + bias)
+    solution: |
+      att <- mean(pop$y1[pop$treat == 1] - pop$y0[pop$treat == 1])
+      bias <- mean(pop$y0[pop$treat == 1]) - mean(pop$y0[pop$treat == 0])
+      c(diff_obs, att + bias)
+    check: |
+      expect_object("att", class = "numeric")
+      expect_value(att, .sol$att, label = "処置群の平均処置効果 att")
+      expect_object("bias", class = "numeric")
+      check_that(length(bias) == 1, "bias は1つの数（平均の差）にしましょう。")
+      expect_value(bias, .sol$bias, label = "選択バイアス bias")
+      expect_value(.value, .sol_value, label = "最後に表示した c(diff_obs, att + bias)")
+    hints:
+      - 選択バイアスは「もし誰も訓練を受けなかったとしても、2つのグループの年収にあったはずの差」です。両方のグループで y0 を比べます。
+      - 訓練を受けた人の y0 は pop$y0[pop$treat == 1]、受けなかった人の y0 は pop$y0[pop$treat == 0] です。
+      - |
+        att <- mean(pop$y1[pop$treat == 1] - pop$y0[pop$treat == 1])
+        bias <- mean(pop$y0[pop$treat == 1]) - mean(pop$y0[pop$treat == 0])
+        c(diff_obs, att + bias)
+    tests:
+      fail:
+        - |
+          att <- mean(pop$y1[pop$treat == 1] - pop$y0[pop$treat == 1])
+          bias <- mean(pop$y1[pop$treat == 1]) - mean(pop$y0[pop$treat == 0])
+          c(diff_obs, att + bias)
+        - |
+          att <- mean(pop$y1[pop$treat == 1] - pop$y0[pop$treat == 1])
+          bias <- mean(pop$y0[pop$treat == 0]) - mean(pop$y0[pop$treat == 1])
+          c(diff_obs, att + bias)
+  - id: d
+    type: interpret
+    prompt: |
+      a〜c の結果は、平均処置効果が約30.4万円、観察できる差が約 −30.4万円、選択バイアスが約 −60.7万円でした。訓練には年収を上げる効果があるのに、訓練を受けた人の年収のほうが低く見えたのはなぜですか。
+    choices:
+      - "訓練に参加したのは前年収入の低い人が多く、訓練を受けなかったとしても年収が低かったはずの人たちだったから（y0 の平均が処置群で低い）"
+      - "訓練を受けると、かえって年収が下がる人が多かったから"
+      - "1,000人では人数が少なく、偶然の誤差で符号が逆になったから"
+      - "観察できる差の計算で、引き算の順序を逆にしたから"
+    answer: 0
+    explain: 処置群（訓練を受けた人）は前年収入の平均が約201万円、対照群（受けなかった人）は約276万円でした。前年収入の低い人ほど参加しやすかったためです。前年収入が低い人は、訓練がなくても今年の年収が低めになります。そのため y0 の平均は処置群で約311万円、対照群で約371万円と、もともと約60.7万円の差がありました。これが選択バイアスです。訓練の効果（約 +30.4万円）はこの差を埋めきれず、観察できる差は約 −30.4万円になりました。y1 − y0 が負の人はほとんどいないので（選択肢2は誤り）、差の大きさも偶然では説明できません（選択肢3は誤り）。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第48ステップの復習】前年収入 prior_earn によって、訓練への参加しやすさがどう変わるかを調べます。
+      treat を prior_earn で説明するロジットモデルを glm() で推定して logit_p に代入します（data = pop）。
+      続けて、前年収入が150万円と350万円の人の参加確率を predict() で表示してください。
+    starter: |
+      logit_p <-
+      predict(logit_p, tibble(prior_earn = c(150, 350)), )
+    solution: |
+      logit_p <- glm(treat ~ prior_earn, data = pop, family = binomial)
+      predict(logit_p, tibble(prior_earn = c(150, 350)), type = "response")
+    check: |
+      expect_object("logit_p", class = "glm")
+      expect_model(logit_p, like = .sol$logit_p)
+      check_that(isTRUE(all(.value >= 0 & .value <= 1)),
+                 "表示した値が確率（0〜1）になっていません。predict() に type = \"response\" を付けましょう。")
+      expect_value(.value, .sol_value, label = "表示した参加確率")
+    hints:
+      - 0か1の被説明変数（ここでは treat）のロジットは、glm() に family = binomial を付けて推定します。
+      - 式は treat ~ prior_earn です。確率で予測するには predict() に type = "response" を付けます。
+      - |
+        logit_p <- glm(treat ~ prior_earn, data = pop, family = binomial)
+        predict(logit_p, tibble(prior_earn = c(150, 350)), type = "response")
+    tests:
+      fail:
+        - |
+          logit_p <- glm(treat ~ prior_earn, data = pop, family = binomial)
+          predict(logit_p, tibble(prior_earn = c(150, 350)))
+        - |
+          logit_p <- lm(treat ~ prior_earn, data = pop)
+          predict(logit_p, tibble(prior_earn = c(150, 350)))

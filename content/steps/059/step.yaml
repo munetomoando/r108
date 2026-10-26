@@ -1,0 +1,165 @@
+id: "059"
+part: 7
+title: 観察データで比べる
+question: 単純比較はどれだけ外れるか
+minutes: 50
+mode: browser
+packages: [readr, dplyr, ggplot2]
+data: [training_obs.csv]
+learn: []
+review_of: "058"
+setup: |
+  library(readr); library(dplyr); library(ggplot2)
+  # 職業訓練の観察データ（4,000人、架空のデータ）。参加するかどうかは本人が決めた
+  obs <- read_csv("data/training_obs.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      参加者と不参加者の訓練後の年収 earn_post を、そのまま比べます。
+      lm(earn_post ~ treat, data = obs) を m_raw に代入し、treat の係数 coef(m_raw)[["treat"]] を表示してください。
+    starter: |
+      m_raw <-
+
+    solution: |
+      m_raw <- lm(earn_post ~ treat, data = obs)
+      coef(m_raw)[["treat"]]
+    check: |
+      expect_object("m_raw", class = "lm")
+      expect_model(m_raw, like = .sol$m_raw)
+      expect_value(.value, .sol_value, label = "treat の係数")
+    hints:
+      - 説明変数が treat（0か1）だけの回帰の係数は、参加者と不参加者の平均の差（単純比較）になります。
+      - lm(earn_post ~ treat, data = obs) を m_raw に代入し、coef(m_raw)[["treat"]] で係数を取り出します。
+      - |
+        m_raw <- lm(earn_post ~ treat, data = obs)
+        coef(m_raw)[["treat"]]
+    tests:
+      fail:
+        - |
+          m_raw <- lm(earn_post ~ treat, data = obs)
+          coef(m_raw)[["(Intercept)"]]
+        - |
+          m_raw <- lm(prior_earn ~ treat, data = obs)
+          coef(m_raw)[["treat"]]
+  - id: b
+    type: write
+    prompt: |
+      参加を左右した変数を統制します。年収の式に合わせて、年齢は2乗の項も入れます。
+      lm(earn_post ~ treat + prior_earn + age + I(age^2) + educ_years + female, data = obs) を m_ctrl に代入し、
+      c(coef(m_raw)[["treat"]], coef(m_ctrl)[["treat"]]) を表示してください。
+    starter: |
+      m_ctrl <-
+
+    solution: |
+      m_ctrl <- lm(earn_post ~ treat + prior_earn + age + I(age^2) + educ_years + female, data = obs)
+      c(coef(m_raw)[["treat"]], coef(m_ctrl)[["treat"]])
+    check: |
+      expect_object("m_ctrl", class = "lm")
+      expect_model(m_ctrl, like = .sol$m_ctrl)
+      expect_value(.value, .sol_value, label = "最後に表示した2つの係数")
+    hints:
+      - 前年収入 prior_earn は、参加しやすさと訓練後の年収の両方に影響する交絡因子です（第58ステップ）。年齢・教育年数・性別も一緒に入れます。
+      - 年齢の2乗は I(age^2) と書きます（第42ステップ）。式は earn_post ~ treat + prior_earn + age + I(age^2) + educ_years + female です。
+      - |
+        m_ctrl <- lm(earn_post ~ treat + prior_earn + age + I(age^2) + educ_years + female, data = obs)
+        c(coef(m_raw)[["treat"]], coef(m_ctrl)[["treat"]])
+    tests:
+      fail:
+        - |
+          m_ctrl <- lm(earn_post ~ treat + age + I(age^2) + educ_years + female, data = obs)
+          c(coef(m_raw)[["treat"]], coef(m_ctrl)[["treat"]])
+        - |
+          m_ctrl <- lm(earn_post ~ treat + prior_earn + age + educ_years + female, data = obs)
+          c(coef(m_raw)[["treat"]], coef(m_ctrl)[["treat"]])
+  - id: c
+    type: write
+    prompt: |
+      参加者と不参加者で、前年収入 prior_earn の分布がどれだけ重なっているかを見ます。
+      横軸を prior_earn、塗りの色を factor(treat) にした密度曲線を geom_density(alpha = 0.5) で描いてください。
+    starter: |
+      ggplot(obs, aes()) +
+
+    solution: |
+      ggplot(obs, aes(x = prior_earn, fill = factor(treat))) +
+        geom_density(alpha = 0.5)
+    check: |
+      expect_ggplot(geom = "density", x = "prior_earn", fill = "factor(treat)")
+      expect_df_equal(.plot$data, .sol_plot$data)
+    hints:
+      - 群ごとに色を分けた密度曲線を重ねます。treat は 0 と 1 の数値なので、factor() で区分として扱うと2色に分かれます。
+      - aes(x = prior_earn, fill = factor(treat)) に + geom_density(alpha = 0.5) をつなぎます。alpha は塗りの透明度です。
+      - |
+        ggplot(obs, aes(x = prior_earn, fill = factor(treat))) +
+          geom_density(alpha = 0.5)
+    tests:
+      fail:
+        - |
+          ggplot(obs, aes(x = prior_earn, fill = treat)) +
+            geom_density(alpha = 0.5)
+        - |
+          ggplot(obs, aes(x = earn_post, fill = factor(treat))) +
+            geom_density(alpha = 0.5)
+  - id: d
+    type: interpret
+    prompt: |
+      このデータは、訓練の真の効果が +30万円/年になるように作られています。
+      a の単純比較（約−65.4万円）と b の調整後の推定（約26.9万円）について、正しい説明はどれですか。
+    choices:
+      - "単純比較は前年収入の低い人ほど参加したことによる選択バイアスで大きく外れた。調整後の値が30万円に近いのは、参加を左右した変数をすべて観察して統制できたからで、実際のデータではこの条件が成り立つかを確かめられない"
+      - "単純比較が負なので、訓練は年収を下げる。調整後の値はモデルに変数を足しすぎた結果である"
+      - "調整後の値が30万円とぴったり一致しないので、回帰による調整は役に立たない"
+      - "観察データでも、共変量を統制すれば、どんな場合でも訓練の因果効果が分かる"
+    answer: 0
+    explain: |
+      参加者は前年収入が低く（平均 約191万円、不参加者は約308万円）、前年収入の低い人は訓練がなくても訓練後の年収が低めです。単純比較はこの差を訓練のせいにしてしまい、真の値より約95万円低くなりました。
+      このデータの参加確率は前年収入と年齢だけで決まるように作ってあります。そのため、それらを統制すると参加者と不参加者が比べられるようになり、推定は約26.9万円（標準誤差 約2.3）と30万円に近づきます。3万円ほどの差は、標本から推定するときのばらつきの範囲です。
+      実際の観察データでは、意欲のような観察できない変数も参加を左右しているかもしれません。統制で因果効果が読めるのは「観察できる変数で参加が説明できる」という仮定が成り立つときだけで、その仮定はデータからは確かめられません。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第58ステップの復習】合流点でデータを絞り込むと、何が起きるかを確かめます。
+      技能 skill と人脈 network は互いに無関係で、両方の合計が1を超えた人だけが採用されるとします。
+      1. set.seed(59) を書いてから、次の表を hire に代入する
+         tibble(skill = rnorm(1000), network = rnorm(1000)) |> mutate(hired = skill + network > 1)
+      2. 採用された人だけに絞った表 filter(hire, hired) を hired_only に代入する
+      3. c(cor(hire$skill, hire$network), cor(hired_only$skill, hired_only$network)) を表示する
+    starter: |
+      set.seed(59)
+      hire <- tibble(skill = rnorm(1000), network = rnorm(1000)) |>
+        mutate(hired = skill + network > 1)
+      hired_only <-
+
+    solution: |
+      set.seed(59)
+      hire <- tibble(skill = rnorm(1000), network = rnorm(1000)) |>
+        mutate(hired = skill + network > 1)
+      hired_only <- filter(hire, hired)
+      c(cor(hire$skill, hire$network), cor(hired_only$skill, hired_only$network))
+    check: |
+      expect_uses("set.seed")
+      expect_object("hire", class = "data.frame")
+      expect_df_equal(hire, .sol$hire)
+      expect_object("hired_only", class = "data.frame")
+      expect_df_equal(hired_only, .sol$hired_only)
+      expect_value(.value, .sol_value, label = "最後に表示した2つの相関係数")
+    hints:
+      - hire は starter のまま使います。採用 hired は skill と network の両方から決まる合流点です。採用された人だけを見ることは、合流点で統制することと同じです。
+      - filter(hire, hired) で hired が TRUE の行だけが残ります。相関係数は cor(列, 列) です。
+      - |
+        hired_only <- filter(hire, hired)
+        c(cor(hire$skill, hire$network), cor(hired_only$skill, hired_only$network))
+    tests:
+      fail:
+        - |
+          set.seed(59)
+          hire <- tibble(skill = rnorm(1000), network = rnorm(1000)) |>
+            mutate(hired = skill + network > 1)
+          hired_only <- filter(hire, !hired)
+          c(cor(hire$skill, hire$network), cor(hired_only$skill, hired_only$network))
+        - |
+          hire <- tibble(skill = rnorm(1000), network = rnorm(1000)) |>
+            mutate(hired = skill + network > 1)
+          hired_only <- filter(hire, hired)
+          c(cor(hire$skill, hire$network), cor(hired_only$skill, hired_only$network))

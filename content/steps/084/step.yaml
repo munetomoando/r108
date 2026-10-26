@@ -1,0 +1,268 @@
+id: "084"
+part: 10
+title: 顧客を分ける
+question: 上位2割の顧客が売上の何割を生むか
+minutes: 50
+mode: browser
+packages: [readr, dplyr, lubridate, ggplot2]
+data: [ec_orders.csv, ec_customers.csv]
+learn: [ntile, row_number]
+review_of: "083"
+setup: |
+  library(readr); library(dplyr); library(lubridate); library(ggplot2)
+  orders <- read_csv("data/ec_orders.csv", show_col_types = FALSE)
+  customers <- read_csv("data/ec_customers.csv", show_col_types = FALSE)
+  # 明細ごとの売上 sales を加えておく
+  od <- mutate(orders, sales = qty * unit_price)
+  # 第83ステップの復習用：月次の KPI 表（売上・客数・注文件数）
+  kpi <- od |>
+    mutate(ym = floor_date(order_date, unit = "month")) |>
+    group_by(ym) |>
+    summarise(sales = sum(sales),
+              buyers = n_distinct(customer_id),
+              orders = n_distinct(order_id))
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      顧客ごとに R・F・M の3つの指標を計算します。基準日は2025年12月31日です。
+      1. od を customer_id ごとに集計し、次の3列を作る
+         - recency … 最後に注文した日から基準日までの日数。as.integer(ymd("2025-12-31") - max(order_date))
+         - frequency … 注文件数（order_id の種類の数）
+         - monetary … 売上の合計
+      2. customers の customer_id・channel・rank の3列と内部結合（inner_join）し、顧客マスタにある5,000人に絞る
+      この表を rfm に代入し、nrow(rfm) を表示してください。
+    starter: |
+      rfm <- od |>
+
+      nrow(rfm)
+    solution: |
+      rfm <- od |>
+        group_by(customer_id) |>
+        summarise(recency = as.integer(ymd("2025-12-31") - max(order_date)),
+                  frequency = n_distinct(order_id),
+                  monetary = sum(sales)) |>
+        inner_join(select(customers, customer_id, channel, rank), by = "customer_id")
+      nrow(rfm)
+    check: |
+      expect_object("rfm", class = "data.frame")
+      expect_cols(rfm, c("customer_id", "recency", "frequency", "monetary", "channel", "rank"))
+      check_that(nrow(rfm) == 5000,
+                 "rfm は顧客マスタの5,000人になるはずです。inner_join() で customers と結合しましょう。")
+      check_that(isTRUE(all.equal(rfm$recency, .sol$rfm$recency)),
+                 "recency が違います。基準日 ymd(\"2025-12-31\") から最後の注文日 max(order_date) を引いた日数です。")
+      check_that(isTRUE(all.equal(rfm$frequency, .sol$rfm$frequency)),
+                 "frequency が違います。明細の行数ではなく、n_distinct(order_id) で注文の数を数えましょう。")
+      expect_df_equal(rfm, .sol$rfm, ignore_row_order = TRUE)
+      expect_value(.value, .sol_value, label = "表示した nrow(rfm)")
+    hints:
+      - R（Recency、最近いつ買ったか）・F（Frequency、何回買ったか）・M（Monetary、いくら使ったか）を、1人1行の表にします。注文明細の1行は1つの商品なので、注文の回数は種類の数で数えます。
+      - group_by(customer_id) |> summarise(recency = ..., frequency = n_distinct(order_id), monetary = sum(sales)) のあと、inner_join(select(customers, customer_id, channel, rank), by = "customer_id") です。
+      - |
+        rfm <- od |>
+          group_by(customer_id) |>
+          summarise(recency = as.integer(ymd("2025-12-31") - max(order_date)),
+                    frequency = n_distinct(order_id),
+                    monetary = sum(sales)) |>
+          inner_join(select(customers, customer_id, channel, rank), by = "customer_id")
+        nrow(rfm)
+    tests:
+      fail:
+        - |
+          rfm <- od |>
+            group_by(customer_id) |>
+            summarise(recency = as.integer(ymd("2025-12-31") - max(order_date)),
+                      frequency = n(),
+                      monetary = sum(sales)) |>
+            inner_join(select(customers, customer_id, channel, rank), by = "customer_id")
+          nrow(rfm)
+        - |
+          rfm <- od |>
+            group_by(customer_id) |>
+            summarise(recency = as.integer(ymd("2025-12-31") - max(order_date)),
+                      frequency = n_distinct(order_id),
+                      monetary = sum(sales)) |>
+            left_join(select(customers, customer_id, channel, rank), by = "customer_id")
+          nrow(rfm)
+        - |
+          rfm <- od |>
+            group_by(customer_id) |>
+            summarise(recency = as.integer(ymd("2025-12-31") - min(order_date)),
+                      frequency = n_distinct(order_id),
+                      monetary = sum(sales)) |>
+            inner_join(select(customers, customer_id, channel, rank), by = "customer_id")
+          nrow(rfm)
+  - id: b
+    type: write
+    prompt: |
+      R・F・M をそれぞれ5段階の点数にします。ntile(x, 5) は、x の小さい順に人数がほぼ等しい5つの組に分け、1〜5の番号を付けます。
+      1. rfm に r_score（ntile(desc(recency), 5)。最近買った人ほど5）、f_score（ntile(frequency, 5)）、m_score（ntile(monetary, 5)）を加えて rfm_s に代入する
+      2. rfm_s を m_score ごとに集計し、人数 n、recency・frequency・monetary の平均（列名は mean_r・mean_f・mean_m）を求めた表を表示する
+    starter: |
+      rfm_s <- rfm |>
+        mutate()
+      rfm_s |>
+        group_by(m_score) |>
+        summarise()
+    solution: |
+      rfm_s <- rfm |>
+        mutate(r_score = ntile(desc(recency), 5),
+               f_score = ntile(frequency, 5),
+               m_score = ntile(monetary, 5))
+      rfm_s |>
+        group_by(m_score) |>
+        summarise(n = n(),
+                  mean_r = mean(recency),
+                  mean_f = mean(frequency),
+                  mean_m = mean(monetary))
+    check: |
+      expect_object("rfm_s", class = "data.frame")
+      expect_cols(rfm_s, c("r_score", "f_score", "m_score"))
+      check_that(isTRUE(all.equal(rfm_s$r_score, .sol$rfm_s$r_score)),
+                 "r_score が違います。recency は小さいほど最近買った良い顧客なので、ntile(desc(recency), 5) で向きを逆にしましょう。")
+      check_that(isTRUE(all.equal(rfm_s$f_score, .sol$rfm_s$f_score)) &&
+                   isTRUE(all.equal(rfm_s$m_score, .sol$rfm_s$m_score)),
+                 "f_score か m_score が違います。ntile(frequency, 5)、ntile(monetary, 5) です。")
+      expect_df_equal(rfm_s, .sol$rfm_s)
+      check_that(is.data.frame(.value) && all(c("m_score", "n", "mean_r", "mean_f", "mean_m") %in% names(.value)),
+                 "最後に、m_score ごとの n・mean_r・mean_f・mean_m の表を表示しましょう。")
+      expect_value(.value, .sol_value, label = "表示した m_score ごとの表")
+    hints:
+      - 点数は「大きいほど良い顧客」にそろえます。F と M は多いほど良いのでそのまま、R（経過日数）は少ないほど良いので desc() で向きを逆にします。
+      - mutate(r_score = ntile(desc(recency), 5), f_score = ntile(frequency, 5), m_score = ntile(monetary, 5)) のあと、group_by(m_score) |> summarise(n = n(), mean_r = mean(recency), ...) です。
+      - |
+        rfm_s <- rfm |>
+          mutate(r_score = ntile(desc(recency), 5),
+                 f_score = ntile(frequency, 5),
+                 m_score = ntile(monetary, 5))
+        rfm_s |>
+          group_by(m_score) |>
+          summarise(n = n(),
+                    mean_r = mean(recency),
+                    mean_f = mean(frequency),
+                    mean_m = mean(monetary))
+    tests:
+      fail:
+        - |
+          rfm_s <- rfm |>
+            mutate(r_score = ntile(recency, 5),
+                   f_score = ntile(frequency, 5),
+                   m_score = ntile(monetary, 5))
+          rfm_s |>
+            group_by(m_score) |>
+            summarise(n = n(),
+                      mean_r = mean(recency),
+                      mean_f = mean(frequency),
+                      mean_m = mean(monetary))
+        - |
+          rfm_s <- rfm |>
+            mutate(r_score = ntile(desc(recency), 5),
+                   f_score = ntile(frequency, 5),
+                   m_score = ntile(monetary, 10))
+          rfm_s |>
+            group_by(m_score) |>
+            summarise(n = n(),
+                      mean_r = mean(recency),
+                      mean_f = mean(frequency),
+                      mean_m = mean(monetary))
+  - id: c
+    type: write
+    prompt: |
+      売上の多い顧客から順に並べ、上位の顧客が売上の何割を占めるかを求めます。
+      1. rfm を monetary の大きい順に並べ、cum_cust（上から何人目かを全体の人数で割った値。row_number() / n()）と cum_share（monetary の累積和を monetary の合計で割った値）を加えて pareto に代入する
+      2. pareto を cum_cust が 0.2 以下の行に絞り、最後の1行（上位20%の境目の顧客）を tail() で表示する。その行の cum_share が「上位2割の顧客の売上シェア」です
+    starter: |
+      pareto <- rfm |>
+
+      filter(pareto, cum_cust <= 0.2) |>
+        tail(1)
+    solution: |
+      pareto <- rfm |>
+        arrange(desc(monetary)) |>
+        mutate(cum_cust = row_number() / n(),
+               cum_share = cumsum(monetary) / sum(monetary))
+      filter(pareto, cum_cust <= 0.2) |>
+        tail(1)
+    check: |
+      expect_object("pareto", class = "data.frame")
+      expect_cols(pareto, c("cum_cust", "cum_share"))
+      check_that(!is.unsorted(rev(pareto$monetary)),
+                 "pareto が monetary の大きい順に並んでいません。arrange(desc(monetary)) で並べてから累積しましょう。")
+      check_that(isTRUE(all.equal(pareto$cum_cust, .sol$pareto$cum_cust)),
+                 "cum_cust が違います。row_number() / n() で、上から何人目かを全体の割合にしましょう。")
+      check_that(isTRUE(all.equal(pareto$cum_share, .sol$pareto$cum_share)),
+                 "cum_share が違います。cumsum(monetary) / sum(monetary) です。")
+      expect_value(.value$cum_share, .sol_value$cum_share, label = "表示した上位20%の売上シェア")
+    hints:
+      - 「大きい順に並べる → 上から何人目かの割合と、売上の累積の割合を作る」の2段です。並べる前に累積すると意味がなくなります。
+      - arrange(desc(monetary)) のあと、mutate(cum_cust = row_number() / n(), cum_share = cumsum(monetary) / sum(monetary)) です。row_number() は1, 2, 3, … と行の番号を返します。
+      - |
+        pareto <- rfm |>
+          arrange(desc(monetary)) |>
+          mutate(cum_cust = row_number() / n(),
+                 cum_share = cumsum(monetary) / sum(monetary))
+        filter(pareto, cum_cust <= 0.2) |>
+          tail(1)
+    tests:
+      fail:
+        - |
+          pareto <- rfm |>
+            arrange(monetary) |>
+            mutate(cum_cust = row_number() / n(),
+                   cum_share = cumsum(monetary) / sum(monetary))
+          filter(pareto, cum_cust <= 0.2) |>
+            tail(1)
+        - |
+          pareto <- rfm |>
+            mutate(cum_cust = row_number() / n(),
+                   cum_share = cumsum(monetary) / sum(monetary))
+          filter(pareto, cum_cust <= 0.2) |>
+            tail(1)
+  - id: d
+    type: interpret
+    prompt: |
+      c の結果、売上の多い上位20%（1,000人）の顧客が、2年間の売上の約43%を占めていました。b の m_score = 5 の組は平均で約21回注文し、最後の注文から平均約33日でした。また、m_score = 5 の1,000人のうち会員ランクがゴールドの人は321人でした。この結果をもとにした提案として最も適切なものはどれですか。
+    choices:
+      - "上位2割で売上の8割を占める「80:20の法則」がこの通販でも成り立っているので、上位2割以外の顧客への販促はやめるべきである"
+      - "上位2割は売上の約43%を占める大切な顧客だが、偏りは80:20ほど強くない。上位顧客の多くは会員ランクがゴールドではないので、ランクの基準を見直す材料になる。上位顧客にクーポンを配る施策の効果は、もともと多く買う人たちなので、配る人と配らない人を無作為に分けて確かめる必要がある"
+      - "上位顧客は平均21回注文しているので、上位顧客にクーポンを配れば、全員が今後も21回注文することが保証される"
+      - "会員ランクがゴールドの人は必ず m_score = 5 に入るので、会員ランクだけを見れば RFM 分析は必要ない"
+    answer: 1
+    explain: 上位20%の売上シェアは約43%（上位50%で約77%）で、80:20の法則ほどの偏りはありません。上位2割以外の顧客も売上の半分以上を生んでいます（選択肢1は誤り）。会員ランクは購買の多さと関係しますが、ゴールドの750人のうち m_score = 5 は321人で、一致は半分に満たない程度です（選択肢4は誤り）。また、上位顧客に販促をして売上が多くなっても、それはもともと多く買う人たちだからかもしれません。施策の効果は、配る人と配らない人を無作為に分ける A/B テスト（第86〜88ステップ）で確かめます。過去の回数が将来も保証されるわけではありません（選択肢3は誤り）。なお、2024年途中に登録した顧客は買える期間が短いので、M は登録時期の影響も受けます。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第83ステップの復習】kpi に注文件数の前年同月比 orders_yoy（（orders ÷ 12か月前の orders − 1）× 100）を加えて kpi_o に代入し、2025年1月以降の行を表示してください。
+    starter: |
+      kpi_o <- kpi |>
+        mutate()
+      filter(kpi_o, ym >= ymd("2025-01-01"))
+    solution: |
+      kpi_o <- kpi |>
+        mutate(orders_yoy = (orders / lag(orders, 12) - 1) * 100)
+      filter(kpi_o, ym >= ymd("2025-01-01"))
+    check: |
+      expect_object("kpi_o", class = "data.frame")
+      expect_cols(kpi_o, "orders_yoy")
+      check_that(isTRUE(all.equal(kpi_o$orders_yoy, .sol$kpi_o$orders_yoy)),
+                 "orders_yoy が違います。12か月前の値は lag(orders, 12) で、(orders / lag(orders, 12) - 1) * 100 です。")
+      expect_df_equal(kpi_o, .sol$kpi_o)
+      expect_value(.value, .sol_value, label = "表示した2025年の行")
+    hints:
+      - 第83ステップ a の sales_yoy と同じ形で、列を orders に替えます。
+      - lag(orders, 12) が前年同月の注文件数です。
+      - |
+        kpi_o <- kpi |>
+          mutate(orders_yoy = (orders / lag(orders, 12) - 1) * 100)
+        filter(kpi_o, ym >= ymd("2025-01-01"))
+    tests:
+      fail:
+        - |
+          kpi_o <- kpi |>
+            mutate(orders_yoy = (orders / lag(orders) - 1) * 100)
+          filter(kpi_o, ym >= ymd("2025-01-01"))
+        - |
+          kpi_o <- kpi |>
+            mutate(orders_yoy = orders - lag(orders, 12))
+          filter(kpi_o, ym >= ymd("2025-01-01"))

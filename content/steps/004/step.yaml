@@ -1,0 +1,111 @@
+id: "004"
+part: 1
+title: "行を選ぶ・並べる"
+question: "前年より売上が落ちた店舗はどこか"
+minutes: 45
+mode: browser
+packages: [readr, dplyr]
+data: [sora_stores.csv]
+learn: [filter, arrange, desc, "&", "|"]
+setup: |
+  library(readr); library(dplyr)
+  stores <- read_csv("data/sora_stores.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      stores から、今年の売上 sales が前年の売上 sales_last より小さい店舗（前年割れの店舗）の行だけを取り出し、down に代入してください。列はすべて残します。
+    starter: |
+      down <- 
+    solution: |
+      down <- filter(stores, sales < sales_last)
+    check: |
+      expect_object("down", class = "data.frame")
+      expect_df_equal(down, .sol$down, ignore_row_order = TRUE)
+    hints:
+      - 条件に合う行だけを残すには filter() を使います。
+      - filter(データ, 条件) の形です。条件では列どうしを比べられます。「sales が sales_last より小さい」は sales < sales_last です。
+      - down <- filter(stores, sales < sales_last)
+    tests:
+      fail:
+        - "down <- filter(stores, sales > sales_last)"
+        - "down <- stores"
+  - id: b
+    type: write
+    prompt: |
+      stores を、今年の売上 sales の高い順（降順）に並べ替え、stores_sorted に代入してください。列はすべて残します。
+    starter: |
+      stores_sorted <- 
+    solution: |
+      stores_sorted <- arrange(stores, desc(sales))
+    check: |
+      expect_object("stores_sorted", class = "data.frame")
+      expect_df_equal(stores_sorted, .sol$stores_sorted)
+    hints:
+      - 行を並べ替えるには arrange() を使います。
+      - arrange() はそのままだと小さい順です。大きい順にするには列名を desc() で包みます。
+      - stores_sorted <- arrange(stores, desc(sales))
+    tests:
+      fail:
+        - "stores_sorted <- arrange(stores, sales)"
+        - "stores_sorted <- arrange(stores, desc(sales_last))"
+        - "stores_sorted <- stores"
+  - id: c
+    type: write
+    prompt: |
+      stores から、地域 region が "関東" で、かつ立地 location が "郊外" の店舗だけを取り出し、kanto_suburb に代入してください。
+    starter: |
+      kanto_suburb <- 
+    solution: |
+      kanto_suburb <- filter(stores, region == "関東" & location == "郊外")
+    check: |
+      expect_object("kanto_suburb", class = "data.frame")
+      expect_df_equal(kanto_suburb, .sol$kanto_suburb, ignore_row_order = TRUE)
+    hints:
+      - 2つの条件を「両方満たす」行を選びます。
+      - 「かつ」は & でつなぎます。文字と比べるときは "関東" のように引用符で囲み、== を使います。
+      - kanto_suburb <- filter(stores, region == "関東" & location == "郊外")
+    tests:
+      fail:
+        - "kanto_suburb <- filter(stores, region == \"関東\" | location == \"郊外\")"
+        - "kanto_suburb <- filter(stores, region == \"関東\")"
+  - id: d
+    type: fix
+    prompt: |
+      次のコードは駅前の店舗だけを取り出して ekimae に代入するつもりですが、エラーになります。正しく動くように直してください。
+    starter: |
+      ekimae <- filter(stores, location = "駅前")
+    solution: |
+      ekimae <- filter(stores, location == "駅前")
+    check: |
+      expect_object("ekimae", class = "data.frame")
+      expect_df_equal(ekimae, .sol$ekimae, ignore_row_order = TRUE)
+    hints:
+      - 「等しいかどうか」を比べる記号と、代入や引数の指定に使う記号は別物です。
+      - 比べるときはイコールを2つ並べた == を使います。
+      - ekimae <- filter(stores, location == "駅前")
+    tests:
+      fail:
+        - "ekimae <- filter(stores, location == \"郊外\")"
+        - "ekimae <- filter(stores, location != \"駅前\")"
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第3ステップの復習】`$` と which.max() を使って、stores の中で今年の客数 customers が最も多い店舗の名前（store_name 列の値）を取り出し、top_customers に代入してください。
+    starter: |
+      top_customers <- 
+    solution: |
+      top_customers <- stores$store_name[which.max(stores$customers)]
+    check: |
+      expect_object("top_customers", class = "character")
+      expect_value(top_customers, .sol$top_customers)
+    hints:
+      - which.max() は最大値が「何番目にあるか」を返します。その番号で store_name 列から店舗名を取り出します。
+      - stores$customers で列を取り出し、which.max() に渡します。ベクトルの n 番目は x[n] で取り出せます。
+      - top_customers <- stores$store_name[which.max(stores$customers)]
+    tests:
+      fail:
+        - "top_customers <- stores$store_name[which.min(stores$customers)]"
+        - "top_customers <- stores$store_name[which.max(stores$sales)]"
+review_of: "003"

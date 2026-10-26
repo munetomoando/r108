@@ -1,0 +1,24 @@
+id: "053"
+part: 6
+title: 再現可能な分析にする
+question: 半年後の自分や指導教員が、同じデータから同じ結果をもう一度作れるか
+minutes: 60
+mode: local
+packages: [renv, here, readr, dplyr, ggplot2]
+data: [pref_panel.csv]
+learn: [here, slice_sample]
+local:
+  script: check_053.R
+  code_sha256: "40d4486cc1748df6135e0b762e0225ffa2d07a7be1c8d39bb4f5421b21ebcac8"
+  instructions: |
+    **実行する前に**
+    - 本文の手順1〜7を終え、`renv.lock` と `scripts/01_clean.R`・`scripts/02_analysis.R`（`03_` 以降は任意）がそろっていること
+    - ダウンロードした `check_053.R` を、プロジェクトのフォルダ（`.Rproj` のあるフォルダ）に置くこと
+
+    コンソールで次を実行します。
+
+    ```r
+    source("check_053.R", encoding = "UTF-8")
+    ```
+
+    確認スクリプトは、プロジェクトを一時フォルダに2回コピーし、`output` フォルダがない状態からスクリプトを番号順に実行して、できた結果ファイル（csv など）を比べます。あなたのフォルダのファイルは書き換えません。1分ほどかかることがあります。

@@ -1,0 +1,211 @@
+id: "088"
+part: 10
+title: A/Bテストの落とし穴
+question: 途中で結果を見てはいけない理由
+minutes: 45
+mode: browser
+packages: [readr, dplyr]
+data: [ab_test.csv, ab_test_srm.csv]
+learn: [rbinom]
+review_of: "087"
+setup: |
+  library(readr); library(dplyr)
+  # 第87ステップと同じ購入画面のA/Bテスト（訪問者2万人。教材用の合成データ）
+  ab <- read_csv("data/ab_test.csv", show_col_types = FALSE)
+  # 同じテストの、割当の記録に不具合があった版（教材用の合成データ）
+  ab_srm <- read_csv("data/ab_test_srm.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      画面 A と B に**本当は差がない**（どちらも購入率4%）とき、14日間のテストで毎日、それまでの累計で検定し、一度でも「有意」になったら「効果あり」として止めると、どれくらいの確率で誤って「効果あり」と言ってしまうかをシミュレーションします。毎日 A・B に500人ずつ訪れるとします。
+      検定は、prop.test() を何千回も呼ぶと時間がかかるので、同じ判定を式で行います。2群の購入率の差を標準誤差で割った値 z の絶対値が1.96より大きいとき、5%水準で「有意」です。
+      1. 最初の行で set.seed(108) とする
+      2. replicate(1000, { ... }) の中で、次の順に書く
+         - A の毎日の購入者数の累計 xa <- cumsum(rbinom(14, 500, 0.04))、B も同じ形で xb
+         - 毎日の累計訪問者数 n <- 500 * (1:14)
+         - 2群を合わせた購入率 pool <- (xa + xb) / (2 * n)
+         - 毎日の z <- (xb / n - xa / n) / sqrt(pool * (1 - pool) * 2 / n)
+         - 最後の行で any(abs(z) > 1.96)（14日のうち一度でも「有意」になったか）を返す
+      3. 1000回分の結果を hits に代入し、mean(hits)（誤って「効果あり」と言う確率）を表示する
+    starter: |
+      set.seed(108)
+      hits <- replicate(1000, {
+        xa <- cumsum(rbinom(14, 500, 0.04))
+        xb <-
+        n <- 500 * (1:14)
+        pool <- (xa + xb) / (2 * n)
+        z <- (xb / n - xa / n) / sqrt(pool * (1 - pool) * 2 / n)
+
+      })
+      mean(hits)
+    solution: |
+      set.seed(108)
+      hits <- replicate(1000, {
+        xa <- cumsum(rbinom(14, 500, 0.04))
+        xb <- cumsum(rbinom(14, 500, 0.04))
+        n <- 500 * (1:14)
+        pool <- (xa + xb) / (2 * n)
+        z <- (xb / n - xa / n) / sqrt(pool * (1 - pool) * 2 / n)
+        any(abs(z) > 1.96)
+      })
+      mean(hits)
+    check: |
+      expect_object("hits", class = "logical")
+      expect_uses("set.seed", "最初の行で set.seed(108) として、乱数の出方を固定しましょう。")
+      expect_uses("rbinom")
+      expect_uses("any", "14日のうち一度でも「有意」になったかを、any(abs(z) > 1.96) で返しましょう。")
+      check_that(length(hits) == 1000, "hits が1000個になっていません。replicate() の1つ目の引数を 1000 にしましょう。")
+      expect_value(hits, .sol$hits, label = "1000回の結果 hits")
+      expect_value(.value, .sol_value, label = "最後に表示した mean(hits)")
+    hints:
+      - rbinom(14, 500, 0.04) は「500人が4%の確率で買う日」を14日分作り、毎日の購入者数を返します。cumsum() で累計にすると、d 日目までの購入者数になります。B も A と同じ4%にします（本当は差がない設定です）。
+      - xa、n、z はどれも14日分のベクトルなので、z も14個の値になります。最後の行は any(abs(z) > 1.96) です。xa を作ってから xb を作る順を守らないと、値が一致しません。
+      - |
+        set.seed(108)
+        hits <- replicate(1000, {
+          xa <- cumsum(rbinom(14, 500, 0.04))
+          xb <- cumsum(rbinom(14, 500, 0.04))
+          n <- 500 * (1:14)
+          pool <- (xa + xb) / (2 * n)
+          z <- (xb / n - xa / n) / sqrt(pool * (1 - pool) * 2 / n)
+          any(abs(z) > 1.96)
+        })
+        mean(hits)
+    tests:
+      fail:
+        - |
+          set.seed(108)
+          hits <- replicate(1000, {
+            xa <- cumsum(rbinom(14, 500, 0.04))
+            xb <- cumsum(rbinom(14, 500, 0.04))
+            n <- 500 * (1:14)
+            pool <- (xa + xb) / (2 * n)
+            z <- (xb / n - xa / n) / sqrt(pool * (1 - pool) * 2 / n)
+            abs(z[14]) > 1.96
+          })
+          mean(hits)
+        - |
+          set.seed(108)
+          hits <- replicate(1000, {
+            xa <- cumsum(rbinom(14, 500, 0.04))
+            xb <- cumsum(rbinom(14, 500, 0.052))
+            n <- 500 * (1:14)
+            pool <- (xa + xb) / (2 * n)
+            z <- (xb / n - xa / n) / sqrt(pool * (1 - pool) * 2 / n)
+            any(abs(z) > 1.96)
+          })
+          mean(hits)
+        - |
+          hits <- replicate(1000, {
+            xa <- cumsum(rbinom(14, 500, 0.04))
+            xb <- cumsum(rbinom(14, 500, 0.04))
+            n <- 500 * (1:14)
+            pool <- (xa + xb) / (2 * n)
+            z <- (xb / n - xa / n) / sqrt(pool * (1 - pool) * 2 / n)
+            any(abs(z) > 1.96)
+          })
+          mean(hits)
+  - id: b
+    type: write
+    prompt: |
+      別のテストの記録 ab_srm では、訪問者を A・B へ半分ずつ割り当てる設定だったのに、人数がそろっていません。割当比率の不一致（**SRM**、sample ratio mismatch）が偶然で説明できるかを確かめます。
+      1. table(ab_srm$group) を srm_tab に代入して表示する
+      2. chisq.test() に srm_tab と p = c(0.5, 0.5)（本来の割当比率）を渡した結果を res_srm に代入し、res_srm$p.value を表示する
+    starter: |
+      srm_tab <-
+      srm_tab
+      res_srm <-
+
+    solution: |
+      srm_tab <- table(ab_srm$group)
+      srm_tab
+      res_srm <- chisq.test(srm_tab, p = c(0.5, 0.5))
+      res_srm$p.value
+    check: |
+      expect_object("srm_tab", class = "table")
+      expect_value(as.vector(srm_tab), as.vector(.sol$srm_tab), label = "群ごとの人数")
+      expect_object("res_srm", class = "htest")
+      expect_uses("chisq.test")
+      check_that(length(res_srm$observed) == 2,
+                 "chisq.test() には、群ごとの人数の表 srm_tab（2つの数）を渡しましょう。")
+      expect_value(res_srm$p.value, .sol$res_srm$p.value, label = "p値")
+      expect_value(.value, .sol_value, label = "最後に表示した res_srm$p.value")
+    hints:
+      - 第34ステップの chisq.test() は、1つの表と「本来の比率」p を渡すと、人数がその比率から偶然ずれた範囲かを検定します（適合度検定）。
+      - table(ab_srm$group) で群ごとの人数を数え、chisq.test(srm_tab, p = c(0.5, 0.5)) とします。p値は $p.value で取り出します。
+      - |
+        srm_tab <- table(ab_srm$group)
+        srm_tab
+        res_srm <- chisq.test(srm_tab, p = c(0.5, 0.5))
+        res_srm$p.value
+    tests:
+      fail:
+        - |
+          srm_tab <- table(ab$group)
+          srm_tab
+          res_srm <- chisq.test(srm_tab, p = c(0.5, 0.5))
+          res_srm$p.value
+        - |
+          srm_tab <- table(ab_srm$group, ab_srm$converted)
+          srm_tab
+          res_srm <- chisq.test(srm_tab)
+          res_srm$p.value
+  - id: c
+    type: interpret
+    prompt: |
+      第87ステップのテスト（ab）を端末別に分けて prop.test() で検定したところ、スマホは A 3.5%→B 5.1%（p値 約0.00002）、PC は A 4.75%→B 5.35%（p値 約0.24、差の95%信頼区間 約 −0.4〜+1.6ポイント）でした。担当者は「PC では効果がないので、新しい画面はスマホだけに出す」と提案しています。この結果の扱い方として最も適切なものはどれですか。
+    choices:
+      - "PC ではp値が0.05より大きいので、PC には効果がないことが証明された。提案どおりスマホだけに出す"
+      - "スマホだけ有意なので、スマホの効果だけを報告し、全体の結果と PC の結果は報告から外す"
+      - "PC で有意でないのは人数（4,000人ずつ）が少なく検出力が低いためでもあり、信頼区間はプラスの効果も含むので「PC に効果がない」とは言えない。端末で分けることを事前に決めていなければ後付けの分析で、偶然の差もありうる。全体の効果をもとに判断し、端末による違いは次のテストで確かめる仮説として扱う"
+      - "端末で分けると結果が変わるので、全体の結果も信用できない。テストをやり直すべきだ"
+    answer: 2
+    explain: |
+      「有意でない」は「効果がない」ことの証明ではありません。PC は1群4,000人で、検出力80%で見つけられる差は約1.4ポイントです。0.6ポイントの差を見つける検出力は約23%しかありません。信頼区間も約 −0.4〜+1.6ポイントで、プラスの効果を十分に含みます。また、結果を見てから集団を分けると、分け方の数だけ検定をくり返すことになり（第35ステップの多重比較）、偶然の「有意」が出やすくなります。10通りに分ければ、効果がなくても約40%の確率でどこかが有意になります。後から見つけた違いは、次のテストで事前に計画して確かめる仮説として扱います。全体では無作為割当によるはっきりした効果があるので、それを否定する理由にはなりません。
+  - id: d
+    type: write
+    review: true
+    prompt: |
+      【第87ステップの復習】SRM のあった ab_srm で、第87ステップと同じ分析をするとどうなるかを見ます。ab_srm を group ごとにまとめ、訪問者数 n、購入者数 buyers、購入率 rate を求めて conv_srm に代入して表示し、続けて prop.test(conv_srm$buyers, conv_srm$n) の差の95%信頼区間 $conf.int を表示してください。
+    starter: |
+      conv_srm <- ab_srm |>
+        group_by(group) |>
+        summarise()
+      conv_srm
+
+    solution: |
+      conv_srm <- ab_srm |>
+        group_by(group) |>
+        summarise(n = n(), buyers = sum(converted), rate = mean(converted))
+      conv_srm
+      prop.test(conv_srm$buyers, conv_srm$n)$conf.int
+    check: |
+      expect_object("conv_srm", class = "data.frame")
+      expect_cols(conv_srm, c("group", "n", "buyers", "rate"))
+      expect_df_equal(conv_srm, .sol$conv_srm)
+      expect_uses("prop.test")
+      expect_value(.value, .sol_value, label = "最後に表示した信頼区間")
+    hints:
+      - 第87ステップ a・b と同じ手順を、ab ではなく ab_srm に対して行います。
+      - summarise(n = n(), buyers = sum(converted), rate = mean(converted)) と、prop.test(conv_srm$buyers, conv_srm$n)$conf.int です。
+      - |
+        conv_srm <- ab_srm |>
+          group_by(group) |>
+          summarise(n = n(), buyers = sum(converted), rate = mean(converted))
+        conv_srm
+        prop.test(conv_srm$buyers, conv_srm$n)$conf.int
+    tests:
+      fail:
+        - |
+          conv_srm <- ab |>
+            group_by(group) |>
+            summarise(n = n(), buyers = sum(converted), rate = mean(converted))
+          conv_srm
+          prop.test(conv_srm$buyers, conv_srm$n)$conf.int
+        - |
+          conv_srm <- ab_srm |>
+            group_by(group) |>
+            summarise(n = n(), buyers = sum(converted), rate = mean(converted))
+          conv_srm
+          prop.test(conv_srm$buyers, conv_srm$n)$p.value

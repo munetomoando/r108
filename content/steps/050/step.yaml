@@ -1,0 +1,20 @@
+id: "050"
+part: 6
+title: 自分のPCにRを入れる
+question: ブラウザで書いた分析のコードは、自分のPCのRでも同じように動くか
+minutes: 60
+mode: local
+packages: [tidyverse, modelsummary, sandwich, fixest, wooldridge, rmarkdown]
+data: [wage_survey.csv]
+learn: [install.packages, source]
+local:
+  script: check_050.R
+  code_sha256: ce971a666b3e128cf3643c171b0cda7f9d7638a18a2fc872270983582f6c06e8
+  instructions: |
+    プロジェクトのフォルダに `data/wage_survey.csv` と `step45.R` を用意してから、`check_050.R` を同じフォルダに保存し、コンソールで次を実行します。
+
+    ```r
+    source("check_050.R", encoding = "UTF-8")
+    ```
+
+    ✗ の項目があれば、→ の説明に沿って直し、もう一度実行します。

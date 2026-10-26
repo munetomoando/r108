@@ -1,0 +1,223 @@
+id: "023"
+part: 3
+title: 見出し・注記・テーマ
+question: 消費税率引上げは店頭の価格にどう表れたか
+minutes: 45
+mode: browser
+packages: [readr, dplyr, lubridate, ggplot2, forcats]
+data: [cpi_monthly.csv, sora_stores.csv]
+learn: [labs, theme_minimal, annotate, geom_vline]
+review_of: "022"
+setup: |
+  library(readr); library(dplyr); library(lubridate); library(ggplot2); library(forcats)
+  # 消費者物価指数（全国・月次、2025年基準＝2025年平均が100）
+  cpi <- read_csv("data/cpi_monthly.csv", show_col_types = FALSE)
+  # 2012年1月〜2021年12月の10年分（2回の消費税率引上げを含む）
+  cpi_1221 <- filter(cpi, year(date) >= 2012, year(date) <= 2021)
+  stores <- read_csv("data/sora_stores.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      cpi_1221（2012〜2021年の10年分）で、横軸に年月 date、縦軸に総合指数 cpi_all をとった折れ線グラフを作り、labs() で次の4つを日本語で付けてください。図は p に代入し、最後に p を表示します。
+      - title（見出し）… 例「消費者物価指数（総合）の推移」
+      - x（横軸の名前）… 例「年月」
+      - y（縦軸の名前）… 例「指数（2025年＝100）」
+      - caption（図の下の注記）… 出所。「総務省統計局」の名前を入れる
+    starter: |
+      p <- ggplot(cpi_1221, aes(x = date, y = cpi_all)) +
+        geom_line() +
+
+      p
+    solution: |
+      p <- ggplot(cpi_1221, aes(x = date, y = cpi_all)) +
+        geom_line() +
+        labs(title = "消費者物価指数（総合）の推移",
+             x = "年月", y = "指数（2025年＝100）",
+             caption = "出所：総務省統計局「消費者物価指数」2025年基準")
+      p
+    check: |
+      expect_object("p", class = "ggplot")
+      expect_ggplot(geom = "line", x = "date", y = "cpi_all")
+      expect_df_equal(.plot$data, .sol_plot$data, ignore_row_order = TRUE)
+      expect_uses("labs")
+      check_that(!is.null(.plot$labels$title) && nchar(.plot$labels$title) > 0,
+                 "labs(title = ...) で見出しを付けましょう。")
+      check_that(!is.null(.plot$labels$x) && !is.null(.plot$labels$y),
+                 "labs(x = ..., y = ...) で横軸と縦軸の名前を日本語にしましょう。")
+      check_that(!is.null(.plot$labels$caption) && grepl("総務省", .plot$labels$caption),
+                 "labs(caption = ...) に出所（総務省統計局「消費者物価指数」）を書きましょう。")
+    hints:
+      - 折れ線の図に + labs(...) を1つ足します。labs() の中に、title・x・y・caption を「名前 = "文字"」の形でカンマで区切って並べます。
+      - labs(title = "消費者物価指数（総合）の推移", x = "年月", y = "指数（2025年＝100）", caption = "出所：…") です。文字は必ず引用符 " " で囲みます。
+      - |
+        p <- ggplot(cpi_1221, aes(x = date, y = cpi_all)) + geom_line() + labs(title = "消費者物価指数（総合）の推移", x = "年月", y = "指数（2025年＝100）", caption = "出所：総務省統計局「消費者物価指数」2025年基準")
+        p
+    tests:
+      fail:
+        - |
+          p <- ggplot(cpi_1221, aes(x = date, y = cpi_all)) +
+            geom_line()
+          p
+        - |
+          p <- ggplot(cpi_1221, aes(x = date, y = cpi_all)) +
+            geom_line() +
+            labs(title = "消費者物価指数（総合）の推移", x = "年月", y = "指数（2025年＝100）")
+          p
+        - |
+          p <- ggplot(cpi, aes(x = date, y = cpi_all)) +
+            geom_line() +
+            labs(title = "消費者物価指数（総合）の推移", x = "年月", y = "指数（2025年＝100）",
+                 caption = "出所：総務省統計局「消費者物価指数」2025年基準")
+          p
+  - id: b
+    type: write
+    prompt: |
+      a の図 p は、灰色の背景に白い格子の、ggplot2 の既定のテーマ（見た目の設定）です。社内資料に貼るため、p に theme_minimal() を足して背景を白く簡素にした図を p2 に代入し、最後に p2 を表示してください。
+    starter: |
+      p2 <- p
+
+      p2
+    solution: |
+      p2 <- p + theme_minimal()
+      p2
+    check: |
+      expect_object("p2", class = "ggplot")
+      expect_ggplot(geom = "line", x = "date", y = "cpi_all")
+      expect_uses("theme_minimal")
+      check_that(isTRUE(all.equal(.plot$theme, .sol_plot$theme)),
+                 "テーマが theme_minimal() になっていません。p に + theme_minimal() を足しましょう（引数は付けません）。")
+      check_that(!is.null(.plot$labels$title) && !is.null(.plot$labels$caption),
+                 "見出しや出所が消えています。ggplot() から書き直さず、a の p に足しましょう。")
+    hints:
+      - テーマも + で足す部品です。a で作った p の後ろに1つ足すだけです。
+      - 背景を白くして格子を薄くするテーマは theme_minimal() です。ほかに theme_bw() や theme_classic() もあります。
+      - |
+        p2 <- p + theme_minimal()
+        p2
+    tests:
+      fail:
+        - |
+          p2 <- p + theme_bw()
+          p2
+        - |
+          p2 <- ggplot(cpi_1221, aes(x = date, y = cpi_all)) + geom_line() + theme_minimal()
+          p2
+        - |
+          p2 <- p
+          p2
+  - id: c
+    type: write
+    prompt: |
+      消費税率が上がった2つの月に、縦線と注記を入れます。p2 に次の2つを足した図を p3 に代入し、最後に p3 を表示してください。
+      - geom_vline() で、2014年4月1日と2019年10月1日に縦線を引く。xintercept = ymd(c("2014-04-01", "2019-10-01")) のように日付で指定する（linetype = "dashed" で破線にするとよい）
+      - annotate("text", ...) で、それぞれの縦線の近くに「5%→8%」「8%→10%」のような注記を書く。x は日付、y は指数の値（例 90.5）で場所を決める
+    starter: |
+      p3 <- p2 +
+
+      p3
+    solution: |
+      p3 <- p2 +
+        geom_vline(xintercept = ymd(c("2014-04-01", "2019-10-01")), linetype = "dashed") +
+        annotate("text", x = ymd(c("2014-04-01", "2019-10-01")), y = 90.5,
+                 label = c("消費税 5%→8%", "消費税 8%→10%"))
+      p3
+    check: |
+      expect_object("p3", class = "ggplot")
+      expect_ggplot(geom = "line", x = "date", y = "cpi_all")
+      expect_uses("geom_vline")
+      expect_uses("annotate")
+      layers_of <- function(p, cls) Filter(function(l) inherits(l$geom, cls), unname(p$layers))
+      vx <- function(p) sort(unique(as.numeric(unlist(lapply(layers_of(p, "GeomVline"), function(l) l$data$xintercept)))))
+      check_that(length(layers_of(.plot, "GeomVline")) >= 1,
+                 "縦線の層がありません。+ geom_vline(xintercept = ...) を足しましょう。")
+      check_that(identical(vx(.plot), vx(.sol_plot)),
+                 "縦線の位置が違います。xintercept = ymd(c(\"2014-04-01\", \"2019-10-01\")) のように、2つの引上げの月の1日を日付で指定しましょう。")
+      n_text <- function(p) sum(vapply(layers_of(p, c("GeomText", "GeomLabel")), function(l) NROW(l$data), 0))
+      check_that(n_text(.plot) >= n_text(.sol_plot),
+                 "注記が足りません。annotate(\"text\", ...) で、2本の縦線それぞれの近くに文字を書きましょう（x と label に2つずつ値を渡すか、annotate() を2回足します）。")
+      check_that(isTRUE(all.equal(.plot$theme, .sol_plot$theme)) && !is.null(.plot$labels$title),
+                 "b の見出しやテーマが消えています。p2 に足しましょう。")
+    hints:
+      - p2 に「+ geom_vline(...)」と「+ annotate(...)」の2つを足します。縦線の位置も注記の位置も、横軸が日付なので日付で指定します。
+      - 縦線は geom_vline(xintercept = ymd(c("2014-04-01", "2019-10-01")), linetype = "dashed")。注記は annotate("text", x = 日付, y = 90.5, label = "書き込む文字") で、x と label に2つずつ渡せます。
+      - |
+        p3 <- p2 + geom_vline(xintercept = ymd(c("2014-04-01", "2019-10-01")), linetype = "dashed") + annotate("text", x = ymd(c("2014-04-01", "2019-10-01")), y = 90.5, label = c("消費税 5%→8%", "消費税 8%→10%"))
+        p3
+    tests:
+      fail:
+        - |
+          p3 <- p2 +
+            geom_vline(xintercept = ymd(c("2014-04-01", "2019-10-01")), linetype = "dashed")
+          p3
+        - |
+          p3 <- p2 +
+            geom_vline(xintercept = ymd("2014-04-01"), linetype = "dashed") +
+            annotate("text", x = ymd(c("2014-04-01", "2019-10-01")), y = 90.5,
+                     label = c("消費税 5%→8%", "消費税 8%→10%"))
+          p3
+        - |
+          p3 <- p2 +
+            geom_vline(xintercept = ymd(c("2014-01-01", "2019-01-01")), linetype = "dashed") +
+            annotate("text", x = ymd(c("2014-01-01", "2019-01-01")), y = 90.5,
+                     label = c("消費税 5%→8%", "消費税 8%→10%"))
+          p3
+  - id: d
+    type: interpret
+    prompt: |
+      c の図で、2本の縦線の前後の指数の動きを見比べます（filter(cpi_1221, month(date) %in% c(3, 4, 9, 10)) などで数字も確かめられます）。動きの違いとその理由の説明として、最も適切なものはどれですか。
+    choices:
+      - "どちらの月も同じ大きさの段差で上がった。どちらも税率が同じだけ上がったから"
+      - "2014年4月は前月から指数が段差のように大きく上がったが、2019年10月の段差は小さい。上げ幅が3%から2%に小さくなったうえ、食料品などは軽減税率で8%に据え置かれ、同じ月に幼児教育・保育の無償化が始まって物価を押し下げたから"
+      - "2019年10月のほうが段差が大きい。税率が10%と、2014年の8%より高くなったから"
+      - "2019年10月は段差が小さい。消費者物価指数は消費税を含まない価格で計算しているから"
+    answer: 1
+    explain: 総合指数は2014年3月の85.5から4月の87.3へ1.8ポイント上がり、2000年以降で最も大きい前月からの上昇です。2019年は9月の89.4から10月の89.7へ0.3ポイントで、ふだんの月の動きと見分けにくい大きさです。前年同月比の公表値も、2014年4月は3.4%、2019年10月は0.2%でした。2019年は上げ幅が2%と小さく、食料品（酒類・外食を除く）などに軽減税率8%が適用され、さらに同じ10月に幼児教育・保育の無償化で保育料などが下がりました。消費者物価指数は消費税込みの店頭価格で測るので、税率の引上げはそのまま指数に表れます。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第22ステップの復習】stores を立地 location ごとにまとめ、1店舗あたりの平均売上 mean_sales（mean(sales)、万円）の列をもつ表を loc_mean に代入してください。
+      続けて、横軸を fct_reorder(location, mean_sales)、縦軸を mean_sales とした棒グラフを geom_col() で描き、coord_flip() で立地名を縦に並べてください。
+    starter: |
+      loc_mean <- stores |>
+
+    solution: |
+      loc_mean <- stores |>
+        group_by(location) |>
+        summarise(mean_sales = mean(sales))
+      ggplot(loc_mean, aes(x = fct_reorder(location, mean_sales), y = mean_sales)) +
+        geom_col() +
+        coord_flip()
+    check: |
+      expect_object("loc_mean", class = "data.frame")
+      expect_cols(loc_mean, c("location", "mean_sales"))
+      expect_df_equal(loc_mean, .sol$loc_mean, ignore_row_order = TRUE)
+      expect_ggplot(geom = "col", y = "mean_sales")
+      check_that(inherits(.plot$coordinates, "CoordFlip"),
+                 "縦と横が入れ替わっていません。最後に + coord_flip() を足しましょう。")
+      x_order <- function(p) ggplot2::ggplot_build(p)$layout$panel_scales_x[[1]]$get_limits()
+      check_that(identical(as.character(x_order(.plot)), as.character(x_order(.sol_plot))),
+                 "立地が平均売上の順に並んでいません。横軸を fct_reorder(location, mean_sales) にしましょう。")
+    hints:
+      - 「立地ごとに平均をとる（group_by → summarise）」表を作ってから、第22ステップ b と同じ形の棒グラフを描きます。
+      - 表は group_by(location) |> summarise(mean_sales = mean(sales))。図は ggplot(loc_mean, aes(x = fct_reorder(location, mean_sales), y = mean_sales)) に geom_col() と coord_flip() を足します。
+      - |
+        loc_mean <- stores |> group_by(location) |> summarise(mean_sales = mean(sales))
+        ggplot(loc_mean, aes(x = fct_reorder(location, mean_sales), y = mean_sales)) + geom_col() + coord_flip()
+    tests:
+      fail:
+        - |
+          loc_mean <- stores |>
+            group_by(location) |>
+            summarise(mean_sales = mean(sales))
+          ggplot(loc_mean, aes(x = location, y = mean_sales)) +
+            geom_col() +
+            coord_flip()
+        - |
+          loc_mean <- stores |>
+            group_by(location) |>
+            summarise(mean_sales = sum(sales))
+          ggplot(loc_mean, aes(x = fct_reorder(location, mean_sales), y = mean_sales)) +
+            geom_col() +
+            coord_flip()

@@ -1,0 +1,297 @@
+id: "098"
+part: 11
+title: ランダムフォレスト
+question: 精度はどこまで上がるか
+minutes: 50
+mode: browser
+packages: [readr, dplyr, ggplot2, rsample, recipes, parsnip, workflows, yardstick, randomForest, rpart]
+data: [churn.csv]
+learn: [rand_forest, importance]
+allow: [rownames, reorder]
+review_of: "097"
+setup: |
+  library(readr); library(dplyr); library(ggplot2)
+  library(rsample); library(recipes); library(parsnip); library(workflows); library(yardstick)
+  # そらまめマーケット（架空の会社）のネット通販の顧客5,000人。churned は yes（解約）・no（継続）の因子
+  churn <- read_csv("data/churn.csv", show_col_types = FALSE) |>
+    mutate(churned = factor(churned, levels = c(1, 0), labels = c("yes", "no")))
+  # 第95ステップと同じ分け方（75%を訓練、解約の割合で層化）とロジスティック回帰
+  set.seed(108)
+  churn_split <- initial_split(churn, prop = 0.75, strata = churned)
+  churn_train <- training(churn_split)
+  churn_test <- testing(churn_split)
+  churn_rec <- recipe(churned ~ recency + frequency + monetary + age + channel + rank,
+                      data = churn_train)
+  logit_wf <- workflow() |> add_recipe(churn_rec) |> add_model(logistic_reg())
+  logit_fit <- fit(logit_wf, data = churn_train)
+  # テストデータの予測（.pred_class・.pred_yes・.pred_no）
+  churn_pred <- augment(logit_fit, new_data = churn_test)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      【ランダムフォレストを当てはめる】訓練データ churn_train で、解約 churned を recency・frequency・monetary・age・channel・rank で予測するランダムフォレストを作ります。
+      1. 先頭で set.seed(108) とする（ランダムフォレストは乱数を使うので、毎回同じ結果にするため）
+      2. モデルは rand_forest(trees = 200) とし、set_engine("randomForest", importance = TRUE)、set_mode("classification") を付ける
+      3. workflow() に add_recipe() でレシピ churn_rec（setup で作成済み。6つの説明変数）を、add_model() でモデルを加え、fit(data = churn_train) で当てはめて rf_fit に代入し、rf_fit を表示する
+    starter: |
+      set.seed(108)
+      rf_fit <- workflow() |>
+
+      rf_fit
+    solution: |
+      set.seed(108)
+      rf_fit <- workflow() |>
+        add_recipe(churn_rec) |>
+        add_model(rand_forest(trees = 200) |>
+                    set_engine("randomForest", importance = TRUE) |>
+                    set_mode("classification")) |>
+        fit(data = churn_train)
+      rf_fit
+    check: |
+      expect_object("rf_fit", class = "workflow")
+      eng <- extract_fit_engine(rf_fit)
+      check_that(inherits(eng, "randomForest"),
+                 "エンジンが違います。set_engine(\"randomForest\", importance = TRUE) を付けましょう。")
+      check_that(identical(eng$type, "classification"),
+                 "分類のモデルになっていません。set_mode(\"classification\") を付けましょう。")
+      check_that(eng$ntree == 200, "木の本数が違います。rand_forest(trees = 200) としましょう。")
+      check_that("MeanDecreaseAccuracy" %in% colnames(eng$importance),
+                 "重要度（並べ替えによる重要度）が計算されていません。set_engine() の中に importance = TRUE を書きましょう。")
+      check_that(identical(sort(rownames(eng$importance)), sort(rownames(extract_fit_engine(.sol$rf_fit)$importance))),
+                 "説明変数が違います。レシピ churn_rec（6つの説明変数）を add_recipe() で加えましょう。")
+      check_that(nrow(eng$votes) == nrow(churn_train),
+                 "訓練データ churn_train で当てはめましょう。")
+      p_stu <- predict(rf_fit, churn_test, type = "prob")$.pred_yes
+      p_sol <- predict(.sol$rf_fit, churn_test, type = "prob")$.pred_yes
+      check_that(isTRUE(all.equal(p_stu, p_sol)),
+                 "予測が正解と一致しません。先頭で set.seed(108) を実行してから、同じ設定で当てはめましょう。")
+    hints:
+      - 第93・95ステップの「モデルを決める → ワークフローに式とモデルを入れる → fit()」と同じ流れです。モデルだけを rand_forest() に替えます。
+      - モデルは rand_forest(trees = 200) |> set_engine("randomForest", importance = TRUE) |> set_mode("classification") です。レシピは add_recipe(churn_rec) で加えます。
+      - |
+        set.seed(108)
+        rf_fit <- workflow() |>
+          add_recipe(churn_rec) |>
+          add_model(rand_forest(trees = 200) |>
+                      set_engine("randomForest", importance = TRUE) |>
+                      set_mode("classification")) |>
+          fit(data = churn_train)
+        rf_fit
+    tests:
+      fail:
+        - |
+          set.seed(108)
+          rf_fit <- workflow() |>
+            add_recipe(churn_rec) |>
+            add_model(rand_forest(trees = 100) |>
+                        set_engine("randomForest", importance = TRUE) |>
+                        set_mode("classification")) |>
+            fit(data = churn_train)
+          rf_fit
+        - |
+          set.seed(108)
+          rf_fit <- workflow() |>
+            add_recipe(churn_rec) |>
+            add_model(rand_forest(trees = 200) |>
+                        set_engine("randomForest") |>
+                        set_mode("classification")) |>
+            fit(data = churn_train)
+          rf_fit
+        - |
+          set.seed(1)
+          rf_fit <- workflow() |>
+            add_recipe(churn_rec) |>
+            add_model(rand_forest(trees = 200) |>
+                        set_engine("randomForest", importance = TRUE) |>
+                        set_mode("classification")) |>
+            fit(data = churn_train)
+          rf_fit
+  - id: b
+    type: write
+    prompt: |
+      【ロジスティック回帰とAUCで比べる】テストデータ churn_test で、ランダムフォレストとロジスティック回帰のどちらがよく当たるかを比べます。ロジスティック回帰のテストデータの予測は、setup で churn_pred に作ってあります（第95・96ステップと同じ）。
+      1. augment(rf_fit, new_data = churn_test) を rf_pred に代入する
+      2. bind_rows() で、ロジスティック回帰の AUC（roc_auc(churn_pred, truth = churned, .pred_yes)）とランダムフォレストの AUC（rf_pred で同じ計算）を縦につなぎ、.id = "model" でモデル名の列を付けて auc_tab に代入し、表示する（モデル名は logit = と rf = で付ける）
+    starter: |
+      rf_pred <-
+      auc_tab <- bind_rows(logit = ,
+                           rf = ,
+                           .id = "model")
+      auc_tab
+    solution: |
+      rf_pred <- augment(rf_fit, new_data = churn_test)
+      auc_tab <- bind_rows(logit = roc_auc(churn_pred, truth = churned, .pred_yes),
+                           rf = roc_auc(rf_pred, truth = churned, .pred_yes),
+                           .id = "model")
+      auc_tab
+    check: |
+      expect_object("rf_pred", class = "data.frame")
+      expect_cols(rf_pred, c("churned", ".pred_yes"))
+      check_that(nrow(rf_pred) == nrow(churn_test),
+                 "rf_pred はテストデータ churn_test で作りましょう（訓練データで測ると、当たり具合を甘く見積もります）。")
+      check_that(isTRUE(all.equal(rf_pred$.pred_yes, .sol$rf_pred$.pred_yes)),
+                 "rf_pred の予測確率が違います。augment(rf_fit, new_data = churn_test) としましょう。")
+      expect_object("auc_tab", class = "data.frame")
+      expect_cols(auc_tab, c("model", ".metric", ".estimate"))
+      expect_nrow(auc_tab, 2)
+      expect_df_equal(auc_tab, .sol$auc_tab, tol = 1e-6)
+      expect_value(.value, .sol_value, label = "表示した auc_tab")
+    hints:
+      - 第96ステップと同じく、テストデータで予測した解約の確率から AUC を求めます。2つのモデルの AUC を1つの表にまとめると比べやすくなります。
+      - augment() はテストデータに .pred_class・.pred_yes・.pred_no の列を加えます。AUC は roc_auc(rf_pred, truth = churned, .pred_yes) です。bind_rows(logit = …, rf = …, .id = "model") とすると、logit と rf が model 列に入ります。
+      - |
+        rf_pred <- augment(rf_fit, new_data = churn_test)
+        auc_tab <- bind_rows(logit = roc_auc(churn_pred, truth = churned, .pred_yes),
+                             rf = roc_auc(rf_pred, truth = churned, .pred_yes),
+                             .id = "model")
+        auc_tab
+    tests:
+      fail:
+        - |
+          rf_pred <- augment(rf_fit, new_data = churn_test)
+          auc_tab <- bind_rows(logit = roc_auc(churn_pred, truth = churned, .pred_no),
+                               rf = roc_auc(rf_pred, truth = churned, .pred_no),
+                               .id = "model")
+          auc_tab
+        - |
+          rf_pred <- augment(rf_fit, new_data = churn_train)
+          auc_tab <- bind_rows(logit = roc_auc(churn_pred, truth = churned, .pred_yes),
+                               rf = roc_auc(rf_pred, truth = churned, .pred_yes),
+                               .id = "model")
+          auc_tab
+  - id: c
+    type: write
+    prompt: |
+      【変数の重要度を図にする】a のランダムフォレストから、変数の重要度を取り出して図にします。
+      1. extract_fit_engine(rf_fit) で randomForest の結果を取り出し、randomForest::importance() に渡して imp に代入する（行が変数、列が重要度の行列）
+      2. variable（rownames(imp)）、並べ替えによる重要度 accuracy（imp[, "MeanDecreaseAccuracy"]）、ジニ係数の減少 gini（imp[, "MeanDecreaseGini"]）の3列の tibble() を作って imp_tab に代入し、表示する
+      3. imp_tab で、横軸 accuracy、縦軸 reorder(variable, accuracy)（重要度の順に並べる）の棒グラフ（geom_col()）を描く
+    starter: |
+      imp <-
+      imp_tab <- tibble(variable = ,
+                        accuracy = ,
+                        gini = )
+      imp_tab
+      ggplot(imp_tab, aes(x = , y = )) +
+        geom_col()
+    solution: |
+      imp <- randomForest::importance(extract_fit_engine(rf_fit))
+      imp_tab <- tibble(variable = rownames(imp),
+                        accuracy = imp[, "MeanDecreaseAccuracy"],
+                        gini = imp[, "MeanDecreaseGini"])
+      imp_tab
+      ggplot(imp_tab, aes(x = accuracy, y = reorder(variable, accuracy))) +
+        geom_col()
+    check: |
+      expect_object("imp_tab", class = "data.frame")
+      expect_cols(imp_tab, c("variable", "accuracy", "gini"))
+      expect_nrow(imp_tab, 6)
+      expect_df_equal(imp_tab, .sol$imp_tab, ignore_row_order = TRUE, tol = 1e-6)
+      expect_ggplot(geom = "col", x = "accuracy")
+      check_that(is.data.frame(.plot$data) && nrow(.plot$data) == 6,
+                 "図のデータは imp_tab（6行）にしましょう。")
+    hints:
+      - parsnip で当てはめたモデルの中から、元の randomForest の結果を extract_fit_engine() で取り出します。そこに randomForest::importance() を使うと、変数ごとの重要度の表（行列）が返ります。
+      - 行の名前（変数名）は rownames(imp)、列は imp[, "MeanDecreaseAccuracy"] のように名前で取り出せます。縦軸を reorder(variable, accuracy) にすると、重要度の大きい順に並びます（第22ステップの fct_reorder() と同じ考え方）。
+      - |
+        imp <- randomForest::importance(extract_fit_engine(rf_fit))
+        imp_tab <- tibble(variable = rownames(imp),
+                          accuracy = imp[, "MeanDecreaseAccuracy"],
+                          gini = imp[, "MeanDecreaseGini"])
+        imp_tab
+        ggplot(imp_tab, aes(x = accuracy, y = reorder(variable, accuracy))) +
+          geom_col()
+    tests:
+      fail:
+        - |
+          imp <- randomForest::importance(extract_fit_engine(rf_fit))
+          imp_tab <- tibble(variable = rownames(imp),
+                            accuracy = imp[, "MeanDecreaseGini"],
+                            gini = imp[, "MeanDecreaseAccuracy"])
+          imp_tab
+          ggplot(imp_tab, aes(x = accuracy, y = reorder(variable, accuracy))) +
+            geom_col()
+        - |
+          imp <- randomForest::importance(extract_fit_engine(rf_fit))
+          imp_tab <- tibble(variable = rownames(imp),
+                            accuracy = imp[, "MeanDecreaseAccuracy"],
+                            gini = imp[, "MeanDecreaseGini"])
+          imp_tab
+          ggplot(imp_tab, aes(x = gini, y = reorder(variable, gini))) +
+            geom_col()
+  - id: d
+    type: interpret
+    prompt: |
+      c の図では、recency（最後の注文からの日数）の重要度が最も大きくなりました。この結果の読み方として、最も適切なものはどれですか。
+    choices:
+      - "recency が解約の最大の原因なので、全員にクーポンを送って注文させ、recency を小さくすれば、解約は最も大きく減る"
+      - "重要度は「その変数を使うと予測がどれだけ当たるようになるか」を表すだけで、施策の効果ではない。最後の注文から日がたっているのは、すでに離れかけていることの表れ（結果に近いもの）でもある。recency を施策で動かして解約が減るかは、A/Bテストで確かめる必要がある"
+      - "ジニ係数の減少では age が3位なので、年齢は解約の重要な原因であり、年齢層ごとに施策を変えるべきである"
+      - "ロジスティック回帰の方が AUC が高かったので、ランダムフォレストの重要度には意味がない"
+    answer: 1
+    explain: 重要度は、その変数の値を並べ替えて（でたらめにして）予測が当たらなくなる程度や、木の分割で使われた度合いを測ったもので、「予測への役立ち具合」です。第91ステップで見たとおり、予測に効く変数を施策で動かしても、結果が変わるとは限りません。recency が大きい客は、すでに他の店に移ったなど、解約の結果に近い状態にあるのかもしれません。クーポンで1回注文させても、解約が減るとは言えません（選択肢1は誤り）。ジニ係数の減少は、値の種類が多い連続の変数（age や monetary）を過大に評価しやすく、並べ替えによる重要度では age はほぼ0でした。どちらにしても重要度は原因の大きさではありません（選択肢3は誤り）。AUC が低くても、どの変数に頼って予測しているかを知ることには意味があります（選択肢4は誤り）。施策の効果は、施策を無作為に割り当てる A/B テスト（第86〜88ステップ）で確かめます。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第97ステップの復習】深さ4の決定木を作り、テストデータでの AUC を求めます。
+      1. decision_tree(tree_depth = 4, cost_complexity = 0) に set_engine("rpart") と set_mode("classification") を付けたモデルで、レシピ churn_rec のワークフローを churn_train に当てはめ、tree_fit に代入する
+      2. augment(tree_fit, new_data = churn_test) を pred_tree に代入し、roc_auc(pred_tree, truth = churned, .pred_yes) を表示する
+    starter: |
+      tree_fit <-
+
+      pred_tree <-
+
+      roc_auc(pred_tree, truth = churned, .pred_yes)
+    solution: |
+      tree_fit <- workflow() |>
+        add_recipe(churn_rec) |>
+        add_model(decision_tree(tree_depth = 4, cost_complexity = 0) |>
+                    set_engine("rpart") |>
+                    set_mode("classification")) |>
+        fit(data = churn_train)
+      pred_tree <- augment(tree_fit, new_data = churn_test)
+      roc_auc(pred_tree, truth = churned, .pred_yes)
+    check: |
+      expect_object("tree_fit", class = "workflow")
+      check_that(inherits(extract_fit_engine(tree_fit), "rpart"),
+                 "エンジンが違います。decision_tree() に set_engine(\"rpart\") を付けましょう。")
+      expect_object("pred_tree", class = "data.frame")
+      expect_cols(pred_tree, c("churned", ".pred_yes"))
+      check_that(nrow(pred_tree) == nrow(churn_test), "pred_tree はテストデータ churn_test から作りましょう。")
+      check_that(isTRUE(all.equal(pred_tree$.pred_yes, .sol$pred_tree$.pred_yes)),
+                 "決定木の予測確率が違います。tree_depth = 4, cost_complexity = 0 の決定木を、6つの説明変数で churn_train に当てはめましょう。")
+      expect_value(.value, .sol_value, label = "表示した AUC")
+    hints:
+      - 第97ステップの決定木を、第96ステップの AUC で評価します。モデルの部分以外は a・b と同じ書き方です。
+      - モデルは decision_tree(tree_depth = 4, cost_complexity = 0) |> set_engine("rpart") |> set_mode("classification") です。予測は augment(tree_fit, new_data = churn_test) で、解約の確率は .pred_yes 列に入ります。
+      - |
+        tree_fit <- workflow() |>
+          add_recipe(churn_rec) |>
+          add_model(decision_tree(tree_depth = 4, cost_complexity = 0) |>
+                      set_engine("rpart") |>
+                      set_mode("classification")) |>
+          fit(data = churn_train)
+        pred_tree <- augment(tree_fit, new_data = churn_test)
+        roc_auc(pred_tree, truth = churned, .pred_yes)
+    tests:
+      fail:
+        - |
+          tree_fit <- workflow() |>
+            add_recipe(churn_rec) |>
+            add_model(decision_tree(tree_depth = 3, cost_complexity = 0) |>
+                        set_engine("rpart") |>
+                        set_mode("classification")) |>
+            fit(data = churn_train)
+          pred_tree <- augment(tree_fit, new_data = churn_test)
+          roc_auc(pred_tree, truth = churned, .pred_yes)
+        - |
+          tree_fit <- workflow() |>
+            add_recipe(churn_rec) |>
+            add_model(decision_tree(tree_depth = 4, cost_complexity = 0) |>
+                        set_engine("rpart") |>
+                        set_mode("classification")) |>
+            fit(data = churn_train)
+          pred_tree <- augment(tree_fit, new_data = churn_test)
+          roc_auc(pred_tree, truth = churned, .pred_no)

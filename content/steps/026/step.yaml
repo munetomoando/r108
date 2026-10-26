@@ -1,0 +1,180 @@
+id: "026"
+part: 3
+title: 誤解を招くグラフ
+question: 社内資料のこのグラフのどこがずるいか
+minutes: 40
+mode: browser
+packages: [readr, dplyr, tidyr, ggplot2]
+data: [sora_stores.csv, lfs_monthly.csv, cpi_monthly.csv, jp_tile.csv, min_wage_pref.csv]
+learn: [coord_cartesian, scale_y_continuous]
+review_of: "025"
+setup: |
+  library(readr); library(dplyr); library(tidyr); library(ggplot2)
+  stores <- read_csv("data/sora_stores.csv", show_col_types = FALSE)
+  # 地域別の今年と前年の売上（万円）と前年比（%）
+  region_sales <- stores |>
+    group_by(region) |>
+    summarise(sales = sum(sales), sales_last = sum(sales_last)) |>
+    mutate(growth = (sales / sales_last - 1) * 100)
+  # 棒グラフ用に縦長にした表（1行＝地域×期間）
+  region_long <- region_sales |>
+    select(region, 前年 = sales_last, 今年 = sales) |>
+    pivot_longer(cols = -region, names_to = "period", values_to = "sales") |>
+    mutate(period = factor(period, levels = c("前年", "今年")))
+  # 先輩が作った会議資料の図（縦軸を途中から始めている）
+  p_cut <- ggplot(region_long, aes(x = region, y = sales, fill = period)) +
+    geom_col(position = "dodge") +
+    coord_cartesian(ylim = c(480000, 1450000), expand = FALSE)
+  # 二軸グラフ用の表：完全失業率（%）と消費者物価指数（2025年=100）、2013年1月〜2019年12月
+  lfs <- read_csv("data/lfs_monthly.csv", show_col_types = FALSE)
+  cpi <- read_csv("data/cpi_monthly.csv", show_col_types = FALSE)
+  both <- inner_join(lfs, cpi, by = "date") |>
+    filter(date >= as.Date("2013-01-01"), date <= as.Date("2019-12-01"))
+  # 右の縦軸の取り方だけが違う2枚の二軸グラフ（黒＝失業率・左軸、赤＝物価指数・右軸）
+  p_dual1 <- ggplot(both, aes(x = date)) +
+    geom_line(aes(y = unemp_rate_sa)) +
+    geom_line(aes(y = (cpi_all - 84) / 3 + 2.2), colour = "red") +
+    scale_y_continuous(name = "完全失業率（%）",
+                       sec.axis = sec_axis(~ (. - 2.2) * 3 + 84, name = "消費者物価指数（2025年=100）"))
+  p_dual2 <- ggplot(both, aes(x = date)) +
+    geom_line(aes(y = unemp_rate_sa)) +
+    geom_line(aes(y = cpi_all / 25), colour = "red") +
+    scale_y_continuous(name = "完全失業率（%）",
+                       sec.axis = sec_axis(~ . * 25, name = "消費者物価指数（2025年=100）"))
+  # 第25ステップの復習用
+  tile <- read_csv("data/jp_tile.csv", show_col_types = FALSE)
+  mw <- read_csv("data/min_wage_pref.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: interpret
+    prompt: |
+      先輩が会議資料に載せた、地域別の今年と前年の売上の棒グラフ p_cut を点検します（図は、小課題 c や d のエディタに p_cut とだけ書いて「試しに実行」すると表示されます）。
+      p_cut では、北海道・東北の今年の棒が前年の棒の何倍もの高さに見え、「北海道・東北が急成長した」という印象を与えます。この図の問題として、最も適切な説明はどれですか。
+    choices:
+      - "棒の色が今年と前年で違うので、目立つ色の今年の売上が実際より大きく見えている"
+      - "縦軸が480,000万円から始まっているので、棒の高さが売上に比例していない。北海道・東北の今年の棒は前年の約3.7倍の高さだが、実際の売上の増加は約4.3%にすぎない"
+      - "縦軸を切ったせいで地域の間の差が大きく見えている。縦軸を0から描けば、6地域の売上はほぼ同じ高さになる"
+      - "縦軸を切ったせいで、中国・四国の前年割れが実際より小さく見えている"
+    answer: 1
+    explain: "棒グラフは「棒の長さ＝量」として読まれます。縦軸を480,000万円から始めると、見えている棒の長さは売上から480,000を引いた分だけになります。北海道・東北は今年509,048万円・前年487,836万円で、見えている長さは29,048と7,836（約3.7倍）ですが、売上そのものは4.3%増です。同じ理由で中国・四国（今年572,244万円・前年581,238万円、−1.5%）も、見た目では約9%減に見え、前年割れは実際より大きく見えます。地域の間の差は縦軸を0から描いても大きく、関東（1,442,263万円）は北海道・東北の約2.8倍です。"
+  - id: b
+    type: interpret
+    prompt: |
+      別の資料には、2013年1月〜2019年12月の完全失業率（黒、左の縦軸）と消費者物価指数（赤、右の縦軸）を1枚に描いた二軸グラフが載っていました。
+      setup には、同じデータで右の縦軸の取り方だけを変えた p_dual1 と p_dual2 を用意してあります（a と同じく、c や d のエディタで表示できます）。p_dual1 では2本の線が大きく交差し、p_dual2 では赤い線がほぼ水平に見えます。正しい読み方はどれですか。
+    choices:
+      - "p_dual1 では2本の線がきれいに逆向きに動くので、失業率が下がったことが物価を押し上げたと読める"
+      - "p_dual2 では赤い線がほぼ水平なので、この7年間の物価はほとんど上がっていない"
+      - "右の縦軸の範囲と目盛りの幅は作り手が自由に決められるので、線の傾きや交わり方はいくらでも変えられる。2本の線の重なり方から、2つの指標の関係の強さを読んではいけない"
+      - "単位の違う2つの指標を1枚に描くと、右の縦軸の目盛りの数値そのものが必ず間違ったものになる"
+    answer: 2
+    explain: "二軸グラフでは、右の縦軸の目盛りを「左の目盛りの何倍で、どこから始めるか」を作り手が選べます。p_dual1 は右の目盛りをおよそ84〜90の狭い幅にして、物価指数の動きを左の失業率（2.2〜4.3%）と同じ高さまで引き伸ばしたので、2本が大きく交差して見えます。p_dual2 は右の目盛りをおよそ55〜110の広い幅にしたので、同じ動きがほぼ水平に見えます。どちらも目盛りの数値は正しく、データも同じです。実際には、この期間に失業率は4.2%から2.2%へ下がり、物価指数は84.1から89.7へ約6.7%上がりました。2つの関係を調べたいなら、二軸ではなく散布図や相関係数（第24ステップ）を使い、さらに「どちらも時間とともに動いているだけではないか」を疑います。"
+  - id: c
+    type: write
+    prompt: |
+      a の図 p_cut を、誤解のない図に直します。starter は p_cut を作ったコードです。
+      縦軸を途中から始めている coord_cartesian(ylim = ...) の行をやめ、代わりに scale_y_continuous(limits = c(0, NA)) で縦軸の範囲を「0から、上はデータに合わせて」と指定して、棒の長さが売上に比例する図にしてください（limits の NA は「データに合わせて自動で決める」という意味です）。
+      前年比 growth（%）を地域ごとの棒にした図（ggplot(region_sales, aes(x = region, y = growth)) + geom_col()）に作り直しても正解です。
+    starter: |
+      ggplot(region_long, aes(x = region, y = sales, fill = period)) +
+        geom_col(position = "dodge") +
+        coord_cartesian(ylim = c(480000, 1450000), expand = FALSE)
+    solution: |
+      ggplot(region_long, aes(x = region, y = sales, fill = period)) +
+        geom_col(position = "dodge") +
+        scale_y_continuous(limits = c(0, NA))
+    check: |
+      expect_ggplot(geom = "col")
+      y_range <- function(p) ggplot2::ggplot_build(p)$layout$panel_params[[1]]$y.range
+      check_that(y_range(.plot)[1] <= 0,
+                 "縦軸が0から始まっていません。coord_cartesian(ylim = ...) の行を消し、scale_y_continuous(limits = c(0, NA)) にしましょう。")
+      y_lab <- tryCatch(rlang::as_label(.plot$mapping$y), error = function(e) "")
+      if (identical(y_lab, "growth")) {
+        check_that(nrow(.plot$data) == 6 && "growth" %in% names(.plot$data),
+                   "前年比の図にするなら、ggplot() に地域別の表 region_sales を渡しましょう。")
+      } else {
+        expect_ggplot(geom = "col", x = "region", y = "sales", fill = "period")
+        expect_df_equal(.plot$data, .sol_plot$data, ignore_row_order = TRUE)
+        positions <- unname(vapply(.plot$layers, function(l) class(l$position)[1], ""))
+        check_that("PositionDodge" %in% positions,
+                   "今年と前年の棒が横に並んでいません。geom_col(position = \"dodge\") のままにしましょう。")
+      }
+    hints:
+      - 図のデータと棒の描き方（geom_col の行）はそのままで、縦軸の範囲を決めている最後の行だけを入れ替えます。
+      - 縦軸の範囲は scale_y_continuous(limits = c(下限, 上限)) で決めます。下限を0、上限を NA（データに合わせる）にします。
+      - "ggplot(region_long, aes(x = region, y = sales, fill = period)) + geom_col(position = \"dodge\") + scale_y_continuous(limits = c(0, NA))"
+    tests:
+      fail:
+        - |
+          ggplot(region_long, aes(x = region, y = sales, fill = period)) +
+            geom_col(position = "dodge") +
+            coord_cartesian(ylim = c(480000, 1450000), expand = FALSE)
+        - |
+          ggplot(region_long, aes(x = region, y = sales, fill = period)) +
+            geom_col(position = "dodge") +
+            coord_cartesian(ylim = c(400000, NA))
+        - |
+          ggplot(region_long, aes(x = region, y = sales, fill = period)) +
+            geom_col(position = "dodge") +
+            scale_y_continuous(limits = c(480000, NA))
+        - |
+          ggplot(region_long, aes(x = region, y = sales, fill = period)) +
+            geom_col() +
+            scale_y_continuous(limits = c(0, NA))
+  - id: d
+    type: write
+    review: true
+    prompt: |
+      【第25ステップの復習】2015年度の最低賃金をタイル地図に塗ります。
+      mw を2015年度（fiscal_year == 2015）の行に絞って位置表 tile に pref_code で左結合した表を map15 に代入し（47行）、
+      横軸 col・縦軸 row・塗り min_wage のタイル地図を geom_tile() で描いて p に代入し、最後に p を表示してください。色は scale_fill_viridis_c()、縦軸の反転は scale_y_reverse()、マスを正方形にするのは coord_fixed() です。
+    starter: |
+      map15 <-
+
+      p <-
+
+      p
+    solution: |
+      map15 <- left_join(tile, filter(mw, fiscal_year == 2015), by = "pref_code")
+
+      p <- ggplot(map15, aes(x = col, y = row, fill = min_wage)) +
+        geom_tile(colour = "white") +
+        scale_fill_viridis_c() +
+        scale_y_reverse() +
+        coord_fixed()
+      p
+    check: |
+      expect_object("map15", class = "data.frame")
+      expect_nrow(map15, 47)
+      expect_df_equal(select(map15, pref_code, fiscal_year, min_wage),
+                      select(.sol$map15, pref_code, fiscal_year, min_wage), ignore_row_order = TRUE)
+      expect_ggplot(geom = "tile", x = "col", y = "row", fill = "min_wage")
+      check_that(nrow(.plot$data) == 47 && all(.plot$data$fiscal_year == 2015),
+                 "図のデータが2015年度の47県になっていません。ggplot() には map15 を渡しましょう。")
+      expect_uses("scale_fill_viridis_c")
+      check_that(isTRUE(tryCatch(.plot$scales$get_scales("y")$trans$name == "reverse",
+                                 error = function(e) FALSE)),
+                 "縦軸が反転していません。scale_y_reverse() を足しましょう。")
+      check_that(!is.null(.plot$coordinates$ratio),
+                 "マスが正方形になっていません。coord_fixed() を足しましょう。")
+    hints:
+      - 「2015年度に絞る → 位置表に結合する」で表を作り、第25ステップ b と同じ形のタイル地図を描きます。
+      - left_join(tile, filter(mw, fiscal_year == 2015), by = "pref_code") で47行になります。図は aes(x = col, y = row, fill = min_wage) に geom_tile()、scale_fill_viridis_c()、scale_y_reverse()、coord_fixed() を + で足します。
+      - "map15 <- left_join(tile, filter(mw, fiscal_year == 2015), by = \"pref_code\") の後に p <- ggplot(map15, aes(x = col, y = row, fill = min_wage)) + geom_tile() + scale_fill_viridis_c() + scale_y_reverse() + coord_fixed()"
+    tests:
+      fail:
+        - |
+          map15 <- left_join(tile, filter(mw, fiscal_year == 2025), by = "pref_code")
+          p <- ggplot(map15, aes(x = col, y = row, fill = min_wage)) +
+            geom_tile() + scale_fill_viridis_c() + scale_y_reverse() + coord_fixed()
+          p
+        - |
+          map15 <- left_join(tile, filter(mw, fiscal_year == 2015), by = "pref_code")
+          p <- ggplot(map15, aes(x = col, y = row, fill = min_wage)) +
+            geom_tile() + scale_fill_viridis_c() + coord_fixed()
+          p
+        - |
+          map15 <- left_join(tile, filter(mw, fiscal_year == 2015), by = "pref_code")
+          p <- ggplot(map15, aes(x = col, y = row, fill = min_wage)) +
+            geom_tile() + scale_y_reverse() + coord_fixed()
+          p

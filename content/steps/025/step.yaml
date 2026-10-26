@@ -1,0 +1,246 @@
+id: "025"
+part: 3
+title: 地図で見せる
+question: パートの時給と人件費を考える：最低賃金の地域差を日本地図に塗る
+minutes: 45
+mode: browser
+packages: [readr, dplyr, stringr, ggplot2]
+data: [jp_tile.csv, min_wage_pref.csv, pref_panel.csv]
+learn: [geom_tile, scale_fill_viridis_c, scale_y_reverse, coord_fixed]
+review_of: "024"
+setup: |
+  library(readr); library(dplyr); library(stringr); library(ggplot2)
+  # タイル地図の位置表。県名の短い形 short（「青森県」→「青森」、北海道はそのまま）を足しておく
+  tile <- read_csv("data/jp_tile.csv", show_col_types = FALSE) |>
+    mutate(short = if_else(pref == "北海道", pref, str_sub(pref, 1, -2)))
+  mw <- read_csv("data/min_wage_pref.csv", show_col_types = FALSE)
+  panel <- read_csv("data/pref_panel.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      位置表 tile には、47都道府県それぞれのマスの位置 row（上から何行目か）と col（左から何列目か）が入っています。
+      横軸に col、縦軸に row を対応づけ、geom_tile() で1県1マスのタイル地図を描いて p に代入し、最後に p を表示してください。
+      - row は上から数えた番号なので、そのままでは北海道が下に来ます。scale_y_reverse() で縦軸を上下反転させます
+      - coord_fixed() で縦と横の1目盛りの長さをそろえ、マスを正方形にします
+      - マスに県名を載せたいときは geom_text(aes(label = short)) を足します（なくても正解です）
+    starter: |
+      p <- ggplot(tile, aes(x = col, y = row)) +
+
+      p
+    solution: |
+      p <- ggplot(tile, aes(x = col, y = row)) +
+        geom_tile(colour = "white") +
+        geom_text(aes(label = short), size = 3, colour = "white") +
+        scale_y_reverse() +
+        coord_fixed()
+      p
+    check: |
+      expect_ggplot(geom = "tile", x = "col", y = "row")
+      check_that(nrow(.plot$data) == 47,
+                 "図のデータが47県になっていません。ggplot() には位置表 tile を渡しましょう。")
+      check_that(isTRUE(tryCatch(.plot$scales$get_scales("y")$trans$name == "reverse",
+                                 error = function(e) FALSE)),
+                 "縦軸が反転していません。このままでは北海道が下、沖縄が上に来ます。scale_y_reverse() を足しましょう。")
+      check_that(!is.null(.plot$coordinates$ratio),
+                 "マスが正方形になっていません。coord_fixed() を足して、縦と横の目盛りの長さをそろえましょう。")
+    hints:
+      - ggplot() で軸を決め、+ で層（geom_tile）と調整（縦軸の反転、縦横比）を順に足していきます。
+      - geom_tile() でマスを描き、scale_y_reverse() で縦軸を反転し、coord_fixed() で縦横の比を1:1にします。
+      - "p <- ggplot(tile, aes(x = col, y = row)) + geom_tile(colour = \"white\") + scale_y_reverse() + coord_fixed()"
+    tests:
+      fail:
+        - |
+          p <- ggplot(tile, aes(x = col, y = row)) +
+            geom_tile() +
+            coord_fixed()
+          p
+        - |
+          p <- ggplot(tile, aes(x = col, y = row)) +
+            geom_tile() +
+            scale_y_reverse()
+          p
+        - |
+          p <- ggplot(tile, aes(x = row, y = col)) +
+            geom_tile() +
+            scale_y_reverse() +
+            coord_fixed()
+          p
+  - id: b
+    type: write
+    prompt: |
+      タイル地図を2025年度の最低賃金で塗ります。
+      1. mw を2025年度（fiscal_year == 2025）の行に絞り、tile に pref_code で左結合（left_join）した表を map25 に代入する（47行）
+      2. map25 で a と同じタイル地図を描き、塗り（fill）に min_wage を対応づけ、scale_fill_viridis_c() で色を付けて p に代入し、最後に p を表示する
+    starter: |
+      map25 <-
+
+      p <- ggplot(map25, aes(x = col, y = row, fill = min_wage)) +
+
+      p
+    solution: |
+      map25 <- left_join(tile, filter(mw, fiscal_year == 2025), by = "pref_code")
+
+      p <- ggplot(map25, aes(x = col, y = row, fill = min_wage)) +
+        geom_tile(colour = "white") +
+        geom_text(aes(label = short), size = 3, colour = "white") +
+        scale_fill_viridis_c() +
+        scale_y_reverse() +
+        coord_fixed()
+      p
+    check: |
+      expect_object("map25", class = "data.frame")
+      expect_nrow(map25, 47)
+      expect_cols(map25, c("pref_code", "row", "col", "fiscal_year", "min_wage"))
+      expect_df_equal(select(map25, pref_code, fiscal_year, min_wage),
+                      select(.sol$map25, pref_code, fiscal_year, min_wage), ignore_row_order = TRUE)
+      expect_ggplot(geom = "tile", x = "col", y = "row", fill = "min_wage")
+      check_that(nrow(.plot$data) == 47 && all(.plot$data$fiscal_year == 2025),
+                 "図のデータが2025年度の47県になっていません。ggplot() には map25 を渡しましょう。")
+      expect_uses("scale_fill_viridis_c")
+      check_that(isTRUE(tryCatch(.plot$scales$get_scales("y")$trans$name == "reverse",
+                                 error = function(e) FALSE)),
+                 "縦軸が反転していません。a と同じように scale_y_reverse() を足しましょう。")
+      check_that(!is.null(.plot$coordinates$ratio),
+                 "coord_fixed() を足して、マスを正方形にしましょう。")
+    hints:
+      - 「2025年度に絞る → 位置表に結合する」で表を作り、a の図の aes() に fill = min_wage を足して、色の付け方を指定します。
+      - left_join(tile, filter(mw, fiscal_year == 2025), by = "pref_code") で47行の表になります。色は + scale_fill_viridis_c() で付けます。
+      - "map25 <- left_join(tile, filter(mw, fiscal_year == 2025), by = \"pref_code\") の後に p <- ggplot(map25, aes(x = col, y = row, fill = min_wage)) + geom_tile(colour = \"white\") + scale_fill_viridis_c() + scale_y_reverse() + coord_fixed()"
+    tests:
+      fail:
+        - |
+          map25 <- left_join(tile, filter(mw, fiscal_year == 2024), by = "pref_code")
+          p <- ggplot(map25, aes(x = col, y = row, fill = min_wage)) +
+            geom_tile() + scale_fill_viridis_c() + scale_y_reverse() + coord_fixed()
+          p
+        - |
+          map25 <- left_join(tile, filter(mw, fiscal_year == 2025), by = "pref_code")
+          p <- ggplot(map25, aes(x = col, y = row, fill = min_wage)) +
+            geom_tile() + scale_y_reverse() + coord_fixed()
+          p
+        - |
+          map25 <- left_join(tile, filter(mw, fiscal_year == 2025), by = "pref_code")
+          p <- ggplot(map25, aes(x = col, y = row, fill = pref_code)) +
+            geom_tile() + scale_fill_viridis_c() + scale_y_reverse() + coord_fixed()
+          p
+  - id: c
+    type: write
+    prompt: |
+      2005年度と2025年度の地図を並べて、地域差の形が20年でどう変わったかを見ます。
+      最低賃金の額そのものは20年で全国的に上がったので、同じ色の物差しで塗ると「2005年度は全部暗く、2025年度は全部明るい」図になってしまいます。そこで各年度の中で、47県の平均との差で塗ります。
+      1. mw を2005年度と2025年度の行に絞り、年度ごと（group_by(fiscal_year)）に、その年度の47県平均との差 gap = min_wage - mean(min_wage) を mutate() で作る
+      2. それを tile に pref_code で左結合した表を map_gap に代入する（47県×2年度＝94行）
+      3. fill に gap を対応づけたタイル地図を facet_wrap(~ fiscal_year) で年度ごとに並べて p に代入し、最後に p を表示する（色は scale_fill_viridis_c()）
+    starter: |
+      gap <- mw |>
+
+      map_gap <-
+
+      p <-
+
+      p
+    solution: |
+      gap <- mw |>
+        filter(fiscal_year == 2005 | fiscal_year == 2025) |>
+        group_by(fiscal_year) |>
+        mutate(gap = min_wage - mean(min_wage))
+
+      map_gap <- left_join(tile, gap, by = "pref_code")
+
+      p <- ggplot(map_gap, aes(x = col, y = row, fill = gap)) +
+        geom_tile(colour = "white") +
+        scale_fill_viridis_c() +
+        scale_y_reverse() +
+        coord_fixed() +
+        facet_wrap(~ fiscal_year)
+      p
+    check: |
+      expect_object("map_gap", class = "data.frame")
+      expect_nrow(map_gap, 94)
+      expect_cols(map_gap, c("pref_code", "row", "col", "fiscal_year", "min_wage", "gap"))
+      expect_df_equal(select(map_gap, pref_code, fiscal_year, gap),
+                      select(.sol$map_gap, pref_code, fiscal_year, gap), ignore_row_order = TRUE)
+      expect_ggplot(geom = "tile", x = "col", y = "row", fill = "gap", facet = "fiscal_year")
+      check_that(nrow(.plot$data) == 94,
+                 "図のデータが94行（47県×2年度）になっていません。ggplot() には map_gap を渡しましょう。")
+      check_that(isTRUE(tryCatch(.plot$scales$get_scales("y")$trans$name == "reverse",
+                                 error = function(e) FALSE)),
+                 "縦軸が反転していません。scale_y_reverse() を足しましょう。")
+    hints:
+      - 「2年度に絞る → 年度ごとにまとめる → 平均との差の列を作る」で gap を作り、位置表に結合してから、b の図に facet_wrap() を足します。
+      - "2つの年度に絞るのは filter(fiscal_year == 2005 | fiscal_year == 2025)。group_by(fiscal_year) の後の mutate() では、mean(min_wage) がその年度の47県の平均になります。年度で分けて並べるのは + facet_wrap(~ fiscal_year) です。"
+      - "gap <- mw |> filter(fiscal_year == 2005 | fiscal_year == 2025) |> group_by(fiscal_year) |> mutate(gap = min_wage - mean(min_wage)) の後に map_gap <- left_join(tile, gap, by = \"pref_code\")、図は b の fill を gap にして + facet_wrap(~ fiscal_year)"
+    tests:
+      fail:
+        - |
+          gap <- mw |>
+            filter(fiscal_year == 2005 | fiscal_year == 2025) |>
+            mutate(gap = min_wage - mean(min_wage))
+          map_gap <- left_join(tile, gap, by = "pref_code")
+          p <- ggplot(map_gap, aes(x = col, y = row, fill = gap)) +
+            geom_tile() + scale_fill_viridis_c() + scale_y_reverse() + coord_fixed() +
+            facet_wrap(~ fiscal_year)
+          p
+        - |
+          gap <- mw |>
+            filter(fiscal_year == 2005 | fiscal_year == 2025) |>
+            group_by(fiscal_year) |>
+            mutate(gap = min_wage - mean(min_wage))
+          map_gap <- left_join(tile, gap, by = "pref_code")
+          p <- ggplot(map_gap, aes(x = col, y = row, fill = gap)) +
+            geom_tile() + scale_fill_viridis_c() + scale_y_reverse() + coord_fixed()
+          p
+        - |
+          gap <- mw |>
+            filter(fiscal_year == 2005 | fiscal_year == 2025) |>
+            group_by(fiscal_year) |>
+            mutate(gap = min_wage - mean(min_wage))
+          map_gap <- left_join(tile, gap, by = "pref_code")
+          p <- ggplot(map_gap, aes(x = col, y = row, fill = min_wage)) +
+            geom_tile() + scale_fill_viridis_c() + scale_y_reverse() + coord_fixed() +
+            facet_wrap(~ fiscal_year)
+          p
+  - id: d
+    type: interpret
+    prompt: |
+      b と c の地図と、2005年度・2025年度の最低賃金を比べた結果について、正しい説明はどれですか。
+    choices:
+      - "2005年度から2025年度にかけて、どの県も同じ額だけ引き上げられたので、最高額と最低額の差は変わっていない"
+      - "引上げ額は地方の県ほど大きく、2025年度には最高額と最低額の差が2005年度より縮まった"
+      - "引上げ額は東京・神奈川・大阪など大都市圏で大きく、最高額と最低額の差（円）は2005年度の106円から2025年度の203円へ広がった"
+      - "2025年度は47県のうち半数以上が、47県平均より高い最低賃金になっている"
+    answer: 2
+    explain: "2005年度から2025年度への引上げ額は、神奈川県513円、東京都512円、大阪府469円が大きく、最も小さい岐阜県は394円でした。最高額（2005年度・2025年度とも東京都）と最低額の差は106円から203円へ広がっています。ただし比で見ると、最高額は最低額の1.17倍（2005年度）から1.20倍（2025年度）で、差ほどは広がっていません。引上げ「率」はむしろ2005年度に低かった県のほうがやや高めです。また2025年度に47県平均（約1,067円）を上回るのは15都道府県だけで、少数の大都市圏が平均を引き上げています（c の地図で明るいマスが関東・東海・近畿に集まる形）。"
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第24ステップの復習】panel（都道府県×2019〜2025年のパネル）を2025年の行に絞って p25 に代入し、最低賃金 min_wage と平均時給 avg_wage の相関係数を cor() で求めて cor_2025 に代入し、最後に cor_2025 を表示してください。
+    starter: |
+      p25 <-
+      cor_2025 <-
+      cor_2025
+    solution: |
+      p25 <- filter(panel, year == 2025)
+      cor_2025 <- cor(p25$min_wage, p25$avg_wage)
+      cor_2025
+    check: |
+      expect_object("p25", class = "data.frame")
+      expect_nrow(p25, 47)
+      expect_object("cor_2025", class = "numeric")
+      expect_value(cor_2025, .sol$cor_2025)
+    hints:
+      - 「2025年に絞る → 2つの列の相関係数を求める」の2段です。
+      - filter(panel, year == 2025) で絞り、cor(x, y) に2つの列（p25$min_wage と p25$avg_wage）を渡します。
+      - "p25 <- filter(panel, year == 2025) の後に cor_2025 <- cor(p25$min_wage, p25$avg_wage)"
+    tests:
+      fail:
+        - |
+          p25 <- filter(panel, year == 2024)
+          cor_2025 <- cor(p25$min_wage, p25$avg_wage)
+          cor_2025
+        - |
+          p25 <- filter(panel, year == 2025)
+          cor_2025 <- cor(p25$min_wage, p25$kaitz)
+          cor_2025

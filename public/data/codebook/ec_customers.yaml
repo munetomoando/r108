@@ -1,0 +1,28 @@
+title: そらまめマーケット 顧客マスタ
+file: ec_customers.csv
+source: 合成データ（data-raw/synth_ec.R、乱数シード108）。架空の企業「そらまめマーケット」のネット通販（オンラインストア）の顧客
+rows: 5000
+unit_of_observation: 顧客
+notes: 年齢（30〜40代が多く買う）と流入経路（紹介経由が多く、広告経由は少なく買い離脱しやすい）で購買頻度が違う。2025年6月から10県（4, 8, 9, 10, 22, 26, 28, 34, 40, 43）で広告キャンペーンを実施
+columns:
+  - name: customer_id
+    description: 顧客ID（C00001〜C05000、登録日の順）
+    unit: なし
+  - name: signup_date
+    description: 会員登録日（2022-01-01〜2025-06-30。約3割は2024年より前からの既存顧客）
+    unit: 日付
+  - name: age
+    description: 年齢
+    unit: 歳
+  - name: gender
+    description: 性別（女性・男性・無回答）
+    unit: なし
+  - name: pref_code
+    description: 居住する都道府県のコード（1〜47。pref_basic.csv と結合できる）
+    unit: なし（整数）
+  - name: channel
+    description: 流入経路（検索・SNS・広告・紹介）
+    unit: なし
+  - name: rank
+    description: 会員ランク（ブロンズ・シルバー・ゴールド）
+    unit: なし

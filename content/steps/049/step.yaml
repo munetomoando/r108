@@ -1,0 +1,264 @@
+id: "049"
+part: 6
+title: 論文用の図表を仕上げる
+question: 論文にそのまま載せられる表と図にするには、何を整えればよいか
+minutes: 45
+mode: browser
+packages: [dplyr, ggplot2, modelsummary, sandwich, wooldridge]
+learn: [datasummary_skim]
+allow: [N, Mean, SD, Min, Max]
+review_of: "048"
+setup: |
+  library(dplyr); library(ggplot2); library(modelsummary)
+  # Mroz (1987) の既婚女性753人のデータ（1975年。wooldridge パッケージ）
+  data("mroz", package = "wooldridge")
+  # 第48ステップの線形確率モデルとロジット
+  lpm <- lm(inlf ~ nwifeinc + educ + exper + I(exper^2) + age + kidslt6 + kidsge6, data = mroz)
+  logit <- glm(inlf ~ nwifeinc + educ + exper + I(exper^2) + age + kidslt6 + kidsge6,
+               data = mroz, family = binomial)
+  # 図の保存先（このアプリの作業用フォルダにある png ファイル。名前は自動で付く）
+  out_png <- tempfile("mroz_fig_", fileext = ".png")
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      論文の「表1 記述統計」を作ります。starter の select() で、表に載せる変数を選んで日本語の名前に変えてあります。
+      これを datasummary_skim() に渡し、次の3つの引数を付けた表を tab_desc に代入して、tab_desc を表示してください。
+      - output = "markdown" … 画面に文字の表として出す
+      - fmt = 2 … 小数第2位まで表示する
+      - fun_numeric = list(観測数 = N, 平均 = Mean, 標準偏差 = SD, 最小 = Min, 最大 = Max) … 列を、この5つの統計量（日本語の見出し）にする
+    starter: |
+      tab_desc <- mroz |>
+        select(労働参加 = inlf, 労働時間 = hours, 時給 = wage, 教育年数 = educ,
+               経験年数 = exper, 年齢 = age, 子ども6歳未満 = kidslt6,
+               子ども6から18歳 = kidsge6, 妻以外の世帯所得 = nwifeinc) |>
+        datasummary_skim()
+      tab_desc
+    solution: |
+      tab_desc <- mroz |>
+        select(労働参加 = inlf, 労働時間 = hours, 時給 = wage, 教育年数 = educ,
+               経験年数 = exper, 年齢 = age, 子ども6歳未満 = kidslt6,
+               子ども6から18歳 = kidsge6, 妻以外の世帯所得 = nwifeinc) |>
+        datasummary_skim(output = "markdown", fmt = 2,
+                         fun_numeric = list(観測数 = N, 平均 = Mean, 標準偏差 = SD,
+                                            最小 = Min, 最大 = Max))
+      tab_desc
+    check: |
+      expect_uses("datasummary_skim")
+      expect_object("tab_desc")
+      check_that(inherits(.value, "tinytable"),
+                 "表が表示されていません。最後の行に tab_desc と書きましょう。")
+      check_that(identical(names(.value@data), names(.sol_value@data)),
+                 "表の列見出しが違います。fun_numeric = list(観測数 = N, 平均 = Mean, 標準偏差 = SD, 最小 = Min, 最大 = Max) を付けましょう。")
+      check_that(nrow(.value@data) == nrow(.sol_value@data),
+                 "表の行の数が違います。starter の select() はそのまま使いましょう。")
+      check_that(isTRUE(all(.value@data[["平均"]] == .sol_value@data[["平均"]])),
+                 "平均の桁数が違います。fmt = 2 を付けましょう。")
+      expect_df_equal(.value@data, .sol_value@data)
+    hints:
+      - datasummary_skim() はデータフレームを受け取り、各列の要約統計量を1行ずつ並べた表を作ります。引数は modelsummary() と同じく output と fmt です。
+      - fun_numeric には「見出し = 関数」のリストを渡します。N（観測数）、Mean、SD、Min、Max は modelsummary パッケージの関数で、欠損値（NA）を自動で除いて計算します。
+      - |
+        tab_desc <- mroz |>
+          select(労働参加 = inlf, 労働時間 = hours, 時給 = wage, 教育年数 = educ,
+                 経験年数 = exper, 年齢 = age, 子ども6歳未満 = kidslt6,
+                 子ども6から18歳 = kidsge6, 妻以外の世帯所得 = nwifeinc) |>
+          datasummary_skim(output = "markdown", fmt = 2,
+                           fun_numeric = list(観測数 = N, 平均 = Mean, 標準偏差 = SD,
+                                              最小 = Min, 最大 = Max))
+        tab_desc
+    tests:
+      fail:
+        - |
+          tab_desc <- mroz |>
+            select(労働参加 = inlf, 労働時間 = hours, 時給 = wage, 教育年数 = educ,
+                   経験年数 = exper, 年齢 = age, 子ども6歳未満 = kidslt6,
+                   子ども6から18歳 = kidsge6, 妻以外の世帯所得 = nwifeinc) |>
+            datasummary_skim(output = "markdown",
+                             fun_numeric = list(観測数 = N, 平均 = Mean, 標準偏差 = SD,
+                                                最小 = Min, 最大 = Max))
+          tab_desc
+        - |
+          tab_desc <- mroz |>
+            select(労働参加 = inlf, 労働時間 = hours, 時給 = wage, 教育年数 = educ,
+                   経験年数 = exper, 年齢 = age, 子ども6歳未満 = kidslt6,
+                   子ども6から18歳 = kidsge6, 妻以外の世帯所得 = nwifeinc) |>
+            datasummary_skim(output = "markdown", fmt = 2,
+                             fun_numeric = list(平均 = Mean, 標準偏差 = SD))
+          tab_desc
+  - id: b
+    type: write
+    prompt: |
+      第48ステップの線形確率モデル lpm とロジット logit（setup で推定済み）を、論文用の回帰表にします。starter の modelsummary() には、モデルのリスト、output、係数名の日本語化（coef_rename）が書いてあります。次の5つの引数を加えて tab_reg に代入し、tab_reg を表示してください。
+      - vcov = "HC1" … 括弧内を不均一分散に頑健な標準誤差にする
+      - fmt = 4 … 小数第4位まで表示する
+      - stars = TRUE … 有意水準を示す星印（*）を付ける
+      - gof_map = c("nobs", "r.squared") … 表の下の行を観測数と決定係数だけにする
+      - notes = "括弧内は不均一分散に頑健な標準誤差（HC1）。データは Mroz (1987)。" … 注記
+    starter: |
+      tab_reg <- modelsummary(list("線形確率モデル" = lpm, "ロジット" = logit),
+        output = "markdown",
+        coef_rename = c("(Intercept)" = "定数項", nwifeinc = "妻以外の世帯所得",
+                        educ = "教育年数", exper = "経験年数", "I(exper^2)" = "経験年数の2乗",
+                        age = "年齢", kidslt6 = "6歳未満の子どもの数",
+                        kidsge6 = "6〜18歳の子どもの数"),
+        )
+      tab_reg
+    solution: |
+      tab_reg <- modelsummary(list("線形確率モデル" = lpm, "ロジット" = logit),
+        output = "markdown",
+        coef_rename = c("(Intercept)" = "定数項", nwifeinc = "妻以外の世帯所得",
+                        educ = "教育年数", exper = "経験年数", "I(exper^2)" = "経験年数の2乗",
+                        age = "年齢", kidslt6 = "6歳未満の子どもの数",
+                        kidsge6 = "6〜18歳の子どもの数"),
+        vcov = "HC1", fmt = 4, stars = TRUE,
+        gof_map = c("nobs", "r.squared"),
+        notes = "括弧内は不均一分散に頑健な標準誤差（HC1）。データは Mroz (1987)。")
+      tab_reg
+    check: |
+      expect_uses("modelsummary")
+      expect_object("tab_reg")
+      check_that(inherits(.value, "tinytable"),
+                 "表が表示されていません。最後の行に tab_reg と書きましょう。")
+      check_that(nrow(.value@data) == nrow(.sol_value@data),
+                 "表の行の数が違います。gof_map = c(\"nobs\", \"r.squared\") で、表の下の行を観測数と決定係数だけにしましょう。")
+      check_that(any(grepl("*", .value@data[[2]], fixed = TRUE)),
+                 "係数に星印がありません。stars = TRUE を付けましょう。")
+      check_that(isTRUE(all(.value@data[[3]] == .sol_value@data[[3]])),
+                 "ロジットの列の数値が違います。vcov = \"HC1\" と fmt = 4 を確認しましょう。")
+      expect_df_equal(.value@data, .sol_value@data)
+      note <- paste(unlist(.value@notes), collapse = "")
+      check_that(grepl("頑健", note) && grepl("Mroz", note),
+                 "注記がないか、内容が足りません。notes = \"括弧内は不均一分散に頑健な標準誤差（HC1）。データは Mroz (1987)。\" を付けましょう。")
+    hints:
+      - 第44ステップの回帰表と同じ引数です。新しいのは、有意水準の星印を付ける stars = TRUE だけです。
+      - 引数は vcov = "HC1", fmt = 4, stars = TRUE, gof_map = c("nobs", "r.squared"), notes = "…" の5つで、カンマで区切って coef_rename の後に並べます。
+      - |
+        tab_reg <- modelsummary(list("線形確率モデル" = lpm, "ロジット" = logit),
+          output = "markdown",
+          coef_rename = c("(Intercept)" = "定数項", nwifeinc = "妻以外の世帯所得",
+                          educ = "教育年数", exper = "経験年数", "I(exper^2)" = "経験年数の2乗",
+                          age = "年齢", kidslt6 = "6歳未満の子どもの数",
+                          kidsge6 = "6〜18歳の子どもの数"),
+          vcov = "HC1", fmt = 4, stars = TRUE,
+          gof_map = c("nobs", "r.squared"),
+          notes = "括弧内は不均一分散に頑健な標準誤差（HC1）。データは Mroz (1987)。")
+        tab_reg
+    tests:
+      fail:
+        - |
+          tab_reg <- modelsummary(list("線形確率モデル" = lpm, "ロジット" = logit),
+            output = "markdown",
+            coef_rename = c("(Intercept)" = "定数項", nwifeinc = "妻以外の世帯所得",
+                            educ = "教育年数", exper = "経験年数", "I(exper^2)" = "経験年数の2乗",
+                            age = "年齢", kidslt6 = "6歳未満の子どもの数",
+                            kidsge6 = "6〜18歳の子どもの数"),
+            fmt = 4, stars = TRUE,
+            gof_map = c("nobs", "r.squared"),
+            notes = "括弧内は不均一分散に頑健な標準誤差（HC1）。データは Mroz (1987)。")
+          tab_reg
+        - |
+          tab_reg <- modelsummary(list("線形確率モデル" = lpm, "ロジット" = logit),
+            output = "markdown",
+            coef_rename = c("(Intercept)" = "定数項", nwifeinc = "妻以外の世帯所得",
+                            educ = "教育年数", exper = "経験年数", "I(exper^2)" = "経験年数の2乗",
+                            age = "年齢", kidslt6 = "6歳未満の子どもの数",
+                            kidsge6 = "6〜18歳の子どもの数"),
+            vcov = "HC1", fmt = 4,
+            gof_map = c("nobs", "r.squared"),
+            notes = "括弧内は不均一分散に頑健な標準誤差（HC1）。データは Mroz (1987)。")
+          tab_reg
+        - |
+          tab_reg <- modelsummary(list("線形確率モデル" = lpm, "ロジット" = logit),
+            output = "markdown",
+            coef_rename = c("(Intercept)" = "定数項", nwifeinc = "妻以外の世帯所得",
+                            educ = "教育年数", exper = "経験年数", "I(exper^2)" = "経験年数の2乗",
+                            age = "年齢", kidslt6 = "6歳未満の子どもの数",
+                            kidsge6 = "6〜18歳の子どもの数"),
+            vcov = "HC1", fmt = 4, stars = TRUE,
+            gof_map = c("nobs", "r.squared"))
+          tab_reg
+  - id: c
+    type: write
+    prompt: |
+      6歳未満の子どもの数ごとの労働参加率の棒グラフ p（starter で作ってあります）を、論文に貼るサイズで保存します。
+      ggsave() で p を out_png に、幅 16・高さ 10、単位 units = "cm"、解像度 dpi = 300 で保存し、続けて file.exists(out_png) を表示してください。
+    starter: |
+      rate <- mroz |>
+        group_by(kidslt6) |>
+        summarise(参加率 = mean(inlf))
+      p <- ggplot(rate, aes(x = factor(kidslt6), y = 参加率)) +
+        geom_col() +
+        labs(x = "6歳未満の子どもの数", y = "労働参加率") +
+        theme_minimal()
+      ggsave()
+      file.exists(out_png)
+    solution: |
+      rate <- mroz |>
+        group_by(kidslt6) |>
+        summarise(参加率 = mean(inlf))
+      p <- ggplot(rate, aes(x = factor(kidslt6), y = 参加率)) +
+        geom_col() +
+        labs(x = "6歳未満の子どもの数", y = "労働参加率") +
+        theme_minimal()
+      ggsave(out_png, plot = p, width = 16, height = 10, units = "cm", dpi = 300)
+      file.exists(out_png)
+    check: |
+      expect_uses("ggsave")
+      check_that(file.exists(out_png),
+                 "out_png に画像が保存されていません。ggsave() の最初の引数（保存先）に、引用符を付けずに out_png と書きましょう。")
+      png_size <- function(f) {
+        con <- file(f, "rb"); on.exit(close(con))
+        b <- as.integer(readBin(con, "raw", 24))
+        c(sum(b[17:20] * 256^(3:0)), sum(b[21:24] * 256^(3:0)))
+      }
+      have <- png_size(out_png); want <- png_size(.sol$out_png)
+      check_that(isTRUE(all(have == want)),
+                 paste0("画像の大きさが違います（いま ", have[1], "×", have[2], " ピクセル、正しくは ", want[1], "×", want[2],
+                        " ピクセル）。width = 16, height = 10, units = \"cm\", dpi = 300 を確認しましょう。"))
+      expect_value(.value, TRUE, label = "表示した file.exists(out_png)")
+    hints:
+      - 第27ステップの ggsave() に、長さの単位を指定する units を加えます。単位を書かないとインチ（1インチ = 2.54cm）として扱われます。
+      - ggsave(保存先, plot = 図, width = 幅, height = 高さ, units = "cm", dpi = 解像度) の形です。保存先は out_png、図は p です。
+      - |
+        ggsave(out_png, plot = p, width = 16, height = 10, units = "cm", dpi = 300)
+        file.exists(out_png)
+    tests:
+      fail:
+        - |
+          ggsave(out_png, plot = p, width = 16, height = 10, dpi = 300)
+          file.exists(out_png)
+        - |
+          ggsave(out_png, plot = p, width = 16, height = 10, units = "cm", dpi = 72)
+          file.exists(out_png)
+  - id: d
+    type: write
+    review: true
+    prompt: |
+      【第48ステップの復習】inlf を kidslt6、educ、age の3つで説明するロジットモデルを glm() で推定して logit2 に代入し、coef(logit2) を表示してください（data は mroz）。
+    starter: |
+      logit2 <-
+      coef(logit2)
+    solution: |
+      logit2 <- glm(inlf ~ kidslt6 + educ + age, data = mroz, family = binomial)
+      coef(logit2)
+    check: |
+      expect_object("logit2", class = "glm")
+      check_that(identical(logit2$family$family, "binomial"),
+                 "family = binomial を付けましょう。")
+      expect_model(logit2, like = .sol$logit2)
+      expect_value(.value, .sol_value, label = "表示した coef(logit2)")
+    hints:
+      - ロジットは glm() に family = binomial を付けて推定します。式の書き方は lm() と同じです。
+      - 式は inlf ~ kidslt6 + educ + age です。
+      - |
+        logit2 <- glm(inlf ~ kidslt6 + educ + age, data = mroz, family = binomial)
+        coef(logit2)
+    tests:
+      fail:
+        - |
+          logit2 <- lm(inlf ~ kidslt6 + educ + age, data = mroz)
+          coef(logit2)
+        - |
+          logit2 <- glm(inlf ~ kidslt6 + educ, data = mroz, family = binomial)
+          coef(logit2)

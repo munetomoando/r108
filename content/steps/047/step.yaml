@@ -1,0 +1,158 @@
+id: "047"
+part: 6
+title: 先行研究を再現する（1）
+question: Mroz（1987）の記述統計表を再現できるか
+minutes: 40
+mode: browser
+packages: [dplyr, tidyr, wooldridge]
+learn: []
+review_of: "046"
+setup: |
+  library(dplyr); library(tidyr)
+  # Mroz (1987) の既婚女性753人のデータ（1975年。wooldridge パッケージ）
+  data("mroz", package = "wooldridge")
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      mroz の時給 wage は、働いていた女性にしか記録がありません（働いていない女性は NA）。
+      そこで、労働参加ダミー inlf が 1 の女性だけに絞ったデータを filter() で作って workers に代入し、nrow(workers) で人数を表示してください。
+    starter: |
+      workers <- mroz |>
+      nrow(workers)
+    solution: |
+      workers <- mroz |> filter(inlf == 1)
+      nrow(workers)
+    check: |
+      expect_object("workers", class = "data.frame")
+      check_that(all(workers$inlf == 1),
+                 "workers に働いていない女性（inlf が 0）が残っています。filter(inlf == 1) で絞りましょう。")
+      expect_df_equal(workers, .sol$workers)
+      expect_value(.value, .sol_value, label = "表示した人数")
+    hints:
+      - 第4ステップの filter() で、条件に合う行だけを残します。労働参加していれば inlf は 1 です。
+      - 条件は inlf == 1 です（= を2つ）。mroz |> filter(条件) の形にします。
+      - |
+        workers <- mroz |> filter(inlf == 1)
+        nrow(workers)
+    tests:
+      fail:
+        - |
+          workers <- mroz |> filter(inlf == 0)
+          nrow(workers)
+        - |
+          workers <- mroz |> filter(hours > 1000)
+          nrow(workers)
+  - id: b
+    type: write
+    prompt: |
+      論文の記述統計表のように、1行に1つの変数、列に平均と標準偏差を並べた表を作ります。
+      workers の hours（労働時間）、wage（時給）、educ（教育年数）、exper（就業経験年数）、age（年齢）、kidslt6（6歳未満の子どもの数）、kidsge6（6〜18歳の子どもの数）の7つを、
+      pivot_longer() で縦長にし（names_to = "変数"、values_to = "値"）、変数ごとに 平均 = mean(値)、標準偏差 = sd(値) を集計して desc に代入し、desc を表示してください。
+    starter: |
+      desc <- workers |>
+        pivot_longer(c(hours, wage, educ, exper, age, kidslt6, kidsge6),
+                     names_to = "変数", values_to = "値") |>
+        group_by() |>
+        summarise()
+      desc
+    solution: |
+      desc <- workers |>
+        pivot_longer(c(hours, wage, educ, exper, age, kidslt6, kidsge6),
+                     names_to = "変数", values_to = "値") |>
+        group_by(変数) |>
+        summarise(平均 = mean(値), 標準偏差 = sd(値))
+      desc
+    check: |
+      expect_object("desc", class = "data.frame")
+      expect_cols(desc, c("変数", "平均", "標準偏差"))
+      check_that(nrow(desc) == 7, "desc は7行（7つの変数）にしましょう。group_by(変数) で変数ごとに集計します。")
+      check_that(!anyNA(desc$平均), "平均に NA があります。workers（働いている女性）で集計しましょう。mroz のままだと wage が NA になります。")
+      expect_df_equal(desc, .sol$desc, ignore_row_order = TRUE)
+    hints:
+      - 第13ステップの pivot_longer() で縦長にすると、変数の名前が「変数」列に、値が「値」列に入ります。あとは第6ステップの group_by() と summarise() です。
+      - group_by(変数) で変数ごとに分け、summarise(平均 = mean(値), 標準偏差 = sd(値)) で2つの列を作ります。
+      - |
+        desc <- workers |>
+          pivot_longer(c(hours, wage, educ, exper, age, kidslt6, kidsge6),
+                       names_to = "変数", values_to = "値") |>
+          group_by(変数) |>
+          summarise(平均 = mean(値), 標準偏差 = sd(値))
+        desc
+    tests:
+      fail:
+        - |
+          desc <- mroz |>
+            pivot_longer(c(hours, wage, educ, exper, age, kidslt6, kidsge6),
+                         names_to = "変数", values_to = "値") |>
+            group_by(変数) |>
+            summarise(平均 = mean(値, na.rm = TRUE), 標準偏差 = sd(値, na.rm = TRUE))
+          desc
+        - |
+          desc <- workers |>
+            pivot_longer(c(hours, wage, educ, exper, age, kidslt6, kidsge6),
+                         names_to = "変数", values_to = "値") |>
+            group_by(変数) |>
+            summarise(平均 = mean(値), 標準偏差 = var(値))
+          desc
+  - id: c
+    type: write
+    prompt: |
+      再現できたかを、論文に書かれている値と照合します。Mroz (1987) の標本は既婚女性753人で、そのうち1975年に働いていたのは428人です。
+      tibble() で、項目 = c("標本の人数", "就業者の人数")、論文 = c(753, 428)、再現 = c(nrow(mroz), nrow(workers)) の3列の表を作り、
+      mutate() で 差 = 再現 - 論文 の列を加えて compare に代入し、compare を表示してください。
+    starter: |
+      compare <- tibble(項目 = c("標本の人数", "就業者の人数"),
+                        論文 = c(753, 428),
+                        再現 = ) |>
+        mutate()
+      compare
+    solution: |
+      compare <- tibble(項目 = c("標本の人数", "就業者の人数"),
+                        論文 = c(753, 428),
+                        再現 = c(nrow(mroz), nrow(workers))) |>
+        mutate(差 = 再現 - 論文)
+      compare
+    check: |
+      expect_object("compare", class = "data.frame")
+      expect_cols(compare, c("項目", "論文", "再現", "差"))
+      check_that(isTRUE(all(compare$論文 == .sol$compare$論文)),
+                 "論文の列は c(753, 428) にしましょう。")
+      check_that(isTRUE(all(compare$再現 == .sol$compare$再現)),
+                 "再現の列は、nrow(mroz) と nrow(workers) で手元のデータから数えましょう。")
+      expect_df_equal(compare, .sol$compare)
+      expect_value(.value$差, .sol_value$差, label = "表示した差")
+    hints:
+      - tibble() は「列名 = 値のベクトル」を並べて表を作ります（第30ステップ）。再現の列には、数字を直接書かずに nrow() で数えた結果を入れます。
+      - 再現 = c(nrow(mroz), nrow(workers)) です。差の列は mutate(差 = 再現 - 論文) で加えます。
+      - |
+        compare <- tibble(項目 = c("標本の人数", "就業者の人数"),
+                          論文 = c(753, 428),
+                          再現 = c(nrow(mroz), nrow(workers))) |>
+          mutate(差 = 再現 - 論文)
+        compare
+    tests:
+      fail:
+        - |
+          compare <- tibble(項目 = c("標本の人数", "就業者の人数"),
+                            論文 = c(753, 428),
+                            再現 = c(nrow(mroz), nrow(mroz))) |>
+            mutate(差 = 再現 - 論文)
+          compare
+        - |
+          compare <- tibble(項目 = c("標本の人数", "就業者の人数"),
+                            論文 = c(753, 428),
+                            再現 = c(nrow(mroz), nrow(workers)))
+          compare
+  - id: d
+    type: interpret
+    review: true
+    prompt: |
+      【第46ステップの復習】a〜c で使った mroz（1行が既婚女性1人）で答えられる問いと、その類型の組み合わせとして正しいものはどれですか。
+    choices:
+      - "「6歳未満の子どもがいる女性の労働参加率は何%か」…記述"
+      - "「6歳未満の子どもがいる女性の労働参加率は何%か」…因果"
+      - "「1975年の米国の州ごとの平均時給はいくらか」…記述"
+      - "「来年、この女性たちのうち何人が働くか」…記述"
+    answer: 0
+    explain: 労働参加率は、子どもがいる女性のうち inlf が 1 の人の割合で、mroz から集計できる記述の問いです。これを「子どもが生まれると働かなくなるか」と言いかえると因果の問いになり、他の条件をそろえた比較が必要になります（第48ステップ）。mroz には住んでいる州の列がないので、州ごとの平均は出せません。来年の人数は、まだ観察していない値を当てる予測の問いです。

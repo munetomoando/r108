@@ -1,0 +1,188 @@
+id: "066"
+part: 8
+title: 差の差分析
+question: 最低賃金の特別引上げは若年雇用を減らしたか
+minutes: 55
+mode: browser
+packages: [readr, dplyr, fixest]
+data: [minwage_panel.csv]
+learn: [coeftable]
+review_of: "065"
+setup: |
+  library(readr); library(dplyr); library(fixest)
+  # 47県×2012〜2024年の架空のパネル。12県で2019年から最低賃金の「特別引上げ」（架空の政策）
+  mw <- read_csv("data/minwage_panel.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      2×2 の表を作り、4つの平均から差の差を手で計算します。
+      1. mw を treated と post でグループに分け、youth = mean(youth_emp_rate) を summarise(..., .groups = "drop") で集計して did_tab に代入し、did_tab を表示する（行は treated = 0・post = 0、0・1、1・0、1・1 の順に並びます）
+      2. 「処置群の前後の差」から「対照群の前後の差」を引いた値 (did_tab$youth[4] - did_tab$youth[3]) - (did_tab$youth[2] - did_tab$youth[1]) を did_hand に代入し、did_hand を表示する
+    starter: |
+      did_tab <- mw |>
+
+      did_tab
+      did_hand <-
+      did_hand
+    solution: |
+      did_tab <- mw |>
+        group_by(treated, post) |>
+        summarise(youth = mean(youth_emp_rate), .groups = "drop")
+      did_tab
+      did_hand <- (did_tab$youth[4] - did_tab$youth[3]) - (did_tab$youth[2] - did_tab$youth[1])
+      did_hand
+    check: |
+      expect_object("did_tab", class = "data.frame")
+      expect_cols(did_tab, c("treated", "post", "youth"))
+      expect_nrow(did_tab, 4)
+      expect_df_equal(did_tab, .sol$did_tab)
+      expect_object("did_hand", class = "numeric")
+      check_that(length(did_hand) == 1, "did_hand は1つの数にしましょう。")
+      expect_value(did_hand, .sol$did_hand, label = "did_hand")
+      expect_value(.value, .sol_value, label = "表示した did_hand")
+    hints:
+      - 4つの平均は、対照群の前・後、処置群の前・後です。処置群の変化から対照群の変化を引くと、全県に共通する変化が消えます。
+      - group_by(treated, post) |> summarise(youth = mean(youth_emp_rate), .groups = "drop") です。did_tab$youth[4] が処置群・事後、[3] が処置群・事前です。
+      - |
+        did_tab <- mw |>
+          group_by(treated, post) |>
+          summarise(youth = mean(youth_emp_rate), .groups = "drop")
+        did_tab
+        did_hand <- (did_tab$youth[4] - did_tab$youth[3]) - (did_tab$youth[2] - did_tab$youth[1])
+        did_hand
+    tests:
+      fail:
+        - |
+          did_tab <- mw |>
+            group_by(treated, post) |>
+            summarise(youth = mean(youth_emp_rate), .groups = "drop")
+          did_tab
+          did_hand <- did_tab$youth[4] - did_tab$youth[3]
+          did_hand
+        - |
+          did_tab <- mw |>
+            group_by(treated, post) |>
+            summarise(youth = mean(youth_emp_rate), .groups = "drop")
+          did_tab
+          did_hand <- did_tab$youth[4] - did_tab$youth[2]
+          did_hand
+        - |
+          did_tab <- mw |>
+            group_by(treated, post) |>
+            summarise(youth = mean(adult_emp_rate), .groups = "drop")
+          did_tab
+          did_hand <- (did_tab$youth[4] - did_tab$youth[3]) - (did_tab$youth[2] - did_tab$youth[1])
+          did_hand
+  - id: b
+    type: fill
+    prompt: |
+      同じ差の差を回帰で推定します。県と年の固定効果を入れ、処置県で2019年以降なら1になる treated:post を説明変数にします。
+      youth_emp_rate を treated:post で説明し、pref_code と year の固定効果を入れ、cluster = ~pref_code を付けたモデルを m_did に代入し、coeftable(m_did) を表示してください。
+    starter: |
+      m_did <- feols(youth_emp_rate ~ ___ | ___, data = mw, cluster = ___)
+      coeftable(m_did)
+    solution: |
+      m_did <- feols(youth_emp_rate ~ treated:post | pref_code + year, data = mw, cluster = ~pref_code)
+      coeftable(m_did)
+    check: |
+      expect_object("m_did", class = "fixest")
+      check_that(identical(sort(m_did$fixef_vars), c("pref_code", "year")),
+                 "固定効果は pref_code と year の2つです。式の | の右に pref_code + year と書きましょう。")
+      expect_model(m_did, like = .sol$m_did)
+      check_that(isTRUE(all.equal(as.numeric(se(m_did)), as.numeric(se(.sol$m_did)), tolerance = 1e-6)),
+                 "標準誤差が県でクラスタした標準誤差になっていません。cluster = ~pref_code を付けましょう。")
+    hints:
+      - 第65ステップの二元固定効果の min_wage を、処置県×事後のダミー treated:post に置き換えます。
+      - youth_emp_rate ~ treated:post | pref_code + year と書き、cluster = ~pref_code を付けます。coeftable() は係数・標準誤差・t値・p値の表を返します。
+      - |
+        m_did <- feols(youth_emp_rate ~ treated:post | pref_code + year, data = mw, cluster = ~pref_code)
+        coeftable(m_did)
+    tests:
+      fail:
+        - |
+          m_did <- feols(youth_emp_rate ~ treated:post | pref_code + year, data = mw)
+          coeftable(m_did)
+        - |
+          m_did <- feols(youth_emp_rate ~ treated:post | pref_code, data = mw, cluster = ~pref_code)
+          coeftable(m_did)
+        - |
+          m_did <- feols(youth_emp_rate ~ treated:post | pref_code + year, data = mw, cluster = ~year)
+          coeftable(m_did)
+  - id: c
+    type: write
+    prompt: |
+      特別引上げの影響を受けにくいはずの成人（25〜64歳）の就業率 adult_emp_rate で、b と同じ推定をします（プラセボ検定）。
+      b の式の被説明変数を adult_emp_rate に替えたモデルを m_placebo に代入し、coeftable(m_placebo) を表示してください。
+    starter: |
+      m_placebo <-
+      coeftable(m_placebo)
+    solution: |
+      m_placebo <- feols(adult_emp_rate ~ treated:post | pref_code + year, data = mw, cluster = ~pref_code)
+      coeftable(m_placebo)
+    check: |
+      expect_object("m_placebo", class = "fixest")
+      check_that(identical(as.character(m_placebo$fml[[2]]), "adult_emp_rate"),
+                 "被説明変数を adult_emp_rate にしましょう。")
+      check_that(identical(sort(m_placebo$fixef_vars), c("pref_code", "year")),
+                 "固定効果は b と同じく pref_code と year の2つです。")
+      expect_model(m_placebo, like = .sol$m_placebo)
+      check_that(isTRUE(all.equal(as.numeric(se(m_placebo)), as.numeric(se(.sol$m_placebo)), tolerance = 1e-6)),
+                 "標準誤差が県でクラスタした標準誤差になっていません。cluster = ~pref_code を付けましょう。")
+    hints:
+      - 推定の方法は b とまったく同じで、被説明変数だけを替えます。
+      - adult_emp_rate ~ treated:post | pref_code + year と書き、cluster = ~pref_code を付けます。
+      - |
+        m_placebo <- feols(adult_emp_rate ~ treated:post | pref_code + year, data = mw, cluster = ~pref_code)
+        coeftable(m_placebo)
+    tests:
+      fail:
+        - |
+          m_placebo <- feols(youth_emp_rate ~ treated:post | pref_code + year, data = mw, cluster = ~pref_code)
+          coeftable(m_placebo)
+        - |
+          m_placebo <- feols(adult_emp_rate ~ treated:post | pref_code + year, data = mw)
+          coeftable(m_placebo)
+  - id: d
+    type: interpret
+    prompt: |
+      b の推定値は約 −0.98 ポイント（県でクラスタした標準誤差は約0.11）でした。この値を「特別引上げが若年就業率を下げた因果効果」と読むための平行トレンドの仮定について、最も適切な説明はどれですか。
+    choices:
+      - "処置県と対照県の若年就業率の水準が、もともと同じであるという仮定。処置県は引上げ前から約1.4ポイント高いので、差の差分析は使えない"
+      - "c のプラセボで成人就業率に差が見られなかったので、平行トレンドの仮定が正しいことは証明された"
+      - "特別引上げがなかったとしたら、2019年以降の処置県の若年就業率は、対照県と同じ幅だけ変化していたという仮定。2018年以前の2本の線が平行であることは仮定と整合的な材料になるが、引上げがなかった場合の処置県は観察できないので、検定で証明することはできない"
+      - "県と年の固定効果を入れた回帰で推定したので、平行トレンドの仮定は必要ない"
+    answer: 2
+    explain: 差の差分析は、対照群の変化を「処置群が処置を受けなかった場合の変化」の代わりに使います。そのため必要なのは水準が同じことではなく、変化の幅（トレンド）が同じことです。水準の違いは県の固定効果（または前後の差をとること）で消えます（選択肢1は誤り）。引上げ前の推移が平行であることや、プラセボで効果が出ないことは、仮定と矛盾しないという材料にはなりますが、2019年以降の「引上げがなかった場合の処置県」は観察できないので、仮定を証明することはできません（選択肢2は誤り）。二元固定効果の回帰は差の差を計算する道具で、平行トレンドの仮定がなければ因果効果とは読めません（選択肢4は誤り）。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第65ステップの復習】youth_emp_rate を min_wage で説明し、pref_code と year の固定効果を入れ、県でクラスタした標準誤差を付けたモデルを m65 に代入し、coeftable(m65) を表示してください。
+    starter: |
+      m65 <-
+      coeftable(m65)
+    solution: |
+      m65 <- feols(youth_emp_rate ~ min_wage | pref_code + year, data = mw, cluster = ~pref_code)
+      coeftable(m65)
+    check: |
+      expect_object("m65", class = "fixest")
+      check_that(identical(sort(m65$fixef_vars), c("pref_code", "year")),
+                 "固定効果は pref_code と year の2つです。式の | の右に pref_code + year と書きましょう。")
+      expect_model(m65, like = .sol$m65)
+      check_that(isTRUE(all.equal(as.numeric(se(m65)), as.numeric(se(.sol$m65)), tolerance = 1e-6)),
+                 "標準誤差が県でクラスタした標準誤差になっていません。cluster = ~pref_code を付けましょう。")
+    hints:
+      - 第65ステップ b の二元固定効果に、c の県でクラスタした標準誤差を組み合わせます。
+      - youth_emp_rate ~ min_wage | pref_code + year と書き、cluster = ~pref_code を付けます。
+      - |
+        m65 <- feols(youth_emp_rate ~ min_wage | pref_code + year, data = mw, cluster = ~pref_code)
+        coeftable(m65)
+    tests:
+      fail:
+        - |
+          m65 <- feols(youth_emp_rate ~ min_wage, data = mw, cluster = ~pref_code)
+          coeftable(m65)
+        - |
+          m65 <- feols(youth_emp_rate ~ min_wage | pref_code + year, data = mw, vcov = "iid")
+          coeftable(m65)

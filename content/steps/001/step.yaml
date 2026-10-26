@@ -1,0 +1,77 @@
+id: "001"
+part: 1
+title: Rを電卓として使う
+question: 消費税10%の値段と10年後の複利はいくらか
+minutes: 45
+mode: browser
+learn: [round, sqrt]
+setup: |
+  price <- 1980
+  sales_last <- 248
+  sales_this <- 263
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      変数 price には本体価格 1980（円）が入っています。消費税10%を加えた税込価格を計算し、price_tax に代入してください。
+    starter: |
+      # 税込価格 = 本体価格 × 1.1
+    solution: |
+      price_tax <- price * 1.1
+    check: |
+      expect_object("price_tax")
+      expect_value(price_tax, .sol$price_tax, label = "price_tax")
+    hints:
+      - 税込価格は「本体価格 × (1 + 税率)」で求められます。
+      - 掛け算は * で書きます。代入は <- を使います。
+      - price_tax <- price * 1.1
+    tests:
+      fail:
+        - "price_tax <- price * 0.1"
+        - "price_tax <- price + 10"
+  - id: b
+    type: write
+    prompt: |
+      ある店の売上は、昨年が sales_last（248万円）、今年が sales_this（263万円）です。
+      前年比の成長率を「%」で計算し、round() で小数第1位に丸めて growth に代入してください。
+    starter: |
+      # 成長率(%) = (今年 - 昨年) / 昨年 × 100
+    solution: |
+      growth <- round((sales_this - sales_last) / sales_last * 100, 1)
+    check: |
+      expect_object("growth")
+      expect_uses("round")
+      expect_value(growth, .sol$growth, label = "growth")
+    hints:
+      - 先に「(今年 - 昨年) / 昨年 × 100」を計算し、それを round() で包みます。
+      - round(数値, 1) と書くと小数第1位に丸まります。引き算はかっこで先に計算させましょう。
+      - growth <- round((sales_this - sales_last) / sales_last * 100, 1)
+    tests:
+      fail:
+        - "growth <- (sales_this - sales_last) / sales_last * 100"
+        - "growth <- round(sales_this - sales_last / sales_last * 100, 1)"
+  - id: c
+    type: write
+    prompt: |
+      元本100万円（1000000円）を年利2%の複利で10年間預けたときの元利合計を計算し、future に代入してください。
+    starter: |
+      # 複利: 元本 × (1 + 利率)^年数
+    solution: |
+      future <- 1000000 * (1 + 0.02)^10
+    check: |
+      expect_object("future")
+      expect_value(future, .sol$future, label = "future")
+    hints:
+      - 複利では、毎年「1.02倍」が10回くり返されます。
+      - べき乗（〜乗）は ^ で書きます。例えば 2^3 は 8 です。
+      - future <- 1000000 * (1 + 0.02)^10
+    tests:
+      fail:
+        - "future <- 1000000 * 1.02 * 10"
+        - "future <- 1000000 * (1 + 0.02 * 10)"
+  - id: d
+    type: predict
+    prompt: "`7 %/% 2` を実行すると、何が表示されるでしょうか。"
+    choices: ["3.5", "3", "1", "4"]
+    answer: 1
+    explain: "%/% は割り算の「商」（整数部分）を返します。7 ÷ 2 = 3 余り 1 なので 3 です。余りを求めるのは %% で、7 %% 2 は 1 になります。"

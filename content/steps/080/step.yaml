@@ -1,0 +1,266 @@
+id: "080"
+part: 9
+title: 構造変化
+question: 2020年を予測できなかったのはなぜか
+minutes: 45
+mode: browser
+packages: [readr, dplyr, lubridate, ggplot2]
+data: [iip_monthly.csv, cpi_monthly.csv]
+learn: []
+review_of: "079"
+setup: |
+  library(readr); library(dplyr); library(lubridate); library(ggplot2)
+  # 経済産業省「鉱工業生産指数」2020年基準（2026-10-24 取得）。2018年1月〜2026年8月の月次
+  iip <- read_csv("data/iip_monthly.csv", show_col_types = FALSE)
+  # 第79ステップの復習用：総務省統計局「消費者物価指数」2025年基準。2000年1月〜2026年9月の月次
+  cpi <- read_csv("data/cpi_monthly.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      2019年12月の時点に立って、2020年の鉱工業生産（季節調整済指数 iip_sa）を予測します。
+      1. iip を2019年12月まで（date < ymd("2020-01-01")）の pre と、2020年の12か月の y2020 に分ける
+      2. pre$iip_sa を2018年1月始まりの月次の時系列にして AR(1)（order = c(1, 0, 0)）を当てはめ、m_pre に代入する
+      3. predict(m_pre, n.ahead = 12) を fc_raw に代入する
+      4. date（y2020$date）、実際の値 actual（y2020$iip_sa）、予測値 pred（as.numeric(fc_raw$pred)）、誤差 error（actual − pred）の4列の表を tibble() で作り、err に代入して表示する
+    starter: |
+      pre <-
+      y2020 <-
+      m_pre <-
+      fc_raw <-
+      err <- tibble(date = ,
+                    actual = ,
+                    pred = ,
+                    error = )
+      err
+    solution: |
+      pre <- filter(iip, date < ymd("2020-01-01"))
+      y2020 <- filter(iip, date >= ymd("2020-01-01"), date < ymd("2021-01-01"))
+      m_pre <- arima(ts(pre$iip_sa, start = c(2018, 1), frequency = 12),
+                     order = c(1, 0, 0))
+      fc_raw <- predict(m_pre, n.ahead = 12)
+      err <- tibble(date = y2020$date,
+                    actual = y2020$iip_sa,
+                    pred = as.numeric(fc_raw$pred),
+                    error = actual - pred)
+      err
+    check: |
+      expect_object("pre", class = "data.frame")
+      expect_object("y2020", class = "data.frame")
+      check_that(nrow(pre) == 24 && nrow(y2020) == 12,
+                 "期間の分け方が違います。pre は2018年1月〜2019年12月の24か月、y2020 は2020年1月〜12月の12か月です。")
+      expect_df_equal(y2020, .sol$y2020)
+      expect_object("m_pre", class = "Arima")
+      check_that(identical(m_pre$arma, .sol$m_pre$arma) && m_pre$nobs == 24,
+                 "m_pre が違います。2019年までの24か月の iip_sa に order = c(1, 0, 0) を当てはめましょう。")
+      expect_value(coef(m_pre), coef(.sol$m_pre), tol = 1e-4, label = "m_pre の係数")
+      expect_object("err", class = "data.frame")
+      expect_cols(err, c("date", "actual", "pred", "error"))
+      expect_nrow(err, 12)
+      check_that(isTRUE(all.equal(err$error, .sol$err$error, tolerance = 1e-4)),
+                 "error が違います。誤差は 実際の値 − 予測値（actual - pred）です。")
+      expect_df_equal(err, .sol$err, tol = 1e-4)
+      expect_value(.value, .sol_value, tol = 1e-4, label = "表示した err")
+    hints:
+      - 第78ステップと同じく、訓練期間（ここでは2019年まで）だけで推定し、その先の12か月を一度に予測します。
+      - filter(iip, date >= ymd("2020-01-01"), date < ymd("2021-01-01")) で2020年に絞ります。tibble() の中では、先に作った列 actual と pred を使って error = actual - pred と書けます。
+      - |
+        pre <- filter(iip, date < ymd("2020-01-01"))
+        y2020 <- filter(iip, date >= ymd("2020-01-01"), date < ymd("2021-01-01"))
+        m_pre <- arima(ts(pre$iip_sa, start = c(2018, 1), frequency = 12),
+                       order = c(1, 0, 0))
+        fc_raw <- predict(m_pre, n.ahead = 12)
+        err <- tibble(date = y2020$date,
+                      actual = y2020$iip_sa,
+                      pred = as.numeric(fc_raw$pred),
+                      error = actual - pred)
+        err
+    tests:
+      fail:
+        - |
+          pre <- filter(iip, date < ymd("2020-01-01"))
+          y2020 <- filter(iip, date >= ymd("2020-01-01"), date < ymd("2021-01-01"))
+          m_pre <- arima(ts(pre$iip_sa, start = c(2018, 1), frequency = 12),
+                         order = c(1, 0, 0))
+          fc_raw <- predict(m_pre, n.ahead = 12)
+          err <- tibble(date = y2020$date,
+                        actual = y2020$iip_sa,
+                        pred = as.numeric(fc_raw$pred),
+                        error = pred - actual)
+          err
+        - |
+          pre <- filter(iip, date < ymd("2021-01-01"))
+          y2020 <- filter(iip, date >= ymd("2020-01-01"), date < ymd("2021-01-01"))
+          m_pre <- arima(ts(pre$iip_sa, start = c(2018, 1), frequency = 12),
+                         order = c(1, 0, 0))
+          fc_raw <- predict(m_pre, n.ahead = 12)
+          err <- tibble(date = y2020$date,
+                        actual = y2020$iip_sa,
+                        pred = as.numeric(fc_raw$pred),
+                        error = actual - pred)
+          err
+  - id: b
+    type: write
+    prompt: |
+      a の err で、横軸に date、縦軸に誤差 error をとった棒グラフ（geom_col()）を描き、誤差0の水平線 geom_hline(yintercept = 0) を加えてください。
+    starter: |
+      ggplot(err, aes(x = , y = ))
+    solution: |
+      ggplot(err, aes(x = date, y = error)) +
+        geom_col() +
+        geom_hline(yintercept = 0)
+    check: |
+      expect_ggplot(geom = "col", x = "date", y = "error")
+      check_that(any(vapply(.plot$layers, function(l) inherits(l$geom, "GeomHline"), logical(1))),
+                 "0 の水平線がありません。+ geom_hline(yintercept = 0) を加えましょう。")
+      expect_df_equal(.plot$data, .sol_plot$data, tol = 1e-4)
+    hints:
+      - 値の大きさをそのまま棒の高さにするのは geom_col() です（第22ステップ）。棒が0より下なら、実際の値が予測より低かった月です。
+      - ggplot(err, aes(x = date, y = error)) + geom_col() に + geom_hline(yintercept = 0) を足します。
+      - |
+        ggplot(err, aes(x = date, y = error)) +
+          geom_col() +
+          geom_hline(yintercept = 0)
+    tests:
+      fail:
+        - |
+          ggplot(err, aes(x = date, y = error)) +
+            geom_col()
+        - |
+          ggplot(err, aes(x = date, y = actual)) +
+            geom_col() +
+            geom_hline(yintercept = 0)
+  - id: c
+    type: write
+    prompt: |
+      全期間（2018年1月〜2026年8月）で AR(1) を推定するとき、2020年4〜6月の落ち込みを**ショック期のダミー**で取り除きます。
+      1. iip に、2020年4月から6月までは1、それ以外は0の列 covid を加えて iip_d に代入する（if_else() を使う）
+      2. iip_d$iip_sa を2018年1月始まりの月次の時系列にして y_all に代入する
+      3. y_all に AR(1) を当てはめて m0 に、同じ AR(1) にダミーを加えたモデル arima(y_all, order = c(1, 0, 0), xreg = iip_d$covid) を m_d に代入する
+      4. c(AIC(m0), AIC(m_d)) を表示する
+    starter: |
+      iip_d <- iip |>
+        mutate(covid = )
+      y_all <-
+      m0 <-
+      m_d <-
+      c(AIC(m0), AIC(m_d))
+    solution: |
+      iip_d <- iip |>
+        mutate(covid = if_else(date >= ymd("2020-04-01") & date <= ymd("2020-06-01"), 1, 0))
+      y_all <- ts(iip_d$iip_sa, start = c(2018, 1), frequency = 12)
+      m0 <- arima(y_all, order = c(1, 0, 0))
+      m_d <- arima(y_all, order = c(1, 0, 0), xreg = iip_d$covid)
+      c(AIC(m0), AIC(m_d))
+    check: |
+      expect_object("iip_d", class = "data.frame")
+      expect_cols(iip_d, "covid")
+      check_that(sum(iip_d$covid == 1) == 3 && isTRUE(all.equal(as.numeric(iip_d$covid), as.numeric(.sol$iip_d$covid))),
+                 "covid が違います。2020年4月・5月・6月の3か月だけを1にしましょう（date >= ymd(\"2020-04-01\") & date <= ymd(\"2020-06-01\")）。")
+      expect_object("y_all", class = "ts")
+      check_that(length(y_all) == 104 && identical(start(y_all), start(.sol$y_all)),
+                 "y_all は全104か月の iip_sa を、start = c(2018, 1)、frequency = 12 の時系列にしましょう。")
+      expect_object("m0", class = "Arima")
+      expect_object("m_d", class = "Arima")
+      check_that(length(coef(m_d)) == 3,
+                 "m_d にダミーが入っていません。arima() に xreg = iip_d$covid を付けましょう。")
+      expect_value(as.numeric(coef(m0)), as.numeric(coef(.sol$m0)), tol = 1e-4, label = "m0 の係数")
+      expect_value(as.numeric(coef(m_d)), as.numeric(coef(.sol$m_d)), tol = 1e-4, label = "m_d の係数")
+      expect_value(.value, .sol_value, tol = 1e-4, label = "表示した2つの AIC")
+    hints:
+      - 条件に合う月を1、それ以外を0にするには第5ステップの if_else() を使います。arima() は xreg に説明変数を渡すと、回帰と AR モデルを同時に推定します。
+      - if_else(date >= ymd("2020-04-01") & date <= ymd("2020-06-01"), 1, 0) と arima(y_all, order = c(1, 0, 0), xreg = iip_d$covid) です。
+      - |
+        iip_d <- iip |>
+          mutate(covid = if_else(date >= ymd("2020-04-01") & date <= ymd("2020-06-01"), 1, 0))
+        y_all <- ts(iip_d$iip_sa, start = c(2018, 1), frequency = 12)
+        m0 <- arima(y_all, order = c(1, 0, 0))
+        m_d <- arima(y_all, order = c(1, 0, 0), xreg = iip_d$covid)
+        c(AIC(m0), AIC(m_d))
+    tests:
+      fail:
+        - |
+          iip_d <- iip |>
+            mutate(covid = if_else(date >= ymd("2020-04-01") & date <= ymd("2020-12-01"), 1, 0))
+          y_all <- ts(iip_d$iip_sa, start = c(2018, 1), frequency = 12)
+          m0 <- arima(y_all, order = c(1, 0, 0))
+          m_d <- arima(y_all, order = c(1, 0, 0), xreg = iip_d$covid)
+          c(AIC(m0), AIC(m_d))
+        - |
+          iip_d <- iip |>
+            mutate(covid = if_else(date >= ymd("2020-04-01") & date <= ymd("2020-06-01"), 1, 0))
+          y_all <- ts(iip_d$iip_sa, start = c(2018, 1), frequency = 12)
+          m0 <- arima(y_all, order = c(1, 0, 0))
+          m_d <- arima(y_all, order = c(1, 0, 0))
+          c(AIC(m0), AIC(m_d))
+  - id: d
+    type: interpret
+    prompt: |
+      a〜c の結果は次のとおりでした。2019年までの24か月で推定した AR(1) は、2020年の値を110〜113と予測しましたが、実際は5月に87.6まで下がり、誤差は最大で約−24でした。全期間の推定では、ダミーを入れると AIC が約492から約471に下がり、covid の係数は約−8.4でした。2020年を予測できなかった理由と、ダミーの役割の説明として最も適切なものはどれですか。
+    choices:
+      - "AR(1) の次数が低すぎたためで、AIC で選んだ高い次数の ARIMA モデルを使えば、2019年末の時点で2020年5月の落ち込みを予測できた"
+      - "訓練期間の24か月には感染症による急な落ち込みのような動きがなく、過去の動きのくり返しを前提にするモデルには予測できなかった。ダミーは起きた後に入れて推定のゆがみを減らすもので、次のショックの予測には使えない"
+      - "covid のダミーを入れたモデルを2019年末に使っていれば、2020年4〜6月の落ち込みを正しく予測できた"
+      - "ダミーで AIC が下がったので、2020年のショックは生産指数の動き方を永久に変えた構造変化であることが証明された"
+    answer: 1
+    explain: AR(1) は、過去と同じ動き方がこれからも続くと仮定して予測します。2018〜19年の24か月には感染症の拡大や緊急事態宣言による生産の急減は一度もなく、次数を増やしても予測できません。ダミーは2020年4〜6月の値が「ふだんの動きより約8.4低かった」ことを後から説明するもので、その時期を知っていなければ作れません。将来を予測するときは、ダミーを0（ショックなし）とおくしかありません。また AIC が下がったのは当てはまりが良くなったことを示すだけで、動き方が永久に変わったかどうかは、ショックの前後で係数を比べるなど別の方法で調べます。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第79ステップの復習】消費者物価指数の生鮮食品を除く総合 cpi_core を、月ダミーと前年同月の値で予測します。
+      1. cpi に mon（factor(month(date))）と core_lag12（lag(cpi_core, 12)）を加えて core_m に代入する
+      2. 2025年9月までを core_train、2025年10月以降の12か月を core_test に分ける
+      3. core_train で lm(cpi_core ~ mon + core_lag12) を推定して m_core に代入する
+      4. core_test での RMSE を表示する
+    starter: |
+      core_m <-
+      core_train <-
+      core_test <-
+      m_core <-
+
+    solution: |
+      core_m <- cpi |>
+        mutate(mon = factor(month(date)),
+               core_lag12 = lag(cpi_core, 12))
+      core_train <- filter(core_m, date < ymd("2025-10-01"))
+      core_test <- filter(core_m, date >= ymd("2025-10-01"))
+      m_core <- lm(cpi_core ~ mon + core_lag12, data = core_train)
+      sqrt(mean((core_test$cpi_core - predict(m_core, newdata = core_test))^2))
+    check: |
+      expect_object("core_m", class = "data.frame")
+      expect_cols(core_m, c("mon", "core_lag12"))
+      check_that(nrow(core_test) == 12,
+                 "core_test は2025年10月から2026年9月までの12か月にしましょう。")
+      expect_object("m_core", class = "lm")
+      expect_model(m_core, like = .sol$m_core)
+      expect_value(.value, .sol_value, tol = 1e-6, label = "表示した RMSE")
+    hints:
+      - 第79ステップ a〜c の cpi_all を cpi_core に替えて、同じ手順をたどります。
+      - lm(cpi_core ~ mon + core_lag12, data = core_train) と、sqrt(mean((core_test$cpi_core - predict(m_core, newdata = core_test))^2)) です。
+      - |
+        core_m <- cpi |>
+          mutate(mon = factor(month(date)),
+                 core_lag12 = lag(cpi_core, 12))
+        core_train <- filter(core_m, date < ymd("2025-10-01"))
+        core_test <- filter(core_m, date >= ymd("2025-10-01"))
+        m_core <- lm(cpi_core ~ mon + core_lag12, data = core_train)
+        sqrt(mean((core_test$cpi_core - predict(m_core, newdata = core_test))^2))
+    tests:
+      fail:
+        - |
+          core_m <- cpi |>
+            mutate(mon = factor(month(date)),
+                   core_lag12 = lag(cpi_core, 12))
+          core_train <- filter(core_m, date < ymd("2025-10-01"))
+          core_test <- filter(core_m, date >= ymd("2025-10-01"))
+          m_core <- lm(cpi_core ~ mon + core_lag12, data = core_train)
+          mean(abs(core_test$cpi_core - predict(m_core, newdata = core_test)))
+        - |
+          core_m <- cpi |>
+            mutate(mon = factor(month(date)),
+                   core_lag12 = lag(cpi_core, 12))
+          core_train <- filter(core_m, date < ymd("2025-10-01"))
+          core_test <- filter(core_m, date >= ymd("2025-10-01"))
+          m_core <- lm(cpi_core ~ core_lag12, data = core_train)
+          sqrt(mean((core_test$cpi_core - predict(m_core, newdata = core_test))^2))

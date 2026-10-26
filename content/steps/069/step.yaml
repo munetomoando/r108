@@ -1,0 +1,191 @@
+id: "069"
+part: 8
+title: 操作変数法
+question: 大学が近いと進学し、賃金が上がるか
+minutes: 50
+mode: browser
+packages: [dplyr, fixest, causaldata]
+data: []
+learn: [fitstat]
+review_of: "068"
+setup: |
+  library(dplyr); library(fixest)
+  # 米国の若年男性3,010人（NLS Young Men、Card 1995 のデータ。causaldata パッケージ）
+  cc <- causaldata::close_college
+  # 第68ステップの臓器提供の登録率（e の復習で使う）
+  od <- causaldata::organ_donations
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      まず、ふつうの回帰（OLS）で教育の収益率を推定します。
+      対数賃金 lwage を educ・exper・black・south・smsa で説明するモデルを feols() で推定し、不均一分散に頑健な標準誤差（vcov = "hetero"）を使って ols に代入してください。
+      最後に coef(ols) を表示します。
+    starter: |
+      ols <-
+      coef(ols)
+    solution: |
+      ols <- feols(lwage ~ educ + exper + black + south + smsa, data = cc, vcov = "hetero")
+      coef(ols)
+    check: |
+      expect_object("ols", class = "fixest")
+      expect_model(ols, like = .sol$ols)
+      check_that(isTRUE(all.equal(as.numeric(se(ols)), as.numeric(se(.sol$ols)), tolerance = 1e-6)),
+                 "標準誤差が違います。vcov = \"hetero\" を付けましょう。")
+      expect_value(.value, .sol_value, label = "表示した coef(ols)")
+    hints:
+      - 第43ステップと同じく、feols() の式と data は lm() と同じ書き方です。
+      - 式は lwage ~ educ + exper + black + south + smsa、引数に data = cc, vcov = "hetero" を付けます。
+      - |
+        ols <- feols(lwage ~ educ + exper + black + south + smsa, data = cc, vcov = "hetero")
+        coef(ols)
+    tests:
+      fail:
+        - |
+          ols <- feols(lwage ~ educ, data = cc, vcov = "hetero")
+          coef(ols)
+        - |
+          ols <- feols(lwage ~ educ + exper + black + south + smsa + married, data = cc, vcov = "hetero")
+          coef(ols)
+  - id: b
+    type: fill
+    prompt: |
+      第1段階として、大学が近いこと（nearc4）が教育年数を増やすかを確かめます。
+      1. educ を nearc4・exper・black・south・smsa で説明するモデルを、頑健な標準誤差で推定して fs に代入する
+      2. nearc4 の t値の2乗（係数 ÷ 標準誤差 の2乗）を f_fs に代入し、表示する。操作変数が1つのとき、これが第1段階の F値になる
+    starter: |
+      fs <- feols(___ ~ ___ + exper + black + south + smsa, data = cc, vcov = "hetero")
+      f_fs <- (coef(fs)[["nearc4"]] / ___)^2
+      f_fs
+    solution: |
+      fs <- feols(educ ~ nearc4 + exper + black + south + smsa, data = cc, vcov = "hetero")
+      f_fs <- (coef(fs)[["nearc4"]] / se(fs)[["nearc4"]])^2
+      f_fs
+    check: |
+      expect_object("fs", class = "fixest")
+      expect_model(fs, like = .sol$fs)
+      check_that(isTRUE(all.equal(as.numeric(se(fs)), as.numeric(se(.sol$fs)), tolerance = 1e-6)),
+                 "標準誤差が違います。vcov = \"hetero\" を付けましょう。")
+      expect_object("f_fs", class = "numeric")
+      expect_value(f_fs, .sol$f_fs, label = "F値 f_fs")
+      expect_value(.value, .sol_value, label = "表示した f_fs")
+    hints:
+      - 第1段階の結果の変数は、操作変数で動かしたい変数（教育年数）です。統制変数は a と同じものを入れます。
+      - 式は educ ~ nearc4 + exper + black + south + smsa です。標準誤差は se(fs)[["nearc4"]] で取り出せます。
+      - |
+        fs <- feols(educ ~ nearc4 + exper + black + south + smsa, data = cc, vcov = "hetero")
+        f_fs <- (coef(fs)[["nearc4"]] / se(fs)[["nearc4"]])^2
+        f_fs
+    tests:
+      fail:
+        - |
+          fs <- feols(lwage ~ nearc4 + exper + black + south + smsa, data = cc, vcov = "hetero")
+          f_fs <- (coef(fs)[["nearc4"]] / se(fs)[["nearc4"]])^2
+          f_fs
+        - |
+          fs <- feols(educ ~ nearc4 + exper + black + south + smsa, data = cc, vcov = "hetero")
+          f_fs <- coef(fs)[["nearc4"]] / se(fs)[["nearc4"]]
+          f_fs
+  - id: c
+    type: fill
+    prompt: |
+      二段階最小二乗法（2SLS）で、教育の収益率を推定します。
+      lwage を exper・black・south・smsa で説明し、educ を nearc4 で操作するモデルを、頑健な標準誤差で推定して iv に代入してください。
+      最後に coef(iv) を表示します（教育年数の係数は fit_educ という名前になります）。
+    starter: |
+      iv <- feols(lwage ~ exper + black + south + smsa | ___ ~ ___,
+                  data = cc, vcov = "hetero")
+      coef(iv)
+    solution: |
+      iv <- feols(lwage ~ exper + black + south + smsa | educ ~ nearc4,
+                  data = cc, vcov = "hetero")
+      coef(iv)
+    check: |
+      expect_object("iv", class = "fixest")
+      check_that("fit_educ" %in% names(coef(iv)),
+                 "教育年数を操作変数で推定していません。| の後ろに educ ~ nearc4 を書きましょう。")
+      expect_model(iv, like = .sol$iv)
+      check_that(isTRUE(all.equal(as.numeric(se(iv)), as.numeric(se(.sol$iv)), tolerance = 1e-6)),
+                 "標準誤差が違います。vcov = \"hetero\" を付けましょう。")
+      expect_value(.value, .sol_value, label = "表示した coef(iv)")
+    hints:
+      - feols() では「結果 ~ 統制変数 | 内生変数 ~ 操作変数」と書くと 2SLS になります。educ は | の前には書きません。
+      - "| の後ろに educ ~ nearc4 を書きます。| の前は lwage ~ exper + black + south + smsa です。"
+      - |
+        iv <- feols(lwage ~ exper + black + south + smsa | educ ~ nearc4,
+                    data = cc, vcov = "hetero")
+        coef(iv)
+    tests:
+      fail:
+        - |
+          iv <- feols(lwage ~ exper + black + south + smsa | nearc4 ~ educ,
+                      data = cc, vcov = "hetero")
+          coef(iv)
+        - |
+          iv <- feols(lwage ~ 1 | educ ~ nearc4, data = cc, vcov = "hetero")
+          coef(iv)
+  - id: d
+    type: interpret
+    prompt: |
+      c の 2SLS では教育の収益率が約0.132（頑健な標準誤差は約0.049）で、a の OLS の約0.074より大きくなりました。
+      この推定値を「教育1年の因果効果」と読むには、除外制約（nearc4 は教育年数を通してしか賃金に影響しない）が必要です。除外制約についての説明として、最も適切なものはどれですか。
+    choices:
+      - "b の第1段階で nearc4 の係数が有意だったので、除外制約は成り立っている"
+      - "nearc4 と lwage を回帰して係数が0でなければ、除外制約が成り立っていると確かめられる"
+      - "除外制約はデータで検定できない。たとえば大学のある郡は都市部で賃金の高い仕事が多いなど、教育以外の経路があれば崩れる。smsa や south を統制するのはその経路を弱めるためだが、統制していない経路が残る可能性は否定できない"
+      - "操作変数法を使えば、除外制約がなくても因果効果を推定できる"
+    answer: 2
+    explain: 第1段階の係数が0でないこと（関連性）は b で確かめられますが、これは除外制約とは別の条件です（選択肢1は誤り）。nearc4 が賃金と相関するのは、教育を通した経路でも、それ以外の経路でも起こるので、その相関から除外制約は確かめられません（選択肢2は誤り）。除外制約は「教育以外の経路がない」という観察できない部分についての仮定で、データでは検定できません。大学の近くに育った人は都市部に住み、親の所得や地域の仕事の質も違うかもしれません。smsa（都市部）や south（南部）を統制するのはこうした経路をふさぐためですが、すべてをふさげた保証はありません。操作変数法は除外制約と関連性という仮定に頼る方法で、仮定なしに因果効果が分かるわけではありません（選択肢4は誤り）。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第68ステップの復習】臓器提供のデータ od で、差の差分析をやり直します。
+      1. od に treated（State が "California" なら1）と post（Quarter_Num が4以上なら1）を as.numeric() で加えて od_did に代入する
+      2. Rate を treated:post で説明し、州と四半期（Quarter_Num）の固定効果を入れ、州でクラスタした標準誤差を使うモデルを推定して did_od に代入し、coef(did_od) を表示する
+    starter: |
+      od_did <- od |>
+        mutate()
+      did_od <-
+      coef(did_od)
+    solution: |
+      od_did <- od |>
+        mutate(treated = as.numeric(State == "California"),
+               post = as.numeric(Quarter_Num >= 4))
+      did_od <- feols(Rate ~ treated:post | State + Quarter_Num,
+                      data = od_did, cluster = ~State)
+      coef(did_od)
+    check: |
+      expect_object("od_did", class = "data.frame")
+      expect_cols(od_did, c("treated", "post"))
+      expect_df_equal(od_did, .sol$od_did)
+      expect_object("did_od", class = "fixest")
+      expect_model(did_od, like = .sol$did_od)
+      check_that(isTRUE(all.equal(as.numeric(se(did_od)), as.numeric(se(.sol$did_od)), tolerance = 1e-6)),
+                 "標準誤差が違います。cluster = ~State で州ごとにクラスタしましょう。")
+      expect_value(.value, .sol_value, label = "表示した coef(did_od)")
+    hints:
+      - 2011年第3四半期が Quarter_Num の4にあたります。処置州と事後の積の係数が差の差の推定値です。
+      - treated = as.numeric(State == "California")、post = as.numeric(Quarter_Num >= 4)。式は Rate ~ treated:post | State + Quarter_Num です。
+      - |
+        od_did <- od |>
+          mutate(treated = as.numeric(State == "California"),
+                 post = as.numeric(Quarter_Num >= 4))
+        did_od <- feols(Rate ~ treated:post | State + Quarter_Num,
+                        data = od_did, cluster = ~State)
+        coef(did_od)
+    tests:
+      fail:
+        - |
+          od_did <- od |>
+            mutate(treated = as.numeric(State == "California"),
+                   post = as.numeric(Quarter_Num >= 3))
+          did_od <- feols(Rate ~ treated:post | State + Quarter_Num,
+                          data = od_did, cluster = ~State)
+          coef(did_od)
+        - |
+          od_did <- od |>
+            mutate(treated = as.numeric(State == "California"),
+                   post = as.numeric(Quarter_Num >= 4))
+          did_od <- feols(Rate ~ treated + post, data = od_did, cluster = ~State)
+          coef(did_od)

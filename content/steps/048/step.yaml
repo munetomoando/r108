@@ -1,0 +1,184 @@
+id: "048"
+part: 6
+title: 先行研究を再現する（2）
+question: 子どもの数は労働参加をどれだけ下げるか
+minutes: 45
+mode: browser
+packages: [dplyr, wooldridge]
+learn: [glm]
+review_of: "047"
+setup: |
+  library(dplyr)
+  # Mroz (1987) の既婚女性753人のデータ（1975年。wooldridge パッケージ）
+  data("mroz", package = "wooldridge")
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      Wooldridge『入門計量経済学』の例7.12（線形確率モデル）を再現します。被説明変数は労働参加ダミー inlf、説明変数は nwifeinc、educ、exper、I(exper^2)、age、kidslt6、kidsge6 の7つ（この順）、data は mroz です。
+      lm() で推定して lpm に代入し、coef(lpm) を表示してください。教科書の値は、kidslt6 が −0.262、educ が 0.038 です。
+    starter: |
+      lpm <- lm(inlf ~ , data = mroz)
+      coef(lpm)
+    solution: |
+      lpm <- lm(inlf ~ nwifeinc + educ + exper + I(exper^2) + age + kidslt6 + kidsge6, data = mroz)
+      coef(lpm)
+    check: |
+      expect_object("lpm", class = "lm")
+      check_that(nobs(lpm) == 753, "753人全員で推定しましょう。労働参加の有無を説明するので、働いていない女性も含めます。")
+      check_that("I(exper^2)" %in% names(coef(lpm)),
+                 "経験年数の2乗の項がありません。I(exper^2) と書きましょう（第42ステップ）。")
+      expect_model(lpm, like = .sol$lpm)
+      expect_value(.value, .sol_value, label = "表示した coef(lpm)")
+    hints:
+      - 被説明変数が0か1のダミーでも、lm() でそのまま回帰できます。これを線形確率モデルといいます。
+      - 式は inlf ~ nwifeinc + educ + exper + I(exper^2) + age + kidslt6 + kidsge6 です。
+      - |
+        lpm <- lm(inlf ~ nwifeinc + educ + exper + I(exper^2) + age + kidslt6 + kidsge6, data = mroz)
+        coef(lpm)
+    tests:
+      fail:
+        - |
+          lpm <- lm(inlf ~ nwifeinc + educ + exper + I(exper^2) + age + kidslt6 + kidsge6, data = filter(mroz, inlf == 1))
+          coef(lpm)
+        - |
+          lpm <- lm(inlf ~ nwifeinc + educ + exper + age + kidslt6 + kidsge6, data = mroz)
+          coef(lpm)
+  - id: b
+    type: write
+    prompt: |
+      同じ説明変数で、ロジットモデルを推定します。glm() に a と同じ式と data = mroz を渡し、family = binomial を付けて logit に代入し、coef(logit) を表示してください。
+    starter: |
+      logit <- glm(inlf ~ nwifeinc + educ + exper + I(exper^2) + age + kidslt6 + kidsge6,
+                   data = mroz, )
+      coef(logit)
+    solution: |
+      logit <- glm(inlf ~ nwifeinc + educ + exper + I(exper^2) + age + kidslt6 + kidsge6,
+                   data = mroz, family = binomial)
+      coef(logit)
+    check: |
+      expect_object("logit", class = "glm")
+      check_that(identical(logit$family$family, "binomial") && identical(logit$family$link, "logit"),
+                 "family = binomial を付けましょう。付けないと、lm() と同じ線形の推定になります。")
+      expect_model(logit, like = .sol$logit)
+      expect_value(.value, .sol_value, label = "表示した coef(logit)")
+    hints:
+      - glm() の書き方は lm() とほとんど同じです。違いは、推定するモデルの種類を family で指定することです。
+      - 0か1の被説明変数のロジットは family = binomial です。
+      - |
+        logit <- glm(inlf ~ nwifeinc + educ + exper + I(exper^2) + age + kidslt6 + kidsge6,
+                     data = mroz, family = binomial)
+        coef(logit)
+    tests:
+      fail:
+        - |
+          logit <- glm(inlf ~ nwifeinc + educ + exper + I(exper^2) + age + kidslt6 + kidsge6,
+                       data = mroz)
+          coef(logit)
+        - |
+          logit <- glm(inlf ~ nwifeinc + educ + exper + age + kidslt6 + kidsge6,
+                       data = mroz, family = binomial)
+          coef(logit)
+  - id: c
+    type: write
+    prompt: |
+      6歳未満の子どもが0人・1人・2人の女性で、労働参加の確率を比べます。ほかの条件は nwifeinc = 20、educ = 12、exper = 10、age = 40、kidsge6 = 1 にそろえます。
+      1. tibble() でこの条件の3行の表を作り（kidslt6 = c(0, 1, 2)）、new に代入する
+      2. mutate() で、線形確率モデル = predict(lpm, new)、ロジット = predict(logit, new, type = "response") の2列を加えて pred に代入し、pred を表示する
+    starter: |
+      new <- tibble(nwifeinc = 20, educ = 12, exper = 10, age = 40, kidsge6 = 1,
+                    kidslt6 = )
+      pred <- new |>
+        mutate(線形確率モデル = predict(lpm, new),
+               ロジット = )
+      pred
+    solution: |
+      new <- tibble(nwifeinc = 20, educ = 12, exper = 10, age = 40, kidsge6 = 1,
+                    kidslt6 = c(0, 1, 2))
+      pred <- new |>
+        mutate(線形確率モデル = predict(lpm, new),
+               ロジット = predict(logit, new, type = "response"))
+      pred
+    check: |
+      expect_object("new", class = "data.frame")
+      check_that(nrow(new) == 3 && isTRUE(all(new$kidslt6 == c(0, 1, 2))),
+                 "new は kidslt6 = c(0, 1, 2) の3行にしましょう。")
+      expect_df_equal(new, .sol$new)
+      expect_object("pred", class = "data.frame")
+      expect_cols(pred, c("線形確率モデル", "ロジット"))
+      check_that(isTRUE(all(pred$ロジット >= 0 & pred$ロジット <= 1)),
+                 "ロジットの列が確率（0〜1）になっていません。predict() に type = \"response\" を付けましょう。")
+      expect_df_equal(pred, .sol$pred)
+    hints:
+      - 第37ステップと同じく、predict(モデル, 新しいデータ) で予測値を出します。ロジットでは、そのままだと確率ではなく対数オッズが出ます。
+      - kidslt6 = c(0, 1, 2) で3行になります（ほかの列は1つの値が3行にくり返されます）。ロジットは predict(logit, new, type = "response") で確率になります。
+      - |
+        new <- tibble(nwifeinc = 20, educ = 12, exper = 10, age = 40, kidsge6 = 1,
+                      kidslt6 = c(0, 1, 2))
+        pred <- new |>
+          mutate(線形確率モデル = predict(lpm, new),
+                 ロジット = predict(logit, new, type = "response"))
+        pred
+    tests:
+      fail:
+        - |
+          new <- tibble(nwifeinc = 20, educ = 12, exper = 10, age = 40, kidsge6 = 1,
+                        kidslt6 = c(0, 1, 2))
+          pred <- new |>
+            mutate(線形確率モデル = predict(lpm, new),
+                   ロジット = predict(logit, new))
+          pred
+        - |
+          new <- tibble(nwifeinc = 20, educ = 12, exper = 10, age = 40, kidsge6 = 1,
+                        kidslt6 = c(0, 2))
+          pred <- new |>
+            mutate(線形確率モデル = predict(lpm, new),
+                   ロジット = predict(logit, new, type = "response"))
+          pred
+  - id: d
+    type: interpret
+    prompt: |
+      c の結果では、子どもが0人→1人→2人と増えると、労働参加の確率は線形確率モデルで約0.678→0.416→0.154、ロジットで約0.718→0.376→0.124 になりました。2つの推定の違いの説明として、最も適切なものはどれですか。
+    choices:
+      - "線形確率モデルでは子ども1人あたりの確率の下がり幅がいつも同じ（約0.262）だが、ロジットでは下がり幅がほかの条件や子どもの数によって変わる"
+      - "ロジットのほうが係数（kidslt6 は約 −1.44）が大きいので、子どもの影響はロジットのほうが約5倍大きい"
+      - "2つの推定で確率が違うので、どちらかの計算が間違っている"
+      - "線形確率モデルの予測値は、どの女性についても必ず0から1の間に収まる"
+    answer: 0
+    explain: 線形確率モデルは直線なので、kidslt6 が1増えると確率はいつも約0.262下がります（0.678→0.416→0.154 の差はどれも0.262）。ロジットは確率を S 字の曲線で表すので、下がり幅は出発点の確率によって変わります（ここでは約0.343と約0.251）。ロジットの係数 −1.44 は確率ではなく対数オッズの変化なので、線形確率モデルの係数と大きさをそのまま比べることはできません。また、直線の線形確率モデルは、条件によっては確率がマイナスや1を超える値になります（mroz の753人の当てはめ値のうち33人分が0〜1の外に出ます）。2つの推定は仮定が違うだけで、どちらかが計算の誤りというわけではありません。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第47ステップの復習】mroz を inlf（労働参加ダミー）でグループに分け、グループごとに 人数 = n()、教育年数の平均 = mean(educ)、年齢の平均 = mean(age) を集計して by_inlf に代入し、by_inlf を表示してください。
+    starter: |
+      by_inlf <- mroz |>
+      by_inlf
+    solution: |
+      by_inlf <- mroz |>
+        group_by(inlf) |>
+        summarise(人数 = n(), 教育年数の平均 = mean(educ), 年齢の平均 = mean(age))
+      by_inlf
+    check: |
+      expect_object("by_inlf", class = "data.frame")
+      expect_cols(by_inlf, c("inlf", "人数", "教育年数の平均", "年齢の平均"))
+      expect_df_equal(by_inlf, .sol$by_inlf, ignore_row_order = TRUE)
+    hints:
+      - group_by() でグループに分け、summarise() で集計します。人数は n() で数えます。
+      - group_by(inlf) |> summarise(人数 = n(), 教育年数の平均 = mean(educ), 年齢の平均 = mean(age)) です。
+      - |
+        by_inlf <- mroz |>
+          group_by(inlf) |>
+          summarise(人数 = n(), 教育年数の平均 = mean(educ), 年齢の平均 = mean(age))
+        by_inlf
+    tests:
+      fail:
+        - |
+          by_inlf <- mroz |>
+            summarise(人数 = n(), 教育年数の平均 = mean(educ), 年齢の平均 = mean(age))
+          by_inlf
+        - |
+          by_inlf <- mroz |>
+            group_by(inlf) |>
+            summarise(人数 = n(), 教育年数の平均 = mean(educ), 年齢の平均 = median(age))
+          by_inlf

@@ -1,0 +1,20 @@
+id: "051"
+part: 6
+title: Quartoで論文を書く
+question: 文章・コード・図表を1つのファイルにまとめ、Word の論文として出力するにはどうするか
+minutes: 60
+mode: local
+packages: [tidyverse, knitr, rmarkdown]
+data: [pref_panel.csv]
+learn: ["knitr::kable"]
+local:
+  script: check_051.R
+  code_sha256: 6147367e462c5a1875bf6265867914b26c50add56bbe826e20ffb824f8f154ed
+  instructions: |
+    プロジェクトのフォルダに `paper.qmd` と `data/pref_panel.csv` があり、Render で Word が出力できる状態にしてから、`check_051.R` を同じフォルダに保存し、コンソールで次を実行します。
+
+    ```r
+    source("check_051.R", encoding = "UTF-8")
+    ```
+
+    確認スクリプトは paper.qmd を Word（paper.docx）にレンダリングして中身を調べます。paper.docx を Word で開いたままだと上書きできないので、閉じてから実行してください。

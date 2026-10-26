@@ -1,0 +1,340 @@
+id: "103"
+part: 12
+title: SQLでデータを取り出す
+question: データベースから必要な行だけ取る
+minutes: 50
+mode: browser
+packages: [readr, dplyr, lubridate, DBI, duckdb, dbplyr]
+data: [ec_orders.csv, ec_customers.csv, ec_products.csv]
+learn: [dbGetQuery, dbWriteTable, tbl, show_query, collect]
+allow: [dbConnect, duckdb]
+review_of: "090"
+setup: |
+  library(readr); library(dplyr); library(lubridate)
+  library(DBI); library(duckdb); library(dbplyr)
+  # そらまめマーケット（架空の会社）のネット通販の注文明細・顧客マスタ・商品マスタ
+  orders <- read_csv("data/ec_orders.csv", show_col_types = FALSE)
+  customers <- read_csv("data/ec_customers.csv", show_col_types = FALSE)
+  products <- read_csv("data/ec_products.csv", show_col_types = FALSE)
+  # メモリ上に DuckDB のデータベースを作り、3つの表を入れる（会社の基幹データベースの代わり）
+  con <- dbConnect(duckdb())
+  dbWriteTable(con, "orders", orders)
+  dbWriteTable(con, "customers", customers)
+  dbWriteTable(con, "products", products)
+  # 2025年6月から広告キャンペーンを実施した10県の県コード（第90ステップ）
+  camp_prefs <- c(4, 8, 9, 10, 22, 26, 28, 34, 40, 43)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      【SELECT と WHERE】データベースの表 orders から、2025年12月（2025年12月1日以降）の明細のうち、クーポンを使った（coupon = 1）ものだけを取り出します。
+      1. 列 order_id, customer_id, order_date, product_id, qty, unit_price を選び、2つの条件を AND でつないだ SQL 文を文字列にして sql_a に代入する（日付は DATE '2025-12-01' と書く）
+      2. dbGetQuery(con, sql_a) の結果を res_a に代入し、nrow(res_a) を表示する
+    starter: |
+      sql_a <- "
+        SELECT
+        FROM orders
+        WHERE
+      "
+      res_a <- dbGetQuery(con, sql_a)
+      nrow(res_a)
+    solution: |
+      sql_a <- "
+        SELECT order_id, customer_id, order_date, product_id, qty, unit_price
+        FROM orders
+        WHERE order_date >= DATE '2025-12-01' AND coupon = 1
+      "
+      res_a <- dbGetQuery(con, sql_a)
+      nrow(res_a)
+    check: |
+      check_that(exists("sql_a") && is.character(sql_a) && length(sql_a) == 1,
+                 "sql_a には SQL 文を1つの文字列（\" \" で囲む）で代入しましょう。")
+      check_that(grepl("SELECT", sql_a, ignore.case = TRUE) && grepl("WHERE", sql_a, ignore.case = TRUE),
+                 "SQL 文に SELECT と WHERE を書きましょう。")
+      expect_uses("dbGetQuery", "dbGetQuery(con, sql_a) で、データベースに SQL を送りましょう。")
+      expect_object("res_a", class = "data.frame")
+      check_that(setequal(names(res_a), names(.sol$res_a)),
+                 "取り出した列が違います。SELECT * ではなく、SELECT の後に指示した6つの列名をカンマで区切って並べましょう。")
+      check_that(nrow(res_a) == nrow(.sol$res_a),
+                 "行数が違います。WHERE の2つの条件（order_date >= DATE '2025-12-01' と coupon = 1）を AND でつなぎましょう。")
+      expect_df_equal(res_a, .sol$res_a, ignore_row_order = TRUE)
+      expect_value(.value, .sol_value, label = "表示した nrow(res_a)")
+    hints:
+      - SQL は「SELECT 列名 FROM 表 WHERE 条件」の順に書きます。R の filter() に当たるのが WHERE、select() に当たるのが SELECT です。
+      - 列名はカンマで区切ります。条件は order_date >= DATE '2025-12-01' AND coupon = 1 です。SQL では「等しい」を = 1つで書き、文字列や日付は ' ' で囲みます。
+      - |
+        sql_a <- "
+          SELECT order_id, customer_id, order_date, product_id, qty, unit_price
+          FROM orders
+          WHERE order_date >= DATE '2025-12-01' AND coupon = 1
+        "
+        res_a <- dbGetQuery(con, sql_a)
+        nrow(res_a)
+    tests:
+      fail:
+        - |
+          sql_a <- "SELECT * FROM orders WHERE order_date >= DATE '2025-12-01' AND coupon = 1"
+          res_a <- dbGetQuery(con, sql_a)
+          nrow(res_a)
+        - |
+          sql_a <- "SELECT order_id, customer_id, order_date, product_id, qty, unit_price FROM orders WHERE order_date >= DATE '2025-12-01'"
+          res_a <- dbGetQuery(con, sql_a)
+          nrow(res_a)
+        - |
+          sql_a <- "SELECT order_id FROM orders WHERE coupon = 1"
+          res_a <- orders |>
+            filter(order_date >= ymd("2025-12-01"), coupon == 1) |>
+            select(order_id, customer_id, order_date, product_id, qty, unit_price)
+          nrow(res_a)
+  - id: b
+    type: write
+    prompt: |
+      【GROUP BY で集計する】2025年（2025年1月1日以降）の明細を、クーポンの有無（coupon）でグループに分けて集計します。
+      1. 列 coupon と、明細の数 n_lines（COUNT(*)）、注文件数 n_orders（COUNT(DISTINCT order_id)）、売上 sales（SUM(qty * unit_price)）、明細1行あたりの平均数量 avg_qty（AVG(qty)）を返す SQL 文を sql_b に代入する（AS で列に名前を付け、ORDER BY coupon で並べる）
+      2. dbGetQuery(con, sql_b) の結果を res_b に代入して表示する
+    starter: |
+      sql_b <- "
+        SELECT coupon,
+
+        FROM orders
+        WHERE order_date >= DATE '2025-01-01'
+
+      "
+      res_b <- dbGetQuery(con, sql_b)
+      res_b
+    solution: |
+      sql_b <- "
+        SELECT coupon,
+               COUNT(*) AS n_lines,
+               COUNT(DISTINCT order_id) AS n_orders,
+               SUM(qty * unit_price) AS sales,
+               AVG(qty) AS avg_qty
+        FROM orders
+        WHERE order_date >= DATE '2025-01-01'
+        GROUP BY coupon
+        ORDER BY coupon
+      "
+      res_b <- dbGetQuery(con, sql_b)
+      res_b
+    check: |
+      check_that(exists("sql_b") && is.character(sql_b) && length(sql_b) == 1,
+                 "sql_b には SQL 文を1つの文字列で代入しましょう。")
+      check_that(grepl("GROUP\\s+BY", sql_b, ignore.case = TRUE),
+                 "SQL 文に GROUP BY coupon を書きましょう。R の group_by() に当たります。")
+      expect_uses("dbGetQuery", "dbGetQuery(con, sql_b) で、データベースに SQL を送りましょう。")
+      expect_object("res_b", class = "data.frame")
+      expect_cols(res_b, c("coupon", "n_lines", "n_orders", "sales", "avg_qty"))
+      expect_nrow(res_b, 2)
+      check_that(isTRUE(all.equal(sort(res_b$n_orders), sort(.sol$res_b$n_orders))),
+                 "n_orders が違います。1つの注文に明細が何行もあるので、注文件数は COUNT(DISTINCT order_id) で数えます。")
+      check_that(isTRUE(all.equal(sort(res_b$sales), sort(.sol$res_b$sales))),
+                 "sales が違います。WHERE order_date >= DATE '2025-01-01' で2025年に絞り、SUM(qty * unit_price) を求めましょう。")
+      expect_df_equal(res_b, .sol$res_b)
+      expect_value(.value, .sol_value, label = "表示した res_b")
+    hints:
+      - 「どの単位でまとめるか」を GROUP BY に、「何を求めるか」を SELECT に書きます。SELECT に書けるのは、GROUP BY に書いた列と、COUNT・SUM・AVG などの集計だけです。
+      - 集計は COUNT(*) AS n_lines、COUNT(DISTINCT order_id) AS n_orders、SUM(qty * unit_price) AS sales、AVG(qty) AS avg_qty とカンマで並べます。WHERE の後に GROUP BY coupon、最後に ORDER BY coupon です。
+      - |
+        sql_b <- "
+          SELECT coupon,
+                 COUNT(*) AS n_lines,
+                 COUNT(DISTINCT order_id) AS n_orders,
+                 SUM(qty * unit_price) AS sales,
+                 AVG(qty) AS avg_qty
+          FROM orders
+          WHERE order_date >= DATE '2025-01-01'
+          GROUP BY coupon
+          ORDER BY coupon
+        "
+        res_b <- dbGetQuery(con, sql_b)
+        res_b
+    tests:
+      fail:
+        - |
+          sql_b <- "
+            SELECT coupon, COUNT(*) AS n_lines, COUNT(*) AS n_orders,
+                   SUM(qty * unit_price) AS sales, AVG(qty) AS avg_qty
+            FROM orders
+            WHERE order_date >= DATE '2025-01-01'
+            GROUP BY coupon
+            ORDER BY coupon
+          "
+          res_b <- dbGetQuery(con, sql_b)
+          res_b
+        - |
+          sql_b <- "
+            SELECT coupon, COUNT(*) AS n_lines, COUNT(DISTINCT order_id) AS n_orders,
+                   SUM(qty * unit_price) AS sales, AVG(qty) AS avg_qty
+            FROM orders
+            GROUP BY coupon
+            ORDER BY coupon
+          "
+          res_b <- dbGetQuery(con, sql_b)
+          res_b
+  - id: c
+    type: write
+    prompt: |
+      【JOIN で表をつなぐ】2025年の明細に商品マスタ products を product_id でつなぎ、カテゴリ（category）ごとの売上と粗利を求めます。
+      1. orders に AS o、products に AS p と短い別名を付け、INNER JOIN products AS p ON o.product_id = p.product_id でつなぐ
+      2. 2025年1月1日以降に絞り、p.category でグループに分け、売上 sales（SUM(o.qty * o.unit_price)）と粗利 profit（SUM(o.qty * (o.unit_price - p.unit_cost))）を求めて、売上の多い順（ORDER BY sales DESC）に並べる SQL 文を sql_c に代入する
+      3. dbGetQuery(con, sql_c) の結果を res_c に代入して表示する
+    starter: |
+      sql_c <- "
+        SELECT p.category,
+
+        FROM orders AS o
+
+        WHERE o.order_date >= DATE '2025-01-01'
+
+      "
+      res_c <- dbGetQuery(con, sql_c)
+      res_c
+    solution: |
+      sql_c <- "
+        SELECT p.category,
+               SUM(o.qty * o.unit_price) AS sales,
+               SUM(o.qty * (o.unit_price - p.unit_cost)) AS profit
+        FROM orders AS o
+        INNER JOIN products AS p ON o.product_id = p.product_id
+        WHERE o.order_date >= DATE '2025-01-01'
+        GROUP BY p.category
+        ORDER BY sales DESC
+      "
+      res_c <- dbGetQuery(con, sql_c)
+      res_c
+    check: |
+      check_that(exists("sql_c") && is.character(sql_c) && length(sql_c) == 1,
+                 "sql_c には SQL 文を1つの文字列で代入しましょう。")
+      check_that(grepl("JOIN", sql_c, ignore.case = TRUE),
+                 "SQL 文に INNER JOIN products AS p ON o.product_id = p.product_id を書きましょう。")
+      expect_uses("dbGetQuery", "dbGetQuery(con, sql_c) で、データベースに SQL を送りましょう。")
+      expect_object("res_c", class = "data.frame")
+      expect_cols(res_c, c("category", "sales", "profit"))
+      expect_nrow(res_c, 8)
+      expect_df_equal(res_c, .sol$res_c, ignore_row_order = TRUE)
+      check_that(identical(res_c$category, .sol$res_c$category),
+                 "並び順が違います。最後に ORDER BY sales DESC を付けて、売上の多い順に並べましょう（DESC が「大きい順」です）。")
+      expect_value(.value, .sol_value, label = "表示した res_c")
+    hints:
+      - FROM の表に JOIN で別の表をつなぎ、ON につなぐ列の条件を書きます。R の inner_join(by = "product_id") に当たります。両方の表にある列名は o.列名・p.列名 のように表の別名を付けて書き分けます。
+      - INNER JOIN products AS p ON o.product_id = p.product_id を FROM の次の行に、GROUP BY p.category と ORDER BY sales DESC を WHERE の後に書きます。粗利は SUM(o.qty * (o.unit_price - p.unit_cost)) です。
+      - |
+        sql_c <- "
+          SELECT p.category,
+                 SUM(o.qty * o.unit_price) AS sales,
+                 SUM(o.qty * (o.unit_price - p.unit_cost)) AS profit
+          FROM orders AS o
+          INNER JOIN products AS p ON o.product_id = p.product_id
+          WHERE o.order_date >= DATE '2025-01-01'
+          GROUP BY p.category
+          ORDER BY sales DESC
+        "
+        res_c <- dbGetQuery(con, sql_c)
+        res_c
+    tests:
+      fail:
+        - |
+          sql_c <- "
+            SELECT p.category,
+                   SUM(o.qty * o.unit_price) AS sales,
+                   SUM(o.qty * (o.unit_price - p.unit_cost)) AS profit
+            FROM orders AS o
+            INNER JOIN products AS p ON o.product_id = p.product_id
+            WHERE o.order_date >= DATE '2025-01-01'
+            GROUP BY p.category
+            ORDER BY sales
+          "
+          res_c <- dbGetQuery(con, sql_c)
+          res_c
+        - |
+          sql_c <- "
+            SELECT p.category,
+                   SUM(o.qty * o.unit_price) AS sales,
+                   SUM(o.qty * (p.list_price - p.unit_cost)) AS profit
+            FROM orders AS o
+            INNER JOIN products AS p ON o.product_id = p.product_id
+            WHERE o.order_date >= DATE '2025-01-01'
+            GROUP BY p.category
+            ORDER BY sales DESC
+          "
+          res_c <- dbGetQuery(con, sql_c)
+          res_c
+  - id: d
+    type: interpret
+    prompt: |
+      dplyr の書き方でデータベースの表を扱うと、dbplyr が裏で SQL に翻訳します。次のコードの q を show_query(q) で表示すると、下の SQL が出ました（dbplyr の版によって、改行や括弧の付け方が少し違うことがあります）。
+
+      ```r
+      q <- tbl(con, "orders") |>
+        filter(coupon == 1) |>
+        group_by(customer_id) |>
+        summarise(n = n()) |>
+        filter(n >= 5)
+      ```
+      ```sql
+      SELECT customer_id, COUNT(*) AS n
+      FROM orders
+      WHERE (coupon = 1.0)
+      GROUP BY customer_id
+      HAVING (COUNT(*) >= 5.0)
+      ```
+      このコードと SQL の読み方として、最も適切なものはどれですか。
+    choices:
+      - "2つの filter() はどちらも WHERE になる。q を表示した時点で、条件に合う全ての行が R に読み込まれている"
+      - "1つ目の filter() は集計の前に行を絞る WHERE に、2つ目の filter() は集計した後にグループを絞る HAVING になった。q はまだ問い合わせの「予約」で、R の data.frame として使うには collect() で結果を取り込む"
+      - "HAVING は ORDER BY と同じく並べ替えの命令で、n の多い順に顧客を並べている"
+      - "summarise(n = n()) は SQL にできないので、この部分だけは R の中で計算されている"
+    answer: 1
+    explain: dplyr の filter() は、summarise() の前なら「行を絞る」WHERE に、後なら「集計した結果のグループを絞る」HAVING に翻訳されます。SQL では WHERE が GROUP BY より先に、HAVING が後に働くからです。答えは「クーポンを使った明細が5行以上ある顧客と、その行数」です。summarise(n = n()) は COUNT(*) に翻訳され、計算はすべてデータベースの中で行われます（選択肢4は誤り）。tbl() で作った q は SQL を組み立てただけの「予約」で、表示すると先頭の数行だけをデータベースに問い合わせます。R の data.frame として最後まで使うには collect() で取り込みます（選択肢1は誤り）。並べ替えは ORDER BY で、dplyr の arrange() に当たります（選択肢3は誤り）。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第90ステップの復習】広告キャンペーンの実施県と非実施県で、キャンペーン期間（2025年6月1日以降）の注文件数を比べます。
+      orders に customers を customer_id で inner_join() し、2025年6月1日以降に絞り、実施県なら1の treat（if_else(pref_code %in% camp_prefs, 1, 0)）を作って、treat ごとの注文件数 n = n_distinct(order_id) を求め、camp_n に代入して表示してください（R の data.frame で計算します。SQL は使いません）。
+    starter: |
+      camp_n <- orders |>
+
+      camp_n
+    solution: |
+      camp_n <- orders |>
+        inner_join(customers, by = "customer_id") |>
+        filter(order_date >= ymd("2025-06-01")) |>
+        mutate(treat = if_else(pref_code %in% camp_prefs, 1, 0)) |>
+        group_by(treat) |>
+        summarise(n = n_distinct(order_id))
+      camp_n
+    check: |
+      expect_object("camp_n", class = "data.frame")
+      expect_cols(camp_n, c("treat", "n"))
+      expect_nrow(camp_n, 2)
+      expect_df_equal(camp_n, .sol$camp_n, ignore_row_order = TRUE)
+      expect_value(.value, .sol_value, label = "表示した camp_n")
+    hints:
+      - 県の情報は顧客マスタにあるので、まず customers と結合します。注文件数は明細の行数ではなく、order_id の種類の数です。
+      - inner_join(customers, by = "customer_id") |> filter(order_date >= ymd("2025-06-01")) |> mutate(treat = ...) |> group_by(treat) |> summarise(n = n_distinct(order_id)) の順です。
+      - |
+        camp_n <- orders |>
+          inner_join(customers, by = "customer_id") |>
+          filter(order_date >= ymd("2025-06-01")) |>
+          mutate(treat = if_else(pref_code %in% camp_prefs, 1, 0)) |>
+          group_by(treat) |>
+          summarise(n = n_distinct(order_id))
+        camp_n
+    tests:
+      fail:
+        - |
+          camp_n <- orders |>
+            inner_join(customers, by = "customer_id") |>
+            filter(order_date >= ymd("2025-06-01")) |>
+            mutate(treat = if_else(pref_code %in% camp_prefs, 1, 0)) |>
+            group_by(treat) |>
+            summarise(n = n())
+          camp_n
+        - |
+          camp_n <- orders |>
+            inner_join(customers, by = "customer_id") |>
+            mutate(treat = if_else(pref_code %in% camp_prefs, 1, 0)) |>
+            group_by(treat) |>
+            summarise(n = n_distinct(order_id))
+          camp_n

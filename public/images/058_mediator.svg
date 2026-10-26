@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="150" viewBox="0 0 300 150" role="img" aria-label="中間変数：教育年数が正社員になるかを通じて賃金に影響する">
+<style>
+.bg{fill:#ffffff;stroke:#d9d6e8;stroke-width:1}
+.node{fill:#ffffff;stroke:#1d2140;stroke-width:2}
+.x{fill:#e7ecff}.y{fill:#ffe6e0}.q{fill:#fff2c7}
+.t{fill:#1d2140;font-family:'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI',Meiryo,sans-serif;font-size:14px;text-anchor:middle;dominant-baseline:central}
+.s{fill:#4a4f6a;font-size:12px}
+.e{stroke:#1d2140;stroke-width:2;fill:none}
+.h{fill:#1d2140}
+@media (prefers-color-scheme: dark){
+.bg{fill:#1f2452;stroke:#3d4378}
+.node{fill:#1f2452;stroke:#fff8ea}
+.x{fill:#2a3170}.y{fill:#4a2633}.q{fill:#3f3826}
+.t{fill:#fff8ea}.s{fill:#c3c6e0}
+.e{stroke:#fff8ea}.h{fill:#fff8ea}
+}
+</style>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="h" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<rect class="bg" x="0.5" y="0.5" width="299" height="149" rx="16"/>
+<line class="e" x1="84.5" y1="95.0" x2="127.5" y2="55.0" marker-end="url(#a)"/>
+<line class="e" x1="172.5" y1="55.0" x2="215.5" y2="95.0" marker-end="url(#a)"/>
+<line class="e" x1="116.0" y1="116.0" x2="184.0" y2="116.0" marker-end="url(#a)"/>
+<rect class="node x" x="12.0" y="99.0" width="100" height="34" rx="10"/>
+<text class="t" x="62" y="116">教育年数 X</text>
+<rect class="node q" x="95.0" y="17.0" width="110" height="34" rx="10"/>
+<text class="t" x="150" y="34">正社員 M</text>
+<rect class="node y" x="188.0" y="99.0" width="100" height="34" rx="10"/>
+<text class="t" x="238" y="116">賃金 Y</text>
+</svg>

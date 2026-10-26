@@ -1,0 +1,180 @@
+id: "058"
+part: 7
+title: 交絡とDAG
+question: 何を統制すべきで、何を統制してはいけないか
+minutes: 50
+mode: browser
+packages: [readr, dplyr]
+data: [training_rct.csv]
+learn: []
+review_of: "057"
+setup: |
+  library(readr); library(dplyr)
+  # 職業訓練のランダム化比較試験（1,000人、架空のデータ。小課題 d の復習で使う）
+  rct <- read_csv("data/training_rct.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: interpret
+    prompt: |
+      職業訓練への参加 X が年収 Y に与える効果（資格取得を通じた効果も含めた、訓練の効果全体）を知りたいとします。
+      関係者に聞き取りをして、因果関係を次の DAG にまとめました。
+
+      ![訓練の効果の DAG。前年収入から訓練参加と年収へ、訓練参加から資格取得・年収・追跡調査への回答へ、資格取得から年収へ、年収から追跡調査への回答へ矢印がある](images/058_training.svg)
+
+      3つの変数（**前年収入**、**資格取得**、**追跡調査に回答したか**）のそれぞれについて、回帰に入れて統制すべきかどうかを考えます。
+      正しい組み合わせはどれですか。
+    choices:
+      - "前年収入：統制する／資格取得：統制しない／追跡調査への回答：統制しない"
+      - "前年収入：統制する／資格取得：統制する／追跡調査への回答：統制しない"
+      - "前年収入：統制する／資格取得：統制する／追跡調査への回答：統制する"
+      - "前年収入：統制しない／資格取得：統制しない／追跡調査への回答：統制する"
+    answer: 0
+    explain: |
+      前年収入は訓練参加と年収の両方に矢印を出す**交絡因子**です。統制しないと、裏口の経路（訓練参加 ← 前年収入 → 年収）を通じた見かけの関係が混ざります。
+      資格取得は訓練参加から年収へ向かう経路の途中にある**中間変数**です。統制すると、資格を通じた効果の分だけ訓練の効果を小さく見積もります（第57ステップの「処置後の変数」と同じ誤りです）。
+      追跡調査への回答は、訓練参加と年収の両方から矢印を受ける**合流点**です。統制する（回答者だけで分析するのも同じこと）と、もともとなかった関係が生まれて偏ります。
+  - id: b
+    type: write
+    prompt: |
+      交絡因子 z が処置 d と結果 y の両方に影響するデータを作り、z を統制するかどうかで d の係数がどう変わるかを確かめます。d の真の効果は 2 です。
+      1. set.seed(58) を書いてから、次の表を conf に代入する
+         tibble(z = rnorm(2000), d = if_else(z + rnorm(2000) > 0, 1, 0), y = 10 + 2 * d + 3 * z + rnorm(2000))
+      2. z を入れない回帰 lm(y ~ d, data = conf) を m_naive に、入れた回帰 lm(y ~ d + z, data = conf) を m_adj に代入する
+      3. c(coef(m_naive)[["d"]], coef(m_adj)[["d"]]) を表示する
+    starter: |
+      set.seed(58)
+      conf <- tibble(z = rnorm(2000),
+                     d = if_else(z + rnorm(2000) > 0, 1, 0),
+                     y = 10 + 2 * d + 3 * z + rnorm(2000))
+      m_naive <-
+      m_adj <-
+
+    solution: |
+      set.seed(58)
+      conf <- tibble(z = rnorm(2000),
+                     d = if_else(z + rnorm(2000) > 0, 1, 0),
+                     y = 10 + 2 * d + 3 * z + rnorm(2000))
+      m_naive <- lm(y ~ d, data = conf)
+      m_adj <- lm(y ~ d + z, data = conf)
+      c(coef(m_naive)[["d"]], coef(m_adj)[["d"]])
+    check: |
+      expect_uses("set.seed")
+      expect_object("conf", class = "data.frame")
+      expect_df_equal(conf, .sol$conf)
+      expect_object("m_naive", class = "lm")
+      expect_model(m_naive, like = .sol$m_naive)
+      expect_object("m_adj", class = "lm")
+      expect_model(m_adj, like = .sol$m_adj)
+      expect_value(.value, .sol_value, label = "最後に表示した2つの係数")
+    hints:
+      - conf は starter のまま使います。set.seed(58) を先に実行しないと、毎回違う乱数になります。2つの回帰の違いは「z を入れるかどうか」だけです。
+      - m_naive は lm(y ~ d, data = conf)、m_adj は lm(y ~ d + z, data = conf) です。
+      - |
+        m_naive <- lm(y ~ d, data = conf)
+        m_adj <- lm(y ~ d + z, data = conf)
+        c(coef(m_naive)[["d"]], coef(m_adj)[["d"]])
+    tests:
+      fail:
+        - |
+          conf <- tibble(z = rnorm(2000),
+                         d = if_else(z + rnorm(2000) > 0, 1, 0),
+                         y = 10 + 2 * d + 3 * z + rnorm(2000))
+          m_naive <- lm(y ~ d, data = conf)
+          m_adj <- lm(y ~ d + z, data = conf)
+          c(coef(m_naive)[["d"]], coef(m_adj)[["d"]])
+        - |
+          set.seed(58)
+          conf <- tibble(z = rnorm(2000),
+                         d = if_else(z + rnorm(2000) > 0, 1, 0),
+                         y = 10 + 2 * d + 3 * z + rnorm(2000))
+          m_naive <- lm(y ~ d, data = conf)
+          m_adj <- lm(y ~ d, data = conf)
+          c(coef(m_naive)[["d"]], coef(m_adj)[["d"]])
+  - id: c
+    type: write
+    prompt: |
+      今度は、統制してはいけない変数を統制すると何が起きるかを確かめます。
+      x と y は互いに無関係（x の y への真の効果は 0）で、合流点 cc は x と y の両方から影響を受けます。
+      1. set.seed(58) を書いてから、次の表を coll に代入する
+         tibble(x = rnorm(2000), y = rnorm(2000), cc = x + y + rnorm(2000))
+      2. lm(y ~ x, data = coll) を m_ok に、合流点を入れた lm(y ~ x + cc, data = coll) を m_bad に代入する
+      3. c(coef(m_ok)[["x"]], coef(m_bad)[["x"]]) を表示する
+    starter: |
+      set.seed(58)
+      coll <- tibble(x = rnorm(2000), y = rnorm(2000), cc = x + y + rnorm(2000))
+
+    solution: |
+      set.seed(58)
+      coll <- tibble(x = rnorm(2000), y = rnorm(2000), cc = x + y + rnorm(2000))
+      m_ok <- lm(y ~ x, data = coll)
+      m_bad <- lm(y ~ x + cc, data = coll)
+      c(coef(m_ok)[["x"]], coef(m_bad)[["x"]])
+    check: |
+      expect_uses("set.seed")
+      expect_object("coll", class = "data.frame")
+      expect_df_equal(coll, .sol$coll)
+      expect_object("m_ok", class = "lm")
+      expect_model(m_ok, like = .sol$m_ok)
+      expect_object("m_bad", class = "lm")
+      expect_model(m_bad, like = .sol$m_bad)
+      expect_value(.value, .sol_value, label = "最後に表示した2つの係数")
+    hints:
+      - coll は starter のまま使います。b と同じ形で、2つの回帰の違いは「cc を入れるかどうか」だけです。
+      - m_ok は lm(y ~ x, data = coll)、m_bad は lm(y ~ x + cc, data = coll) です。係数は coef(モデル)[["x"]] で取り出します。
+      - |
+        m_ok <- lm(y ~ x, data = coll)
+        m_bad <- lm(y ~ x + cc, data = coll)
+        c(coef(m_ok)[["x"]], coef(m_bad)[["x"]])
+    tests:
+      fail:
+        - |
+          set.seed(58)
+          coll <- tibble(x = rnorm(2000), y = rnorm(2000), cc = x + y + rnorm(2000))
+          m_ok <- lm(y ~ x, data = coll)
+          m_bad <- lm(y ~ x + cc, data = coll)
+          c(coef(m_bad)[["x"]], coef(m_ok)[["x"]])
+        - |
+          set.seed(58)
+          coll <- tibble(x = rnorm(2000), y = rnorm(2000), cc = x + y + rnorm(2000))
+          m_ok <- lm(y ~ x, data = coll)
+          m_bad <- lm(y ~ cc, data = coll)
+          c(coef(m_ok)[["x"]], coef(m_bad)[["cc"]])
+  - id: d
+    type: write
+    review: true
+    prompt: |
+      【第57ステップの復習】職業訓練のRCTのデータ rct で、共変量を入れない回帰と入れた回帰を比べます。
+      1. lm(earn_post ~ treat, data = rct) を m_rct0 に代入する
+      2. 共変量 prior_earn・age・educ_years・female を加えた回帰を m_rct1 に代入する
+      3. c(coef(m_rct0)[["treat"]], coef(m_rct1)[["treat"]]) を表示する
+    starter: |
+      m_rct0 <-
+      m_rct1 <-
+
+    solution: |
+      m_rct0 <- lm(earn_post ~ treat, data = rct)
+      m_rct1 <- lm(earn_post ~ treat + prior_earn + age + educ_years + female, data = rct)
+      c(coef(m_rct0)[["treat"]], coef(m_rct1)[["treat"]])
+    check: |
+      expect_object("m_rct0", class = "lm")
+      expect_model(m_rct0, like = .sol$m_rct0)
+      expect_object("m_rct1", class = "lm")
+      expect_model(m_rct1, like = .sol$m_rct1)
+      expect_value(.value, .sol_value, label = "最後に表示した2つの係数")
+    hints:
+      - RCTでは処置が無作為に決まるので、共変量を入れても入れなくても treat の係数は真の効果のまわりに散らばります。入れると標準誤差が小さくなるのが利点でした。
+      - 共変量は ~ の右に + でつなぎます。lm(earn_post ~ treat + prior_earn + age + educ_years + female, data = rct) です。
+      - |
+        m_rct0 <- lm(earn_post ~ treat, data = rct)
+        m_rct1 <- lm(earn_post ~ treat + prior_earn + age + educ_years + female, data = rct)
+        c(coef(m_rct0)[["treat"]], coef(m_rct1)[["treat"]])
+    tests:
+      fail:
+        - |
+          m_rct0 <- lm(earn_post ~ treat, data = rct)
+          m_rct1 <- lm(earn_post ~ treat + prior_earn, data = rct)
+          c(coef(m_rct0)[["treat"]], coef(m_rct1)[["treat"]])
+        - |
+          m_rct0 <- lm(earn_post ~ treat, data = rct)
+          m_rct1 <- lm(earn_post ~ treat + prior_earn + age + educ_years + female, data = rct)
+          c(coef(m_rct0)[["treat"]], coef(m_rct0)[["treat"]])

@@ -1,0 +1,229 @@
+id: "018"
+part: 2
+title: 総合演習：最低賃金と賃金の都道府県パネルを作る
+question: 県×年の分析用の表をどう組み立てるか
+minutes: 45
+mode: browser
+packages: [readr, dplyr]
+data: [min_wage_pref.csv, wage_census_pref.csv, pref_basic.csv]
+learn: []
+allow: [is.na, names]
+setup: |
+  library(readr); library(dplyr)
+  wage <- read_csv("data/wage_census_pref.csv", show_col_types = FALSE)
+  mw <- read_csv("data/min_wage_pref.csv", show_col_types = FALSE)
+  pref_basic <- read_csv("data/pref_basic.csv", show_col_types = FALSE)
+  # 保存先（このアプリの作業用フォルダにある pref_panel.csv）
+  out_file <- file.path(tempdir(), "pref_panel.csv")
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      結合の前に、3つの表を「1行が何を表すか」がはっきりした形に整えます。次の3つの表を作ってください。
+      - wage2 … wage から男女計（sex == "男女計"）の行だけを残し、平均時給 avg_wage = scheduled_wage * 1000 / hours（円/時）を作って、pref_code, year, scheduled_wage, hours, avg_wage の5列にする（1行＝県×年）
+      - mw2 … mw に、その最低賃金が6月に効いている年 year = fiscal_year + 1 を作り、pref_code, year, min_wage の3列にする（1行＝県×年）
+      - prefs … pref_basic から pref_code, pref, region, population の4列を選ぶ（1行＝県）
+    starter: |
+      wage2 <- wage |>
+
+      mw2 <- mw |>
+
+      prefs <-
+    solution: |
+      wage2 <- wage |>
+        filter(sex == "男女計") |>
+        mutate(avg_wage = scheduled_wage * 1000 / hours) |>
+        select(pref_code, year, scheduled_wage, hours, avg_wage)
+      mw2 <- mw |>
+        mutate(year = fiscal_year + 1) |>
+        select(pref_code, year, min_wage)
+      prefs <- select(pref_basic, pref_code, pref, region, population)
+    check: |
+      expect_object("wage2", class = "data.frame")
+      expect_object("mw2", class = "data.frame")
+      expect_object("prefs", class = "data.frame")
+      expect_df_equal(wage2, .sol$wage2, ignore_row_order = TRUE)
+      expect_df_equal(mw2, .sol$mw2, ignore_row_order = TRUE)
+      expect_df_equal(prefs, .sol$prefs, ignore_row_order = TRUE)
+    hints:
+      - 3つとも「行を絞る・列を作る・列を選ぶ」の組み合わせです。wage2 は filter → mutate → select、mw2 は mutate → select、prefs は select だけです。
+      - 年をそろえるのが mw2 の mutate(year = fiscal_year + 1) です。Y年6月の賃金に合うのは、前の年度（Y − 1年度）の最低賃金だからです。
+      - |
+        wage2 <- wage |> filter(sex == "男女計") |> mutate(avg_wage = scheduled_wage * 1000 / hours) |> select(pref_code, year, scheduled_wage, hours, avg_wage)
+        mw2 <- mw |> mutate(year = fiscal_year + 1) |> select(pref_code, year, min_wage)
+        prefs <- select(pref_basic, pref_code, pref, region, population)
+    tests:
+      fail:
+        - |
+          wage2 <- wage |>
+            filter(sex == "男女計") |>
+            mutate(avg_wage = scheduled_wage * 1000 / hours) |>
+            select(pref_code, year, scheduled_wage, hours, avg_wage)
+          mw2 <- mw |>
+            mutate(year = fiscal_year) |>
+            select(pref_code, year, min_wage)
+          prefs <- select(pref_basic, pref_code, pref, region, population)
+        - |
+          wage2 <- wage |>
+            mutate(avg_wage = scheduled_wage * 1000 / hours) |>
+            select(pref_code, year, scheduled_wage, hours, avg_wage)
+          mw2 <- mw |>
+            mutate(year = fiscal_year + 1) |>
+            select(pref_code, year, min_wage)
+          prefs <- select(pref_basic, pref_code, pref, region, population)
+  - id: b
+    type: write
+    prompt: |
+      a の3つの表を結合して、分析用の表 pref_panel を作ります。
+      1. wage2 を左に置き、mw2 を pref_code と year の2つのキーで左結合する
+      2. さらに prefs を pref_code で左結合する
+      3. カイツ指標 kaitz = min_wage / avg_wage を作る
+      4. 列を pref_code, pref, region, year, min_wage, scheduled_wage, hours, avg_wage, kaitz, population の順に選ぶ
+      5. pref_code、year の順に並べ替える
+    starter: |
+      pref_panel <- wage2 |>
+    solution: |
+      pref_panel <- wage2 |>
+        left_join(mw2, by = c("pref_code", "year")) |>
+        left_join(prefs, by = "pref_code") |>
+        mutate(kaitz = min_wage / avg_wage) |>
+        select(pref_code, pref, region, year, min_wage, scheduled_wage, hours,
+               avg_wage, kaitz, population) |>
+        arrange(pref_code, year)
+    check: |
+      expect_object("pref_panel", class = "data.frame")
+      expect_cols(pref_panel, c("pref_code", "pref", "region", "year", "min_wage", "scheduled_wage",
+                                "hours", "avg_wage", "kaitz", "population"))
+      expect_df_equal(pref_panel, .sol$pref_panel, ignore_row_order = TRUE)
+    hints:
+      - 結合を2回、列の作成、列の選択、並べ替えの5段のパイプです。左に置く wage2 の行（329行）がそのまま残ります。
+      - 1回目は left_join(mw2, by = c("pref_code", "year"))、2回目は left_join(prefs, by = "pref_code") です。prefs は県ごとに1行なので、キーは pref_code だけです。
+      - "pref_panel <- wage2 |> left_join(mw2, by = c(\"pref_code\", \"year\")) |> left_join(prefs, by = \"pref_code\") |> mutate(kaitz = min_wage / avg_wage) |> select(pref_code, pref, region, year, min_wage, scheduled_wage, hours, avg_wage, kaitz, population) |> arrange(pref_code, year)"
+    tests:
+      fail:
+        - |
+          pref_panel <- wage2 |>
+            left_join(mutate(mw, year = fiscal_year), by = c("pref_code", "year")) |>
+            left_join(prefs, by = "pref_code") |>
+            mutate(kaitz = min_wage / avg_wage) |>
+            select(pref_code, pref, region, year, min_wage, scheduled_wage, hours,
+                   avg_wage, kaitz, population) |>
+            arrange(pref_code, year)
+        - |
+          pref_panel <- mw2 |>
+            left_join(wage2, by = c("pref_code", "year")) |>
+            left_join(prefs, by = "pref_code") |>
+            mutate(kaitz = min_wage / avg_wage) |>
+            select(pref_code, pref, region, year, min_wage, scheduled_wage, hours,
+                   avg_wage, kaitz, population) |>
+            arrange(pref_code, year)
+        - |
+          pref_panel <- wage2 |>
+            left_join(mw2, by = c("pref_code", "year")) |>
+            left_join(prefs, by = "pref_code") |>
+            mutate(kaitz = avg_wage / min_wage) |>
+            select(pref_code, pref, region, year, min_wage, scheduled_wage, hours,
+                   avg_wage, kaitz, population) |>
+            arrange(pref_code, year)
+  - id: c
+    type: write
+    prompt: |
+      結合で相手が見つからなかった行があると、その列は NA（欠損）になります。pref_panel を summarise() で1行にまとめ、次の4列をもつ表を na_check に代入してください。
+      - n_rows … 行数（n()）
+      - na_min_wage, na_avg_wage, na_population … それぞれ min_wage, avg_wage, population が NA の行の数。is.na(列) は NA のところが TRUE になるので、sum(is.na(列)) で数えられます
+    starter: |
+      na_check <- pref_panel |>
+    solution: |
+      na_check <- pref_panel |>
+        summarise(n_rows = n(),
+                  na_min_wage = sum(is.na(min_wage)),
+                  na_avg_wage = sum(is.na(avg_wage)),
+                  na_population = sum(is.na(population)))
+    check: |
+      expect_object("na_check", class = "data.frame")
+      expect_cols(na_check, c("n_rows", "na_min_wage", "na_avg_wage", "na_population"))
+      expect_df_equal(na_check, .sol$na_check)
+    hints:
+      - summarise() の中に、4つの列をカンマで区切って書きます。
+      - TRUE は 1、FALSE は 0 として足されるので、sum(is.na(min_wage)) が NA の個数になります。min_wage == NA と書くと、結果がすべて NA になってしまいます。
+      - "na_check <- pref_panel |> summarise(n_rows = n(), na_min_wage = sum(is.na(min_wage)), na_avg_wage = sum(is.na(avg_wage)), na_population = sum(is.na(population)))"
+    tests:
+      fail:
+        - |
+          na_check <- pref_panel |>
+            summarise(n_rows = n(),
+                      na_min_wage = sum(min_wage == NA),
+                      na_avg_wage = sum(avg_wage == NA),
+                      na_population = sum(population == NA))
+        - |
+          na_check <- pref_panel |>
+            summarise(n_rows = n(),
+                      na_min_wage = sum(!is.na(min_wage)),
+                      na_avg_wage = sum(!is.na(avg_wage)),
+                      na_population = sum(!is.na(population)))
+  - id: d
+    type: write
+    prompt: |
+      pref_panel が「1行＝1県×1年」になっているかを確かめます。pref_panel の pref_code と year の組ごとに行数を数え（count()）、2行以上ある組だけを残した表を dup に代入してください。重複がなければ0行の表になります。
+      あわせて nrow(pref_panel) と names(pref_panel) を表示し、47県×7年＝329行か、列が b で指定した10列・指定の順になっているかを確かめましょう。判定では、pref_panel が行と列の並び順まで正解と一致するかも確かめます。
+    starter: |
+      dup <- pref_panel |>
+
+      nrow(pref_panel)
+      names(pref_panel)
+    solution: |
+      dup <- pref_panel |>
+        count(pref_code, year) |>
+        filter(n > 1)
+      nrow(pref_panel)
+      names(pref_panel)
+    check: |
+      expect_object("dup", class = "data.frame")
+      expect_cols(dup, c("pref_code", "year", "n"))
+      expect_df_equal(dup, .sol$dup)
+      expect_df_equal(pref_panel, .sol$pref_panel, ignore_col_order = FALSE)
+    hints:
+      - count() に2つの列を渡すと、その組み合わせごとの行数が列 n に入ります。そのあと filter() で n が1より大きい行だけを残します。
+      - dup <- pref_panel |> count(pref_code, year) |> filter(n > 1) の形です。判定で並び順の違いを指摘されたら、b の select() と arrange() を見直しましょう。
+      - |
+        dup <- pref_panel |> count(pref_code, year) |> filter(n > 1)
+        nrow(pref_panel)
+        names(pref_panel)
+    tests:
+      fail:
+        - |
+          dup <- pref_panel |>
+            count(pref_code) |>
+            filter(n > 1)
+        - |
+          dup <- pref_panel |>
+            count(pref_code, year)
+  - id: e
+    type: write
+    prompt: |
+      完成した pref_panel を CSV ファイルに保存し、正しく保存できたかを読み直して確かめます。
+      write_csv() で pref_panel を out_file に書き出してから、out_file を read_csv() で読み込んで saved に代入してください。out_file は、このアプリの作業用フォルダにある pref_panel.csv というファイルの場所です（setup で用意してあります）。
+    starter: |
+      write_csv(pref_panel, )
+      saved <-
+    solution: |
+      write_csv(pref_panel, out_file)
+      saved <- read_csv(out_file, show_col_types = FALSE)
+    check: |
+      expect_uses("write_csv")
+      expect_uses("read_csv")
+      expect_object("saved", class = "data.frame")
+      expect_df_equal(saved, .sol$pref_panel, ignore_col_order = FALSE)
+    hints:
+      - write_csv(表, 保存先) で書き出し、read_csv(保存先) で読み込みます。保存先には、引用符を付けずに out_file と書きます。
+      - write_csv(pref_panel, out_file) のあとに saved <- read_csv(out_file, show_col_types = FALSE) と書きます。
+      - |
+        write_csv(pref_panel, out_file)
+        saved <- read_csv(out_file, show_col_types = FALSE)
+    tests:
+      fail:
+        - |
+          write_csv(wage2, out_file)
+          saved <- read_csv(out_file, show_col_types = FALSE)
+        - |
+          saved <- read_csv(out_file, show_col_types = FALSE)

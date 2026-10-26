@@ -1,0 +1,152 @@
+# 12部と4段階のメタ情報。scripts/build-catalog.mjs で設計書から作った雛形を手で直して使う。
+# ステップの本体は content/steps/<番号>/ にある。フォルダがないステップは「準備中」と表示する。
+stages:
+  - { id: 1, name: "第I段階", title: "データを扱う", parts: [1, 2, 3], gate: "027" }
+  - { id: 2, name: "第II段階", title: "統計と回帰", parts: [4, 5, 6], gate: "054" }
+  - { id: 3, name: "第III段階", title: "因果推論と予測", parts: [7, 8, 9], gate: "081" }
+  - { id: 4, name: "第IV段階", title: "ビジネスで使う", parts: [10, 11, 12], gate: "108" }
+parts:
+  - id: 1
+    title: "Rとtidyverse入門"
+    steps:
+      - { id: "001", title: "Rを電卓として使う", question: "消費税10%の値段と10年後の複利はいくらか", mode: browser }
+      - { id: "002", title: "ベクトルと型", question: "5都市の家賃の平均はいくらか", mode: browser }
+      - { id: "003", title: "データフレームを眺める", question: "売上が最も多い店舗はどこか", mode: browser }
+      - { id: "004", title: "行を選ぶ・並べる", question: "前年より売上が落ちた店舗はどこか", mode: browser }
+      - { id: "005", title: "列を選ぶ・作る", question: "客単価と売場効率が最も高い店舗は", mode: browser }
+      - { id: "006", title: "グループごとに集計する", question: "地域別の客単価はいくらか", mode: browser }
+      - { id: "007", title: "パイプで処理をつなぐ", question: "売上上位5店の客単価は", mode: browser }
+      - { id: "008", title: "エラーとAIのコードを読む", question: "このコードはなぜ動かないか", mode: browser }
+      - { id: "009", title: "総合演習：テコ入れすべき店舗を選ぶ", question: "経営会議に何を提案するか", mode: browser, capstone: true }
+  - id: 2
+    title: "データを集めて整える"
+    steps:
+      - { id: "010", title: "CSVとExcelを読む", question: "商品は何カテゴリあるか", mode: browser }
+      - { id: "011", title: "文字化けと見出しを直す", question: "出店先を考える：生鮮食品への支出が多い都市はどこか", mode: browser }
+      - { id: "012", title: "汚いデータを掃除する", question: "来店客アンケートの性別は何通りに書き分けられているか", mode: browser }
+      - { id: "013", title: "縦長と横長", question: "2000〜2020年に就業率が最も上がった県は", mode: browser }
+      - { id: "014", title: "表を結合する", question: "カテゴリ別の売上はいくらか", mode: browser }
+      - { id: "015", title: "日付を扱う", question: "売上が最も多い月と曜日は", mode: browser }
+      - { id: "016", title: "都道府県データをつなぐ", question: "パートの時給を決める前に：最低賃金は平均賃金の何割か", mode: browser }
+      - { id: "017", title: "e-Statから自分でデータを取る", question: "APIの応答から表を作る", mode: browser }
+      - { id: "018", title: "総合演習：最低賃金と賃金の都道府県パネルを作る", question: "県×年の分析用の表をどう組み立てるか", mode: browser, capstone: true }
+  - id: 3
+    title: "可視化"
+    steps:
+      - { id: "019", title: "ggplotの文法", question: "豊かな国ほど長生きか", mode: browser }
+      - { id: "020", title: "時系列の折れ線", question: "コロナ禍でGDPと失業率はどう動いたか", mode: browser }
+      - { id: "021", title: "分布を描く", question: "時給の分布はどんな形か", mode: browser }
+      - { id: "022", title: "棒グラフと順位", question: "売場効率の高い店舗を並べる", mode: browser }
+      - { id: "023", title: "見出し・注記・テーマ", question: "消費税率引上げは店頭の価格にどう表れたか", mode: browser }
+      - { id: "024", title: "散布図と回帰直線", question: "最低賃金の高い県ほど平均賃金も高いか", mode: browser }
+      - { id: "025", title: "地図で見せる", question: "最低賃金を日本地図に塗る", mode: browser }
+      - { id: "026", title: "誤解を招くグラフ", question: "社内資料のこのグラフのどこがずるいか", mode: browser }
+      - { id: "027", title: "総合演習・第I段階の関門：最低賃金の20年を1枚で伝える", question: "パートの時給と人件費を考える：最低賃金はこの20年でどう動き、地域差はどう変わったか", mode: browser, capstone: true }
+  - id: 4
+    title: "記述統計と推測統計"
+    steps:
+      - { id: "028", title: "平均・中央値・ばらつき", question: "「平均的な時給」とはいくらか", mode: browser }
+      - { id: "029", title: "相関", question: "教育年数と時給はどれくらい関係するか", mode: browser }
+      - { id: "030", title: "乱数とシミュレーション", question: "サイコロを1万回振ると平均はどうなるか", mode: browser }
+      - { id: "031", title: "標本分布と中心極限定理", question: "100人調べた平均はどれくらい揺れるか", mode: browser }
+      - { id: "032", title: "信頼区間", question: "平均時給の95%信頼区間は", mode: browser }
+      - { id: "033", title: "仮説検定とp値", question: "男女の平均時給の差は偶然か", mode: browser }
+      - { id: "034", title: "クロス集計", question: "女性ほど非正規雇用が多いか", mode: browser }
+      - { id: "035", title: "p値の誤用と検出力", question: "効果のないチラシを20種類試すと何が起きるか", mode: browser }
+      - { id: "036", title: "総合演習：男女間賃金格差はどれくらいか", question: "男女の時給の差はどれくらいで、偶然では説明できないか", mode: browser, capstone: true }
+  - id: 5
+    title: "回帰分析"
+    steps:
+      - { id: "037", title: "単回帰", question: "教育年数が1年長いと時給は何%高いか", mode: browser }
+      - { id: "038", title: "最小二乗法の中身", question: "傾きは手で計算できるか", mode: browser }
+      - { id: "039", title: "重回帰", question: "経験年数をそろえると学歴の効果は変わるか", mode: browser }
+      - { id: "040", title: "ダミー変数とカテゴリ", question: "大企業ほど賃金は高いか", mode: browser }
+      - { id: "041", title: "交差項", question: "学歴の効果は男女で違うか", mode: browser }
+      - { id: "042", title: "非線形の関係", question: "賃金は何年目にピークを迎えるか", mode: browser }
+      - { id: "043", title: "頑健な標準誤差", question: "標準誤差は信じてよいか", mode: browser }
+      - { id: "044", title: "回帰表をつくる", question: "3つのモデルを1つの表に", mode: browser }
+      - { id: "045", title: "総合演習：教科書の賃金関数を再現する", question: "Wooldridge の教科書の推定結果を自分の手で再現し、日本の架空データと比べると何が分かるか", mode: browser, capstone: true }
+  - id: 6
+    title: "卒論のための実証分析"
+    steps:
+      - { id: "046", title: "問いを立てる", question: "その問いはデータで答えられるか", mode: browser }
+      - { id: "047", title: "先行研究を再現する（1）", question: "Mroz（1987）の記述統計表を再現できるか", mode: browser }
+      - { id: "048", title: "先行研究を再現する（2）", question: "子どもの数は労働参加をどれだけ下げるか", mode: browser }
+      - { id: "049", title: "論文用の図表を仕上げる", question: "論文にそのまま載せられる表と図にするには、何を整えればよいか", mode: browser }
+      - { id: "050", title: "自分のPCにRを入れる", question: "ブラウザで書いた分析のコードは、自分のPCのRでも同じように動くか", mode: local }
+      - { id: "051", title: "Quartoで論文を書く", question: "文章・コード・図表を1つのファイルにまとめ、Word の論文として出力するにはどうするか", mode: local }
+      - { id: "052", title: "参考文献と相互参照", question: "先行研究の引用と「図1」「表1」の番号を、手で書かずに自動でそろえるにはどうするか", mode: local }
+      - { id: "053", title: "再現可能な分析にする", question: "半年後の自分や指導教員が、同じデータから同じ結果をもう一度作れるか", mode: local }
+      - { id: "054", title: "総合演習・第II段階の関門：ミニ卒論", question: "自分で立てた問いに、データと回帰分析で答える4,000字の論文を、再現できる形で書き上げられるか", mode: local, capstone: true }
+  - id: 7
+    title: "因果推論I"
+    steps:
+      - { id: "055", title: "相関と因果", question: "訓練を受けた人の年収が低いのはなぜか", mode: browser }
+      - { id: "056", title: "ランダム化比較試験", question: "無作為に割り当てると何が良いのか", mode: browser }
+      - { id: "057", title: "RCTの精度を上げる", question: "共変量を入れると何が変わるか", mode: browser }
+      - { id: "058", title: "交絡とDAG", question: "何を統制すべきで、何を統制してはいけないか", mode: browser }
+      - { id: "059", title: "観察データで比べる", question: "単純比較はどれだけ外れるか", mode: browser }
+      - { id: "060", title: "マッチング", question: "似た人どうしを比べる", mode: browser }
+      - { id: "061", title: "傾向スコア", question: "参加しやすさで重みをつける", mode: browser }
+      - { id: "062", title: "実データ：NSWの職業訓練", question: "観察データは実験の答えを再現できるか", mode: browser }
+      - { id: "063", title: "総合演習：職業訓練は年収を上げたか", question: "4つの方法で推定した訓練の効果はどれくらい違い、どう読むべきか", mode: browser, capstone: true }
+  - id: 8
+    title: "因果推論II"
+    steps:
+      - { id: "064", title: "パネルデータ", question: "同じ県を毎年見る利点は", mode: browser }
+      - { id: "065", title: "固定効果", question: "県の違いを取り除く", mode: browser }
+      - { id: "066", title: "差の差分析", question: "特別引上げは若年雇用を減らしたか", mode: browser }
+      - { id: "067", title: "イベントスタディ", question: "効果は時間とともにどう変わるか", mode: browser }
+      - { id: "068", title: "実データDID", question: "登録方法の変更で臓器提供は増えたか", mode: browser }
+      - { id: "069", title: "操作変数法", question: "大学が近いと進学し、賃金が上がるか", mode: browser }
+      - { id: "070", title: "回帰不連続デザイン", question: "奨学金は将来の年収を上げるか", mode: browser }
+      - { id: "071", title: "実データRDD", question: "所得移転は支持率を変えたか", mode: browser }
+      - { id: "072", title: "総合演習：最低賃金の特別引上げの効果を報告する", question: "特別引上げは若年の就業率をどれだけ下げたと報告できるか", mode: browser, capstone: true }
+  - id: 9
+    title: "時系列と予測"
+    steps:
+      - { id: "073", title: "時系列データの扱い", question: "失業率は前年同月より上がったか", mode: browser }
+      - { id: "074", title: "季節性", question: "原数値と季節調整値はどう違うか", mode: browser }
+      - { id: "075", title: "トレンドと定常性", question: "関係のない2系列が相関して見えるのはなぜか", mode: browser }
+      - { id: "076", title: "自己回帰モデル", question: "先月の生産で今月を予測できるか", mode: browser }
+      - { id: "077", title: "ARIMAのモデル選択", question: "どの次数が良いか", mode: browser }
+      - { id: "078", title: "予測精度の評価", question: "そのモデルは素朴な予測に勝てるか", mode: browser }
+      - { id: "079", title: "説明変数つき予測", question: "月の効果と前年の値で物価を予測する", mode: browser }
+      - { id: "080", title: "構造変化", question: "2020年を予測できなかったのはなぜか", mode: browser }
+      - { id: "081", title: "総合演習・第III段階の関門：来年の失業率を予測する", question: "1年後の完全失業率はどの範囲にあると予測できるか", mode: browser, capstone: true }
+  - id: 10
+    title: "ビジネス分析"
+    steps:
+      - { id: "082", title: "業務データの全体像", question: "先月の売上・客数・客単価は", mode: browser }
+      - { id: "083", title: "売上の要因分析", question: "前年より売上が伸びたのは客数か単価か", mode: browser }
+      - { id: "084", title: "顧客を分ける", question: "上位2割の顧客が売上の何割を生むか", mode: browser }
+      - { id: "085", title: "コホート分析", question: "初回購入から何か月で離れていくか", mode: browser }
+      - { id: "086", title: "A/Bテストの設計", question: "何人に見せれば差が分かるか", mode: browser }
+      - { id: "087", title: "A/Bテストの分析", question: "新しい画面で購入率は上がったか", mode: browser }
+      - { id: "088", title: "A/Bテストの落とし穴", question: "途中で結果を見てはいけない理由", mode: browser }
+      - { id: "089", title: "価格と需要", question: "2割引きで販売数はどれだけ増え、利益は増えるか", mode: browser }
+      - { id: "090", title: "総合演習：広告キャンペーンは効いたか", question: "広告キャンペーンで注文はどれだけ増え、費用に見合ったか", mode: browser, capstone: true }
+  - id: 11
+    title: "機械学習入門"
+    steps:
+      - { id: "091", title: "予測と因果", question: "当たる予測モデルは施策に使えるか", mode: browser }
+      - { id: "092", title: "訓練データとテストデータ", question: "複雑なモデルほど良いのか", mode: browser }
+      - { id: "093", title: "tidymodelsの流れ", question: "店舗の売上を予測する", mode: browser }
+      - { id: "094", title: "交差検証", question: "モデルの比較をどう公平にするか", mode: browser }
+      - { id: "095", title: "分類とロジスティック回帰", question: "誰が解約しそうか", mode: browser }
+      - { id: "096", title: "評価指標を選ぶ", question: "見逃しと空振り、どちらが痛いか", mode: browser }
+      - { id: "097", title: "決定木", question: "解約しやすい顧客の条件は", mode: browser }
+      - { id: "098", title: "ランダムフォレスト", question: "精度はどこまで上がるか", mode: browser }
+      - { id: "099", title: "総合演習：解約しそうな顧客500人のリストを作る", question: "引き止めの施策をどの500人に向け、効果をどう確かめるか", mode: browser, capstone: true }
+  - id: 12
+    title: "伝える・仕上げる"
+    steps:
+      - { id: "100", title: "Quartoで業務レポート", question: "結論が先に来る報告書を作る", mode: local }
+      - { id: "101", title: "Quartoダッシュボード", question: "毎月見る指標を1画面に", mode: local }
+      - { id: "102", title: "Shiny入門", question: "地域を選ぶと売上の図が変わるアプリ", mode: local }
+      - { id: "103", title: "SQLでデータを取り出す", question: "データベースから必要な行だけ取る", mode: browser }
+      - { id: "104", title: "Gitで履歴を残す", question: "先週は正しかった数字が今日変わったとき、どの変更が原因か突き止められるか", mode: local }
+      - { id: "105", title: "GitHubで共有する", question: "分析を上司や同僚と共有するとき、何を公開してよく、何を出してはいけないか", mode: local }
+      - { id: "106", title: "生成AIと協働する", question: "AIが書いたコードをどう検証するか", mode: browser }
+      - { id: "107", title: "分析を設計して伝える", question: "経営者は何を知りたいか", mode: browser }
+      - { id: "108", title: "修了課題：自分の問いを立て、分析し、報告する", question: "自分で立てた問いに、データとモデルで答え、再現できる報告書にして GitHub で共有できるか", mode: local, capstone: true }

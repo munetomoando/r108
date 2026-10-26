@@ -1,0 +1,22 @@
+title: そらまめマーケット 商品マスタ
+file: ec_products.csv（同じ内容の ec_products.xlsx あり）
+source: 合成データ（data-raw/synth_ec.R、乱数シード108）。架空の商品
+rows: 200
+unit_of_observation: 商品
+notes: >-
+  商品IDは先頭が0の5桁の文字列（例 "00012"）。read_csv は文字列のまま読むが、read.csv では数値になり先頭の0が消える。
+  ec_products.xlsx はシート「説明」「商品一覧」の2枚で、「商品一覧」の product_id は数値として保存してある
+  （Excelで開いて保存し直した想定。read_excel では 12 のように0が消える。第10ステップ）
+columns:
+  - name: product_id
+    description: 商品ID（先頭0の5桁）
+    unit: なし
+  - name: category
+    description: カテゴリ（食品・飲料・日用品・美容・健康・キッチン用品・家電・衣料品・本・文具の8種）
+    unit: なし
+  - name: list_price
+    description: 定価（税込）
+    unit: 円
+  - name: unit_cost
+    description: 仕入原価
+    unit: 円

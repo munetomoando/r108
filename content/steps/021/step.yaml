@@ -1,0 +1,153 @@
+id: "021"
+part: 3
+title: 分布を描く
+question: 時給の分布はどんな形か
+minutes: 45
+mode: browser
+packages: [readr, dplyr, ggplot2]
+data: [wage_survey.csv]
+learn: [geom_histogram, geom_density, geom_boxplot, facet_wrap]
+allow: [factor]
+review_of: "020"
+setup: |
+  library(readr); library(dplyr); library(ggplot2)
+  # 架空の賃金調査の個票（3,000人）
+  wage <- read_csv("data/wage_survey.csv", show_col_types = FALSE)
+  # 企業規模を小さい順に並べるための水準
+  size_levels <- c("〜29人", "30〜299人", "300〜999人", "1000人以上")
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      wage の時給 hourly_wage のヒストグラムを描いてください。横軸に hourly_wage を対応づけ、geom_histogram() の層を足します。棒の幅は binwidth = 100（100円きざみ）にします。
+    starter: |
+      ggplot(wage, aes(x = )) +
+    solution: |
+      ggplot(wage, aes(x = hourly_wage)) + geom_histogram(binwidth = 100)
+    check: |
+      expect_ggplot(geom = "histogram", x = "hourly_wage")
+      check_that(nrow(.plot$data) == nrow(.sol_plot$data),
+                 "図のデータの行数が違います。ggplot() には wage をそのまま渡しましょう。")
+    hints:
+      - ヒストグラムは、横軸の値をいくつかの区間に分けて、区間ごとの人数を棒の高さで表す図です。aes() には横軸（x）だけを書きます。縦軸の人数は自動で数えられます。
+      - ggplot(wage, aes(x = hourly_wage)) に + geom_histogram(binwidth = 100) をつなぎます。
+      - ggplot(wage, aes(x = hourly_wage)) + geom_histogram(binwidth = 100)
+    tests:
+      fail:
+        - |
+          ggplot(wage, aes(x = log_wage)) + geom_histogram()
+        - |
+          ggplot(wage, aes(x = hourly_wage)) + geom_density()
+  - id: b
+    type: write
+    prompt: |
+      男女で時給の分布を比べます。wage に列 sex（female が 1 なら "女性"、0 なら "男性"）を加えた表を wage2 に代入し、横軸に sex、縦軸に hourly_wage をとった箱ひげ図を geom_boxplot() で描いてください。
+    starter: |
+      wage2 <-
+
+    solution: |
+      wage2 <- mutate(wage, sex = if_else(female == 1, "女性", "男性"))
+      ggplot(wage2, aes(x = sex, y = hourly_wage)) + geom_boxplot()
+    check: |
+      expect_object("wage2", class = "data.frame")
+      expect_cols(wage2, "sex")
+      expect_df_equal(wage2, .sol$wage2, ignore_row_order = TRUE)
+      expect_ggplot(geom = "boxplot", x = "sex", y = "hourly_wage")
+    hints:
+      - 「ラベルの列を作る」と「箱ひげ図を描く」の2行です。0/1 の列を文字のラベルに直すのは、第5ステップの if_else() です。
+      - 1行目は mutate(wage, sex = if_else(female == 1, "女性", "男性"))。2行目は ggplot(wage2, aes(x = sex, y = hourly_wage)) に + geom_boxplot() をつなぎます。
+      - |
+        wage2 <- mutate(wage, sex = if_else(female == 1, "女性", "男性"))
+        ggplot(wage2, aes(x = sex, y = hourly_wage)) + geom_boxplot()
+    tests:
+      fail:
+        - |
+          wage2 <- mutate(wage, sex = if_else(female == 1, "男性", "女性"))
+          ggplot(wage2, aes(x = sex, y = hourly_wage)) + geom_boxplot()
+        - |
+          wage2 <- mutate(wage, sex = if_else(female == 1, "女性", "男性"))
+          ggplot(wage2, aes(x = female, y = hourly_wage)) + geom_boxplot()
+  - id: c
+    type: write
+    prompt: |
+      企業規模 firm_size ごとに時給のヒストグラムを並べます。firm_size は文字の列なので、そのままでは図の並びが「1000人以上」が先になるなど、規模の順になりません。
+      まず wage2 の firm_size を、setup で用意した size_levels（"〜29人", "30〜299人", "300〜999人", "1000人以上"）の順の factor（因子）に直して wage2 に代入し直してください。そのうえで a と同じヒストグラム（binwidth = 100）に facet_wrap(~ firm_size) を足し、規模ごとに分割した図を描いてください。
+    starter: |
+      wage2 <- mutate(wage2, firm_size = )
+
+    solution: |
+      wage2 <- mutate(wage2, firm_size = factor(firm_size, levels = size_levels))
+      ggplot(wage2, aes(x = hourly_wage)) +
+        geom_histogram(binwidth = 100) +
+        facet_wrap(~ firm_size)
+    check: |
+      expect_object("wage2", class = "data.frame")
+      check_that(is.factor(wage2$firm_size) &&
+                   identical(levels(wage2$firm_size), levels(.sol$wage2$firm_size)),
+                 "wage2 の firm_size が、規模の小さい順の factor になっていません。factor(firm_size, levels = size_levels) を使いましょう。")
+      expect_ggplot(geom = "histogram", x = "hourly_wage", facet = "firm_size")
+      check_that(identical(levels(.plot$data$firm_size), levels(.sol_plot$data$firm_size)),
+                 "図のデータの firm_size が規模の順の factor になっていません。直した wage2 を ggplot() に渡しましょう。")
+    hints:
+      - 「firm_size を順序つきの factor に直す」と「分割したヒストグラムを描く」の2つです。factor() の levels に並べたい順を渡すと、図もその順に並びます。
+      - 1行目は mutate(wage2, firm_size = factor(firm_size, levels = size_levels))。図は a のヒストグラムのデータを wage2 にして、+ facet_wrap(~ firm_size) を足します。
+      - |
+        wage2 <- mutate(wage2, firm_size = factor(firm_size, levels = size_levels))
+        ggplot(wage2, aes(x = hourly_wage)) + geom_histogram(binwidth = 100) + facet_wrap(~ firm_size)
+    tests:
+      fail:
+        - |
+          wage2 <- mutate(wage2, firm_size = factor(firm_size))
+          ggplot(wage2, aes(x = hourly_wage)) + geom_histogram(binwidth = 100) + facet_wrap(~ firm_size)
+        - |
+          ggplot(wage2, aes(x = hourly_wage)) + geom_histogram(binwidth = 100) + facet_wrap(~ firm_size)
+        - |
+          wage2 <- mutate(wage2, firm_size = factor(firm_size, levels = size_levels))
+          ggplot(wage2, aes(x = hourly_wage)) + geom_histogram(binwidth = 100) + facet_wrap(~ sex)
+  - id: d
+    type: interpret
+    prompt: |
+      a のヒストグラムは、山が左寄りにあり、右側に長い裾が伸びています（右に裾が長い分布）。この形が意味することとして最も適切なものはどれですか。
+    choices:
+      - "時給の高い人が多数派で、時給の低い人はごく一部である"
+      - "多くの人は中ほどからやや低めの時給に集まり、ごく一部の時給の高い人が平均を引き上げている"
+      - "男性と女性で時給の分布がまったく重なっていない"
+      - "時給の上限が法律で決まっているため、右側で分布が途切れている"
+    answer: 1
+    explain: 右に裾が長い分布では、多くの人が山のあたりに集まる一方、少数の非常に高い時給の人が右の裾を作ります。平均はこの高い値に引っ張られるので、中央値より高くなります。wage では中央値が1,900円、平均が約2,077円で、平均を上回る人は全体の約41%しかいません。「平均時給」だけを見ると、典型的な人の時給を高めに見積もってしまいます。賃金や所得、店舗の売上など、お金の量の分布はこの形になることがよくあります。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第20ステップの復習】折れ線グラフ geom_line() を使います。wage を年齢 age ごとにまとめ、平均時給 mean_wage（mean(hourly_wage)）の列をもつ表を wage_by_age に代入してください。そのうえで、横軸に age、縦軸に mean_wage をとった折れ線グラフを描いてください。
+    starter: |
+      wage_by_age <- wage |>
+
+    solution: |
+      wage_by_age <- wage |>
+        group_by(age) |>
+        summarise(mean_wage = mean(hourly_wage))
+      ggplot(wage_by_age, aes(x = age, y = mean_wage)) + geom_line()
+    check: |
+      expect_object("wage_by_age", class = "data.frame")
+      expect_cols(wage_by_age, c("age", "mean_wage"))
+      expect_df_equal(wage_by_age, .sol$wage_by_age, ignore_row_order = TRUE)
+      expect_ggplot(geom = "line", x = "age", y = "mean_wage")
+    hints:
+      - 「年齢ごとに平均をとる」表を作ってから、その表を折れ線で描きます。折れ線は、横軸の値の順に点を線で結んだ図です。
+      - 表は group_by(age) |> summarise(mean_wage = mean(hourly_wage))。図は ggplot(wage_by_age, aes(x = age, y = mean_wage)) に + geom_line() をつなぎます。
+      - |
+        wage_by_age <- wage |> group_by(age) |> summarise(mean_wage = mean(hourly_wage))
+        ggplot(wage_by_age, aes(x = age, y = mean_wage)) + geom_line()
+    tests:
+      fail:
+        - |
+          wage_by_age <- wage |>
+            group_by(age) |>
+            summarise(mean_wage = median(hourly_wage))
+          ggplot(wage_by_age, aes(x = age, y = mean_wage)) + geom_line()
+        - |
+          wage_by_age <- wage |>
+            group_by(age) |>
+            summarise(mean_wage = mean(hourly_wage))
+          ggplot(wage_by_age, aes(x = age, y = mean_wage)) + geom_point()

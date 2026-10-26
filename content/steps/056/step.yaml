@@ -1,0 +1,144 @@
+id: "056"
+part: 7
+title: ランダム化比較試験
+question: 無作為に割り当てると何が良いのか
+minutes: 45
+mode: browser
+packages: [readr, dplyr]
+data: [training_rct.csv]
+learn: []
+review_of: "055"
+setup: |
+  library(readr); library(dplyr)
+  # 職業訓練のランダム化比較試験（架空のデータ、1,000人）。参加希望者を抽選で500人ずつに分けた
+  rct <- read_csv("data/training_rct.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      抽選で訓練に割り当てられた人（treat == 1、処置群）と、割り当てられなかった人（treat == 0、対照群）で、訓練後の年収 earn_post の平均を比べます。
+      処置群の平均から対照群の平均を引いた差を diff_rct に代入し、表示してください。
+    starter: |
+      diff_rct <-
+      diff_rct
+    solution: |
+      diff_rct <- mean(rct$earn_post[rct$treat == 1]) - mean(rct$earn_post[rct$treat == 0])
+      diff_rct
+    check: |
+      expect_object("diff_rct", class = "numeric")
+      check_that(length(diff_rct) == 1, "diff_rct は1つの数（平均の差）にしましょう。")
+      expect_value(diff_rct, .sol$diff_rct, label = "平均の差 diff_rct")
+    hints:
+      - 第55ステップの「観察できる差」と同じ計算です。データが pop から rct に変わります。
+      - rct$earn_post[rct$treat == 1] で処置群の earn_post だけを取り出せます。それぞれ mean() で平均をとって引き算します。
+      - |
+        diff_rct <- mean(rct$earn_post[rct$treat == 1]) - mean(rct$earn_post[rct$treat == 0])
+        diff_rct
+    tests:
+      fail:
+        - |
+          diff_rct <- mean(rct$earn_post[rct$treat == 0]) - mean(rct$earn_post[rct$treat == 1])
+          diff_rct
+        - |
+          diff_rct <- mean(rct$earn_post[rct$treat == 1]) - mean(rct$prior_earn[rct$treat == 1])
+          diff_rct
+  - id: b
+    type: write
+    prompt: |
+      同じ差を回帰で求めます。earn_post を treat だけで説明する回帰 lm(earn_post ~ treat, data = rct) を m_rct に代入し、
+      coef(m_rct) と confint(m_rct) を表示してください。treat の係数が a の diff_rct と一致することを確かめましょう。
+    starter: |
+      m_rct <-
+      coef(m_rct)
+
+    solution: |
+      m_rct <- lm(earn_post ~ treat, data = rct)
+      coef(m_rct)
+      confint(m_rct)
+    check: |
+      expect_object("m_rct", class = "lm")
+      expect_model(m_rct, like = .sol$m_rct)
+      expect_uses("confint")
+      expect_value(.value, .sol_value, label = "最後に表示した信頼区間")
+    hints:
+      - 説明変数が0か1のダミー変数だけの回帰では、係数が「1のグループの平均 − 0のグループの平均」になります。
+      - lm(earn_post ~ treat, data = rct) を推定し、confint() に渡すと95%信頼区間が出ます（第39ステップ）。
+      - |
+        m_rct <- lm(earn_post ~ treat, data = rct)
+        coef(m_rct)
+        confint(m_rct)
+    tests:
+      fail:
+        - |
+          m_rct <- lm(earn_post ~ treat + prior_earn, data = rct)
+          coef(m_rct)
+          confint(m_rct)
+        - |
+          m_rct <- lm(earn_post ~ treat, data = rct)
+          coef(m_rct)
+  - id: c
+    type: write
+    prompt: |
+      無作為割当がうまくいっていれば、訓練の前から決まっている特徴（共変量）は、2つの群でほぼ同じになるはずです。これを確かめることを**バランスチェック**といいます。
+      rct を treat でグループに分け、人数 = n()、年齢 = mean(age)、女性比率 = mean(female)、教育年数 = mean(educ_years)、前年収入 = mean(prior_earn) を集計して balance に代入し、balance を表示してください。
+    starter: |
+      balance <- rct |>
+        group_by(treat) |>
+        summarise(人数 = n(), 年齢 = mean(age), )
+      balance
+    solution: |
+      balance <- rct |>
+        group_by(treat) |>
+        summarise(人数 = n(), 年齢 = mean(age), 女性比率 = mean(female),
+                  教育年数 = mean(educ_years), 前年収入 = mean(prior_earn))
+      balance
+    check: |
+      expect_object("balance", class = "data.frame")
+      check_that(nrow(balance) == 2, "balance は処置群と対照群の2行になるはずです。group_by(treat) を忘れていませんか。")
+      expect_cols(balance, c("treat", "人数", "年齢", "女性比率", "教育年数", "前年収入"))
+      expect_df_equal(balance, .sol$balance, ignore_row_order = TRUE)
+    hints:
+      - group_by() で処置群と対照群に分け、summarise() で列ごとの平均を並べます。0か1のダミー変数の平均は「1の人の割合」になります。
+      - summarise() の中に、女性比率 = mean(female)、教育年数 = mean(educ_years)、前年収入 = mean(prior_earn) を書き足します。
+      - |
+        balance <- rct |>
+          group_by(treat) |>
+          summarise(人数 = n(), 年齢 = mean(age), 女性比率 = mean(female),
+                    教育年数 = mean(educ_years), 前年収入 = mean(prior_earn))
+        balance
+    tests:
+      fail:
+        - |
+          balance <- rct |>
+            summarise(人数 = n(), 年齢 = mean(age), 女性比率 = mean(female),
+                      教育年数 = mean(educ_years), 前年収入 = mean(prior_earn))
+          balance
+        - |
+          balance <- rct |>
+            group_by(treat) |>
+            summarise(人数 = n(), 年齢 = mean(age), 女性比率 = mean(female),
+                      教育年数 = mean(educ_years), 前年収入 = mean(earn_post))
+          balance
+  - id: d
+    type: interpret
+    prompt: |
+      a・b では、処置群と対照群の年収の差は約34.8万円（95%信頼区間 約19.0〜50.5万円）でした。c のバランスチェックでは、年齢の平均が処置群で約39.3歳、対照群で約38.2歳と、約1歳違っていました。この結果の読み方として最も適切なものはどれですか。
+    choices:
+      - "抽選で分けたので、選択バイアスは平均的には0になる。年齢の約1歳の差は抽選の偶然で生じうる大きさで、34.8万円は訓練の効果の推定値と読める。ただし偶然の誤差を含むので、信頼区間とあわせて報告する"
+      - "年齢の平均が完全には一致していないので、無作為割当は失敗している。この実験から効果は推定できない"
+      - "無作為割当をしたので、34.8万円は誤差のない真の効果そのものである"
+      - "対照群の年収が低いのは訓練を受けなかったからではなく、もともと前年収入が低い人が多かったからである"
+    answer: 0
+    explain: 抽選で分けると、どちらの群に入るかは本人の前年収入や意欲と無関係に決まります。そのため、もし誰も訓練を受けなかった場合の年収 Y(0) の平均は、2つの群で平均的には同じになり、第55ステップの選択バイアスが（平均的には）0になります。ただし1回の抽選では、共変量の平均にも偶然の差が残ります。年齢の差の t 検定の p 値は約0.14で、偶然として珍しくない大きさです（選択肢2は誤り）。年収の差にも同じく偶然の誤差があり、34.8万円は真の効果（このデータを作るときに決めた30万円）からずれています（選択肢3は誤り）。前年収入の平均は処置群約272万円、対照群約270万円でほぼ同じです（選択肢4は誤り）。
+  - id: e
+    type: interpret
+    review: true
+    prompt: |
+      【第55ステップの復習】ある会社で、健康診断のあとに自分から保健指導の面談を受けた社員と受けなかった社員の、翌年の医療費を比べると、受けた社員のほうが高くなっていました。この比較について、最も適切な説明はどれですか。
+    choices:
+      - "面談は医療費を増やす効果がある"
+      - "健康に不安のある社員ほど面談を受けやすいとすると、面談を受けなかったとしても医療費が高かったはずの人が受けた側に多く、選択バイアスによって、面談が医療費を増やしたように見えている可能性がある"
+      - "受けた社員と受けなかった社員の人数が違うので、比べることができない"
+      - "面談を受けた社員の Y(1) と Y(0) が両方観察できるので、この差は効果そのものである"
+    answer: 1
+    explain: 自分で受けるかどうかを選ぶとき、受けた人と受けなかった人は、面談がなかったとしても医療費 Y(0) が違っているかもしれません。健康に不安のある人ほど面談を受けるなら、受けた人の Y(0) はもともと高く、選択バイアスは正になります。観察できる差は「効果＋選択バイアス」なので、面談に医療費を下げる効果があっても、差は正（医療費が高い）に見えることがあります。人数が違っても平均は比べられます（選択肢3は誤り）。1人について観察できるのは Y(1) か Y(0) のどちらか一方だけです（選択肢4は誤り）。

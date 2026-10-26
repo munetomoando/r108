@@ -1,0 +1,223 @@
+id: "096"
+part: 11
+title: 評価指標を選ぶ
+question: 見逃しと空振り、どちらが痛いか
+minutes: 50
+mode: browser
+packages: [readr, dplyr, ggplot2, rsample, recipes, parsnip, workflows, yardstick]
+data: [churn.csv]
+learn: [precision, recall, roc_auc, roc_curve, autoplot]
+review_of: "095"
+setup: |
+  library(readr); library(dplyr); library(ggplot2)
+  library(rsample); library(recipes); library(parsnip); library(workflows); library(yardstick)
+  # そらまめマーケット（架空の会社）のネット通販の顧客5,000人。churned は yes（解約）・no（継続）の因子
+  churn <- read_csv("data/churn.csv", show_col_types = FALSE) |>
+    mutate(churned = factor(churned, levels = c(1, 0), labels = c("yes", "no")))
+  # 第95ステップと同じ分け方（75%を訓練、解約の割合で層化）とロジスティック回帰
+  set.seed(108)
+  churn_split <- initial_split(churn, prop = 0.75, strata = churned)
+  churn_train <- training(churn_split)
+  churn_test <- testing(churn_split)
+  churn_rec <- recipe(churned ~ recency + frequency + monetary + age + channel + rank,
+                      data = churn_train)
+  logit_wf <- workflow() |> add_recipe(churn_rec) |> add_model(logistic_reg())
+  logit_fit <- fit(logit_wf, data = churn_train)
+  # テストデータの予測（.pred_class・.pred_yes・.pred_no）
+  churn_pred <- augment(logit_fit, new_data = churn_test)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      【適合率・再現率・AUC】churn_pred を使って、次の3つを順に表示してください。
+      1. 適合率：precision() に truth = churned、estimate = .pred_class を渡す
+      2. 再現率：recall() に同じものを渡す
+      3. AUC：roc_auc() に truth = churned と解約の確率の列 .pred_yes を渡し、結果を logit_auc に代入して表示する
+    starter: |
+      precision(churn_pred, truth = churned, estimate = .pred_class)
+
+      logit_auc <-
+      logit_auc
+    solution: |
+      precision(churn_pred, truth = churned, estimate = .pred_class)
+      recall(churn_pred, truth = churned, estimate = .pred_class)
+      logit_auc <- roc_auc(churn_pred, truth = churned, .pred_yes)
+      logit_auc
+    check: |
+      expect_uses("recall", "再現率は recall() で求めます。")
+      expect_object("logit_auc", class = "data.frame")
+      check_that(identical(logit_auc$.metric, "roc_auc"),
+                 "logit_auc には roc_auc() の結果を代入しましょう。")
+      expect_df_equal(logit_auc, .sol$logit_auc)
+      expect_value(.value, .sol_value, label = "表示した logit_auc")
+    hints:
+      - 適合率と再現率は、0.5で分けた分類 .pred_class から計算します。AUC は分類ではなく、確率 .pred_yes そのものから計算します。
+      - recall(churn_pred, truth = churned, estimate = .pred_class) と roc_auc(churn_pred, truth = churned, .pred_yes) です。確率の列は estimate = を付けずに3つ目に書きます。
+      - |
+        precision(churn_pred, truth = churned, estimate = .pred_class)
+        recall(churn_pred, truth = churned, estimate = .pred_class)
+        logit_auc <- roc_auc(churn_pred, truth = churned, .pred_yes)
+        logit_auc
+    tests:
+      fail:
+        - |
+          precision(churn_pred, truth = churned, estimate = .pred_class)
+          recall(churn_pred, truth = churned, estimate = .pred_class)
+          logit_auc <- roc_auc(churn_pred, truth = churned, .pred_no)
+          logit_auc
+        - |
+          precision(churn_pred, truth = churned, estimate = .pred_class)
+          logit_auc <- roc_auc(churn_pred, truth = churned, .pred_yes)
+          logit_auc
+  - id: b
+    type: write
+    prompt: |
+      【ROC曲線】roc_curve() に truth = churned と .pred_yes を渡し、閾値ごとの感度（sensitivity）と特異度（specificity）の表を logit_roc に代入してください。
+      続けて autoplot(logit_roc) で ROC曲線を描いてください。
+    starter: |
+      logit_roc <-
+
+    solution: |
+      logit_roc <- roc_curve(churn_pred, truth = churned, .pred_yes)
+      autoplot(logit_roc)
+    check: |
+      expect_object("logit_roc", class = "data.frame")
+      expect_cols(logit_roc, c(".threshold", "specificity", "sensitivity"))
+      expect_nrow(logit_roc, nrow(.sol$logit_roc))
+      # 両端の閾値は -Inf と Inf なので、有限の行だけを比べる
+      expect_df_equal(logit_roc[is.finite(logit_roc$.threshold), ],
+                      .sol$logit_roc[is.finite(.sol$logit_roc$.threshold), ])
+      expect_ggplot(geom = "path")
+    hints:
+      - roc_curve() は、閾値を0から1まで動かしたときの感度と特異度を1行ずつ並べた表を返します。autoplot() はその表から図を描きます。
+      - roc_curve(churn_pred, truth = churned, .pred_yes) です。roc_auc() と同じ書き方です。
+      - |
+        logit_roc <- roc_curve(churn_pred, truth = churned, .pred_yes)
+        autoplot(logit_roc)
+    tests:
+      fail:
+        - |
+          logit_roc <- roc_curve(churn_pred, truth = churned, .pred_no)
+          autoplot(logit_roc)
+        - |
+          logit_roc <- roc_curve(churn_pred, truth = churned, .pred_yes)
+          logit_roc
+  - id: c
+    type: write
+    prompt: |
+      【費用から閾値を決める】解約する顧客にクーポンを送らずに失うと1人4,000円（見逃し）、解約しない顧客にクーポンを送ると1人1,000円（空振り）の損になるとします（架空の前提）。
+      1. テストデータの解約者数 n_yes と継続者数 n_no を、sum(churn_test$churned == "yes") のように求める
+      2. logit_roc に、見逃した人数 miss = (1 - sensitivity) * n_yes、空振りの人数 false_alarm = (1 - specificity) * n_no、費用 cost = 4000 * miss + 1000 * false_alarm を加えて cost_tab に代入する
+      3. cost_tab から cost が最も小さい1行を slice_min(cost, n = 1) で取り出して表示する
+    starter: |
+      n_yes <-
+      n_no <-
+      cost_tab <- logit_roc |>
+        mutate()
+
+    solution: |
+      n_yes <- sum(churn_test$churned == "yes")
+      n_no <- sum(churn_test$churned == "no")
+      cost_tab <- logit_roc |>
+        mutate(miss = (1 - sensitivity) * n_yes,
+               false_alarm = (1 - specificity) * n_no,
+               cost = 4000 * miss + 1000 * false_alarm)
+      cost_tab |>
+        slice_min(cost, n = 1)
+    check: |
+      expect_value(n_yes, .sol$n_yes, label = "n_yes")
+      expect_value(n_no, .sol$n_no, label = "n_no")
+      expect_object("cost_tab", class = "data.frame")
+      expect_cols(cost_tab, c(".threshold", "miss", "false_alarm", "cost"))
+      expect_nrow(cost_tab, nrow(.sol$cost_tab))
+      # 両端の閾値は -Inf と Inf なので、有限の行だけを比べる
+      expect_df_equal(cost_tab[is.finite(cost_tab$.threshold), ],
+                      .sol$cost_tab[is.finite(.sol$cost_tab$.threshold), ])
+      expect_value(.value, .sol_value, label = "表示した費用が最小の行")
+    hints:
+      - 感度は「解約者のうち見つけた割合」なので、見逃した人数は (1 − 感度) × 解約者数です。特異度は「継続者のうち正しく継続とした割合」なので、空振りは (1 − 特異度) × 継続者数です。
+      - mutate(miss = (1 - sensitivity) * n_yes, false_alarm = (1 - specificity) * n_no, cost = 4000 * miss + 1000 * false_alarm) のあと slice_min(cost, n = 1) です。
+      - |
+        n_yes <- sum(churn_test$churned == "yes")
+        n_no <- sum(churn_test$churned == "no")
+        cost_tab <- logit_roc |>
+          mutate(miss = (1 - sensitivity) * n_yes,
+                 false_alarm = (1 - specificity) * n_no,
+                 cost = 4000 * miss + 1000 * false_alarm)
+        cost_tab |>
+          slice_min(cost, n = 1)
+    tests:
+      fail:
+        - |
+          n_yes <- sum(churn_test$churned == "yes")
+          n_no <- sum(churn_test$churned == "no")
+          cost_tab <- logit_roc |>
+            mutate(miss = (1 - sensitivity) * n_yes,
+                   false_alarm = (1 - specificity) * n_no,
+                   cost = 1000 * miss + 4000 * false_alarm)
+          cost_tab |>
+            slice_min(cost, n = 1)
+        - |
+          n_yes <- sum(churn_test$churned == "yes")
+          n_no <- sum(churn_test$churned == "no")
+          cost_tab <- logit_roc |>
+            mutate(miss = sensitivity * n_yes,
+                   false_alarm = specificity * n_no,
+                   cost = 4000 * miss + 1000 * false_alarm)
+          cost_tab |>
+            slice_min(cost, n = 1)
+  - id: d
+    type: interpret
+    prompt: |
+      c の結果、費用が最小になる閾値は約0.21で、見逃しは79人、空振りは371人、費用は約68.7万円でした。閾値0.5（予測確率が0.5以上の人だけにクーポンを送る）では、見逃し241人・空振り34人で約99.8万円です。上司への説明として最も適切なものはどれですか。
+    choices:
+      - "閾値は0.5が標準なので、0.5のまま送る相手を決めるべきだ"
+      - "閾値を0.21に下げると空振りが337人増えるが、見逃しが162人減る。見逃し1人の損（4,000円）は空振り1人（1,000円）の4倍なので、全体の費用は約31万円下がる。どちらが痛いかで閾値を決めるべきで、費用の前提が変われば閾値も変わる"
+      - "AUC は閾値によって変わるので、AUC が最も高くなる閾値0.21を選ぶべきだ"
+      - "空振りが371人もいるので、閾値0.21のモデルは正解率が低く、使うべきではない"
+    answer: 1
+    explain: |
+      閾値0.5は、見逃しと空振りの損が同じときにだけ理にかなう目安です。見逃し1件の損が空振り1件の4倍なら、多少空振りが増えても見逃しを減らしたほうが得になります。予測確率が正しければ、費用が最小になる閾値は「空振りの費用 ÷（空振りの費用 + 見逃しの費用）」= 1,000 ÷ 5,000 = 0.2 の近くになり、c の結果（約0.21）とほぼ一致します。AUC は閾値をすべて動かしたときの成績をまとめた1つの数で、閾値を選んでも変わりません。閾値を下げると正解率は下がりますが、目的は正解率ではなく費用を小さくすることです。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第95ステップの復習】閾値を0.2にしたときの混同行列と正解率を求めます。
+      churn_pred に、.pred_yes が0.2以上なら "yes"、そうでなければ "no" とする列 class_02 を if_else() で作り、factor(..., levels = c("yes", "no")) で因子にして pred_02 に代入してください。
+      続けて conf_mat() と accuracy() に truth = churned、estimate = class_02 を渡して、この順に表示してください。
+    starter: |
+      pred_02 <- churn_pred |>
+        mutate(class_02 = )
+
+    solution: |
+      pred_02 <- churn_pred |>
+        mutate(class_02 = factor(if_else(.pred_yes >= 0.2, "yes", "no"), levels = c("yes", "no")))
+      conf_mat(pred_02, truth = churned, estimate = class_02)
+      accuracy(pred_02, truth = churned, estimate = class_02)
+    check: |
+      expect_object("pred_02", class = "data.frame")
+      expect_cols(pred_02, "class_02")
+      check_that(is.factor(pred_02$class_02) && identical(levels(pred_02$class_02), c("yes", "no")),
+                 "class_02 は yes・no の順の因子にしましょう。factor(..., levels = c(\"yes\", \"no\")) を使います。")
+      expect_df_equal(pred_02, .sol$pred_02)
+      expect_value(.value, .sol_value, label = "表示した正解率")
+    hints:
+      - 閾値を変えるには、確率 .pred_yes から自分で分類の列を作ります。yardstick の関数は、truth と estimate が同じ水準の因子であることを求めます。
+      - if_else(.pred_yes >= 0.2, "yes", "no") を factor(..., levels = c("yes", "no")) で囲みます。conf_mat() と accuracy() の estimate を class_02 にします。
+      - |
+        pred_02 <- churn_pred |>
+          mutate(class_02 = factor(if_else(.pred_yes >= 0.2, "yes", "no"), levels = c("yes", "no")))
+        conf_mat(pred_02, truth = churned, estimate = class_02)
+        accuracy(pred_02, truth = churned, estimate = class_02)
+    tests:
+      fail:
+        - |
+          pred_02 <- churn_pred |>
+            mutate(class_02 = factor(if_else(.pred_yes >= 0.5, "yes", "no"), levels = c("yes", "no")))
+          conf_mat(pred_02, truth = churned, estimate = class_02)
+          accuracy(pred_02, truth = churned, estimate = class_02)
+        - |
+          pred_02 <- churn_pred |>
+            mutate(class_02 = factor(if_else(.pred_no >= 0.2, "yes", "no"), levels = c("yes", "no")))
+          conf_mat(pred_02, truth = churned, estimate = class_02)
+          accuracy(pred_02, truth = churned, estimate = class_02)

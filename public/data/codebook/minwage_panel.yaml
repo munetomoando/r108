@@ -1,0 +1,31 @@
+title: 最低賃金の特別引上げ 都道府県パネル（架空）
+file: minwage_panel.csv
+source: 合成データ（data-raw/synth_minwage_panel.R、乱数シード108）。架空の政策で、実際の統計ではない
+rows: 611
+unit_of_observation: 都道府県×年（47県×2012〜2024年）
+notes: >-
+  12県（pref_code 2, 3, 5, 6, 31, 32, 39, 41, 42, 44, 45, 46）で2019年から「最低賃金の特別引上げ」。
+  youth_emp_rate = 県効果 + 年効果（2020年に全国一律 −2pt）+ 処置効果（経過0年 −0.5、1年 −0.8、2年以降 −1.0）+ ε、ε ~ N(0, 0.6²)。
+  年効果は全県共通なので処置前は平行トレンドが成り立つ。adult_emp_rate には処置効果がない（プラセボ）
+columns:
+  - name: pref_code
+    description: 都道府県コード（1〜47）
+    unit: なし（整数）
+  - name: year
+    description: 年
+    unit: 年
+  - name: treated
+    description: 特別引上げの対象県（1=対象、0=対象外）。年によらず一定
+    unit: なし（0/1）
+  - name: post
+    description: 2019年以降（1=2019年以降、0=2018年以前）。全県共通
+    unit: なし（0/1）
+  - name: min_wage
+    description: 最低賃金（架空）
+    unit: 円/時
+  - name: youth_emp_rate
+    description: 若年（15〜24歳）の就業率（架空）
+    unit: "%"
+  - name: adult_emp_rate
+    description: 成人（25〜64歳）の就業率（架空）
+    unit: "%"

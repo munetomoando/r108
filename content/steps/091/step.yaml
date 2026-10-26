@@ -1,0 +1,177 @@
+id: "091"
+part: 11
+title: 予測と因果
+question: 当たる予測モデルは施策に使えるか
+minutes: 40
+mode: browser
+packages: [dplyr, fixest]
+learn: []
+review_of: "090"
+setup: |
+  library(dplyr); library(fixest)
+  # 復習用：販促キャンペーンの店舗×週のデータ（教材用に乱数で作った架空のデータ）
+  # 40店舗×8週。店舗1〜20（売上の多い店舗から選んだ）で第5週から販促を実施。sales は週の売上（万円）
+  set.seed(91)
+  store_lv <- rnorm(40, 0, 0.3)
+  camp <- tibble(store = rep(1:40, each = 8), week = rep(1:8, times = 40)) |>
+    mutate(treat = if_else(store <= 20, 1, 0), post = if_else(week >= 5, 1, 0),
+           sales = round(exp(6 + store_lv[store] + 0.2 * treat + 0.02 * week +
+                               0.05 * treat * post + rnorm(320, 0, 0.05))))
+exercises:
+  - id: a
+    type: interpret
+    prompt: |
+      そらまめマーケットの社内から、次の4つの相談が来ました。このうち、**予測**がよく当たるモデルを作っても答えられず、**因果**（施策を変えたら結果がどれだけ変わるか）を推定する必要があるものはどれですか。
+    choices:
+      - "明日の店舗ごとの売上を予測して、パートの勤務人数を決めたい"
+      - "来月に解約しそうなネット通販の顧客を見つけて、優先して連絡したい"
+      - "チラシの配布を1千枚増やすと、1日の売上がいくら増えるかを知りたい"
+      - "来週の気温の予報から、アイスクリームの仕入れ量を決めたい"
+    answer: 2
+    explain: 売上の予測、解約しそうな顧客の発見、仕入れ量の決定は、どれも「何が起こりそうか」を当てれば役に立つ予測の問いです。チラシを増やしたら売上がどれだけ増えるかは、「こちらが条件を変えたら結果がどう変わるか」を問う因果の問いです。予測がよく当たるモデルでも、その係数が施策の効果を表すとは限りません（小課題 b）。なお、解約しそうな顧客に連絡して解約が減るかどうかは、別の因果の問いです。
+
+  - id: b
+    type: write
+    prompt: |
+      ある店舗の1,000日分のデータを乱数で作ります。店長は、給料日や地域の行事で**客が多いと見込んだ日ほど、チラシを多く配ります**。分析担当には「見込み客数」demand は記録として残っておらず、チラシの枚数 flyer（千枚）と売上 sales（万円）だけが見えるとします。本当は、チラシ1千枚で売上は1万円増えるように作ります。
+      1. starter のとおり、set.seed(108) のあとで demand、flyer、noise をこの順に作る
+      2. 売上を sales <- 100 + 1 * flyer + 10 * demand + noise で作り、sim に3列をまとめる
+      3. sales を flyer だけで説明する回帰 lm(sales ~ flyer, data = sim) を m_pred に代入する
+      4. 全部の日でチラシを2千枚ずつ増やしたときの売上 sales_up を、2. の式の flyer を (flyer + 2) に変えて作る（noise は同じものを使う）
+      5. 最後の行で、モデルから見込んだ売上の増加（flyer の係数 × 2）と、実際の増加 mean(sales_up - sales) を c() で並べて表示する
+    starter: |
+      set.seed(108)
+      n <- 1000
+      demand <- rnorm(n)
+      flyer <- 10 + 2 * demand + rnorm(n)
+      noise <- rnorm(n, 0, 5)
+      sales <-
+      sim <- tibble(demand, flyer, sales)
+      m_pred <-
+      sales_up <-
+      c(coef(m_pred)[["flyer"]] * 2, mean(sales_up - sales))
+    solution: |
+      set.seed(108)
+      n <- 1000
+      demand <- rnorm(n)
+      flyer <- 10 + 2 * demand + rnorm(n)
+      noise <- rnorm(n, 0, 5)
+      sales <- 100 + 1 * flyer + 10 * demand + noise
+      sim <- tibble(demand, flyer, sales)
+      m_pred <- lm(sales ~ flyer, data = sim)
+      sales_up <- 100 + 1 * (flyer + 2) + 10 * demand + noise
+      c(coef(m_pred)[["flyer"]] * 2, mean(sales_up - sales))
+    check: |
+      expect_object("sim", class = "data.frame")
+      expect_cols(sim, c("demand", "flyer", "sales"))
+      check_that(nrow(sim) == 1000, "sim は1,000行（1,000日分）にしましょう。")
+      check_that(isTRUE(all.equal(sim$flyer, .sol$sim$flyer)),
+                 "flyer の値が違います。最初に set.seed(108) とし、demand、flyer、noise の順に乱数を作りましょう。")
+      expect_df_equal(sim, .sol$sim, tol = 1e-8)
+      expect_object("m_pred", class = "lm")
+      expect_model(m_pred, like = .sol$m_pred)
+      check_that(exists("sales_up") && length(sales_up) == 1000 &&
+                   isTRUE(all.equal(sales_up, .sol$sales_up)),
+                 "sales_up が違います。sales の式の flyer を (flyer + 2) に変え、demand と noise はそのまま使いましょう。")
+      expect_value(.value, .sol_value, tol = 1e-6, label = "モデルが見込んだ増加と実際の増加")
+    hints:
+      - 売上は「チラシの効果（1千枚で1万円）＋見込み客数の効果＋偶然の揺れ」でできています。m_pred はチラシの枚数だけで売上を説明するモデルです。
+      - sales <- 100 + 1 * flyer + 10 * demand + noise、m_pred <- lm(sales ~ flyer, data = sim)、sales_up は flyer を (flyer + 2) に置き換えた同じ式です。
+      - |
+        set.seed(108)
+        n <- 1000
+        demand <- rnorm(n)
+        flyer <- 10 + 2 * demand + rnorm(n)
+        noise <- rnorm(n, 0, 5)
+        sales <- 100 + 1 * flyer + 10 * demand + noise
+        sim <- tibble(demand, flyer, sales)
+        m_pred <- lm(sales ~ flyer, data = sim)
+        sales_up <- 100 + 1 * (flyer + 2) + 10 * demand + noise
+        c(coef(m_pred)[["flyer"]] * 2, mean(sales_up - sales))
+    tests:
+      fail:
+        - |
+          set.seed(108)
+          n <- 1000
+          demand <- rnorm(n)
+          flyer <- 10 + 2 * demand + rnorm(n)
+          noise <- rnorm(n, 0, 5)
+          sales <- 100 + 1 * flyer + 10 * demand + noise
+          sim <- tibble(demand, flyer, sales)
+          m_pred <- lm(sales ~ flyer + demand, data = sim)
+          sales_up <- 100 + 1 * (flyer + 2) + 10 * demand + noise
+          c(coef(m_pred)[["flyer"]] * 2, mean(sales_up - sales))
+        - |
+          set.seed(108)
+          n <- 1000
+          demand <- rnorm(n)
+          flyer <- 10 + 2 * demand + rnorm(n)
+          noise <- rnorm(n, 0, 5)
+          sales <- 100 + 1 * flyer + 10 * demand + noise
+          sim <- tibble(demand, flyer, sales)
+          m_pred <- lm(sales ~ flyer, data = sim)
+          sales_up <- 100 + 1 * (flyer + 2) + 10 * demand + rnorm(n, 0, 5)
+          c(coef(m_pred)[["flyer"]] * 2, mean(sales_up - sales))
+        - |
+          n <- 1000
+          demand <- rnorm(n)
+          flyer <- 10 + 2 * demand + rnorm(n)
+          noise <- rnorm(n, 0, 5)
+          sales <- 100 + 1 * flyer + 10 * demand + noise
+          sim <- tibble(demand, flyer, sales)
+          m_pred <- lm(sales ~ flyer, data = sim)
+          sales_up <- 100 + 1 * (flyer + 2) + 10 * demand + noise
+          c(coef(m_pred)[["flyer"]] * 2, mean(sales_up - sales))
+  - id: c
+    type: interpret
+    prompt: |
+      b の m_pred は決定係数 R² が約0.73で、日々の売上をよく当てます。flyer の係数は約4.87なので、モデルからは「2千枚増やせば売上は約9.7万円増える」と見込めます。ところが、実際に2千枚増やしたときの増加は2万円でした。この結果の説明と、上司への報告として最も適切なものはどれですか。
+    choices:
+      - "flyer の係数は統計的に有意なので、チラシ1千枚で売上は約4.9万円増えると報告する"
+      - "R² が高いモデルは因果の効果も正しく推定できる。2万円との違いは偶然の揺れなので、モデルの見込み（約9.7万円）を報告する"
+      - "店長は客が多いと見込んだ日にチラシを多く配るので、flyer の係数には見込み客数の効果が混ざっている。m_pred は売上の予測には使えるが、チラシを増やす効果の見積もりには使えない。効果を知るには、配る日を無作為に決める実験や、第7・8部の因果推論の方法を使う"
+      - "データを1,000日から1万日に増やせば、flyer の係数は本当の効果（1万円）に近づくので、もっとデータを集めてから報告する"
+    answer: 2
+    explain: flyer は見込み客数 demand と一緒に動くので、flyer の係数には「チラシの効果」と「チラシを多く配る日は、もともと客が多い」という2つが混ざっています（第7部の交絡、欠落変数のバイアス）。チラシが多い日は売上が多いという関係は安定しているので、予測には使えます。しかし、こちらがチラシを増やしても見込み客数は増えないので、売上は1千枚あたり1万円しか増えません。データを増やしても、偏りは小さくならず、係数は約4.9のままです。効果を知るには、チラシを配る日を無作為に決める実験（第86・87ステップ）か、差の差分析（第66・90ステップ）などを使います。
+
+  - id: d
+    type: write
+    review: true
+    prompt: |
+      【第90ステップの復習】setup の camp は、40店舗×8週の売上（万円）です。店舗1〜20（treat = 1）では第5週から（post = 1）販促を行いました。売上の多い店舗を選んで実施したので、単純な比較はできません。
+      売上の対数 log(sales) を treat:post で説明し、店舗（store）と週（week）の固定効果を入れ、店舗でクラスタした標準誤差を使う差の差のモデルを m_did に代入し、confint(m_did) を表示してください。
+    starter: |
+      m_did <-
+      confint(m_did)
+    solution: |
+      m_did <- feols(log(sales) ~ treat:post | store + week,
+                     data = camp, cluster = ~store)
+      confint(m_did)
+    check: |
+      expect_object("m_did", class = "fixest")
+      check_that(identical(sort(m_did$fixef_vars), c("store", "week")),
+                 "固定効果は store と week の2つです。式の | の右に store + week と書きましょう。")
+      expect_model(m_did, like = .sol$m_did)
+      check_that(isTRUE(all.equal(as.numeric(se(m_did)), as.numeric(se(.sol$m_did)), tolerance = 1e-6)),
+                 "標準誤差が違います。cluster = ~store で店舗ごとにクラスタしましょう。")
+      expect_value(.value, .sol_value, label = "表示した confint(m_did)")
+    hints:
+      - 第90ステップ b と同じ形です。県×月の代わりに店舗×週のデータで、固定効果も店舗と週になります。
+      - feols(log(sales) ~ treat:post | store + week, data = camp, cluster = ~store) です。
+      - |
+        m_did <- feols(log(sales) ~ treat:post | store + week,
+                       data = camp, cluster = ~store)
+        confint(m_did)
+    tests:
+      fail:
+        - |
+          m_did <- feols(sales ~ treat:post | store + week,
+                         data = camp, cluster = ~store)
+          confint(m_did)
+        - |
+          m_did <- feols(log(sales) ~ treat:post | store + week, data = camp)
+          confint(m_did)
+        - |
+          m_did <- feols(log(sales) ~ treat:post | week,
+                         data = camp, cluster = ~store)
+          confint(m_did)

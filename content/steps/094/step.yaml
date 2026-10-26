@@ -1,0 +1,285 @@
+id: "094"
+part: 11
+title: 交差検証
+question: モデルの比較をどう公平にするか
+minutes: 50
+mode: browser
+packages: [readr, dplyr, lubridate, rsample, recipes, parsnip, workflows, yardstick, tune]
+data: [store_sales_daily.csv]
+learn: [vfold_cv, fit_resamples, collect_metrics, metrics]
+review_of: "093"
+setup: |
+  library(readr); library(dplyr); library(lubridate)
+  library(rsample); library(recipes); library(parsnip); library(workflows); library(yardstick); library(tune)
+  # そらまめマーケット（架空の会社）の30店舗×2023〜2025年の日次売上（教材用の合成データ）
+  ssd <- read_csv("data/store_sales_daily.csv", show_col_types = FALSE)
+  # 藤沢店（S14）。2023〜2024年を訓練期間、2025年をテスト期間にする（第93ステップと同じ）
+  fuji <- ssd |>
+    filter(store_id == "S14") |>
+    mutate(log_sales = log(sales))
+  train <- filter(fuji, date < ymd("2025-01-01"))
+  test <- filter(fuji, date >= ymd("2025-01-01"))
+  # モデルA：曜日・月・気温（第93ステップのワークフロー）
+  rec_a <- recipe(log_sales ~ date + temp, data = train) |>
+    step_date(date, features = c("dow", "month"), keep_original_cols = FALSE)
+  wf_a <- workflow() |>
+    add_recipe(rec_a) |>
+    add_model(linear_reg())
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      訓練期間 train（2023〜2024年の731日）を、交差検証のために5つに分けます。
+      最初の行で set.seed(108) とし、vfold_cv(train, v = 5) を folds に代入して表示してください。
+    starter: |
+      set.seed(108)
+      folds <-
+      folds
+    solution: |
+      set.seed(108)
+      folds <- vfold_cv(train, v = 5)
+      folds
+    check: |
+      expect_object("folds", class = "vfold_cv")
+      check_that(nrow(folds) == 5, "5つに分けましょう（v = 5）。")
+      check_that(nrow(folds$splits[[1]]$data) == nrow(.sol$train),
+                 "分けるデータが違います。訓練期間 train を vfold_cv() に渡しましょう。")
+      check_that(identical(lapply(folds$splits, function(s) sort(s$in_id)),
+                           lapply(.sol$folds$splits, function(s) sort(s$in_id))),
+                 "分け方が違います。最初の行で set.seed(108) とし、そのすぐ後で vfold_cv() を実行しましょう。")
+    hints:
+      - vfold_cv() は、データを無作為に v 個のグループ（fold）に分け、「1つを検証用、残りを推定用」にする組み合わせを v 通り作ります。
+      - vfold_cv(train, v = 5) です。乱数を使うので、先に set.seed(108) とします。
+      - |
+        set.seed(108)
+        folds <- vfold_cv(train, v = 5)
+        folds
+    tests:
+      fail:
+        - |
+          set.seed(108)
+          folds <- vfold_cv(train, v = 10)
+          folds
+        - |
+          set.seed(108)
+          folds <- vfold_cv(fuji, v = 5)
+          folds
+        - |
+          folds <- vfold_cv(train, v = 5)
+          folds
+  - id: b
+    type: write
+    prompt: |
+      setup のモデルA（wf_a：曜日・月・気温）と、祝日 holiday と雨 rain を加えたモデルB を、a の folds で交差検証します。
+      1. recipe(log_sales ~ date + temp + holiday + rain, data = train) に、モデルAと同じ step_date() を加えて rec_b に代入する
+      2. rec_b と linear_reg() をまとめたワークフローを wf_b に代入する
+      3. fit_resamples(ワークフロー, resamples = folds) で、モデルAの結果を res_a、モデルBの結果を res_b に代入する
+      4. collect_metrics(res_b) を表示する
+    starter: |
+      rec_b <-
+      wf_b <-
+      res_a <-
+      res_b <-
+      collect_metrics(res_b)
+    solution: |
+      rec_b <- recipe(log_sales ~ date + temp + holiday + rain, data = train) |>
+        step_date(date, features = c("dow", "month"), keep_original_cols = FALSE)
+      wf_b <- workflow() |>
+        add_recipe(rec_b) |>
+        add_model(linear_reg())
+      res_a <- fit_resamples(wf_a, resamples = folds)
+      res_b <- fit_resamples(wf_b, resamples = folds)
+      collect_metrics(res_b)
+    check: |
+      expect_object("rec_b", class = "recipe")
+      check_that(setequal(rec_b$var_info$variable, .sol$rec_b$var_info$variable),
+                 "rec_b の変数が違います。log_sales ~ date + temp + holiday + rain としましょう。")
+      expect_df_equal(bake(prep(rec_b), new_data = NULL), bake(prep(.sol$rec_b), new_data = NULL))
+      expect_object("wf_b", class = "workflow")
+      expect_object("res_a", class = "resample_results")
+      expect_object("res_b", class = "resample_results")
+      check_that(identical(lapply(res_b$splits, function(s) sort(s$in_id)),
+                           lapply(.sol$res_b$splits, function(s) sort(s$in_id))),
+                 "交差検証の分け方が違います。a の folds を resamples = folds として渡しましょう。")
+      expect_value(collect_metrics(res_a)$mean, collect_metrics(.sol$res_a)$mean, tol = 1e-6,
+                   label = "モデルAの交差検証の指標")
+      expect_value(collect_metrics(res_b)$mean, collect_metrics(.sol$res_b)$mean, tol = 1e-6,
+                   label = "モデルBの交差検証の指標")
+    hints:
+      - 第93ステップと同じ手順でレシピとワークフローを作ります。fit_resamples() は、5通りの「推定用で推定 → 検証用で評価」をまとめて行います。
+      - rec_b は recipe(log_sales ~ date + temp + holiday + rain, data = train) |> step_date(date, features = c("dow", "month"), keep_original_cols = FALSE)。交差検証は fit_resamples(wf_a, resamples = folds) です。
+      - |
+        rec_b <- recipe(log_sales ~ date + temp + holiday + rain, data = train) |>
+          step_date(date, features = c("dow", "month"), keep_original_cols = FALSE)
+        wf_b <- workflow() |>
+          add_recipe(rec_b) |>
+          add_model(linear_reg())
+        res_a <- fit_resamples(wf_a, resamples = folds)
+        res_b <- fit_resamples(wf_b, resamples = folds)
+        collect_metrics(res_b)
+    tests:
+      fail:
+        - |
+          rec_b <- recipe(log_sales ~ date + temp + holiday, data = train) |>
+            step_date(date, features = c("dow", "month"), keep_original_cols = FALSE)
+          wf_b <- workflow() |>
+            add_recipe(rec_b) |>
+            add_model(linear_reg())
+          res_a <- fit_resamples(wf_a, resamples = folds)
+          res_b <- fit_resamples(wf_b, resamples = folds)
+          collect_metrics(res_b)
+        - |
+          rec_b <- recipe(log_sales ~ date + temp + holiday + rain, data = train) |>
+            step_date(date, features = c("dow"), keep_original_cols = FALSE)
+          wf_b <- workflow() |>
+            add_recipe(rec_b) |>
+            add_model(linear_reg())
+          res_a <- fit_resamples(wf_a, resamples = folds)
+          res_b <- fit_resamples(wf_b, resamples = folds)
+          collect_metrics(res_b)
+  - id: c
+    type: write
+    prompt: |
+      2つのモデルの交差検証の RMSE を並べて比べ、良かったほうをテスト期間で確かめます。
+      1. collect_metrics(res_a) に model = "A" の列を、collect_metrics(res_b) に model = "B" の列を mutate() で加えて bind_rows() でつなぎ、.metric == "rmse" の行に絞って cv_tab に代入し、表示する
+      2. wf_b を訓練期間 train 全体で fit() して fit_b に代入する
+      3. augment(fit_b, new_data = test) の結果を metrics() に渡し（truth = log_sales、estimate = .pred）、テスト期間の指標を表示する
+    starter: |
+      cv_tab <- bind_rows(
+        mutate(collect_metrics(res_a), model = "A"),
+
+      ) |>
+        filter()
+      cv_tab
+      fit_b <-
+      augment(fit_b, new_data = test) |>
+        metrics()
+    solution: |
+      cv_tab <- bind_rows(
+        mutate(collect_metrics(res_a), model = "A"),
+        mutate(collect_metrics(res_b), model = "B")
+      ) |>
+        filter(.metric == "rmse")
+      cv_tab
+      fit_b <- fit(wf_b, data = train)
+      augment(fit_b, new_data = test) |>
+        metrics(truth = log_sales, estimate = .pred)
+    check: |
+      expect_object("cv_tab", class = "data.frame")
+      expect_cols(cv_tab, c("model", ".metric", "mean", "std_err"))
+      check_that(nrow(cv_tab) == 2 && all(cv_tab$.metric == "rmse"),
+                 "cv_tab は rmse の2行（モデルAとB）にしましょう。filter(.metric == \"rmse\") です。")
+      expect_df_equal(cv_tab, .sol$cv_tab, ignore_row_order = TRUE, tol = 1e-6)
+      expect_object("fit_b", class = "workflow")
+      check_that(nrow(extract_fit_engine(fit_b)$model) == nrow(.sol$train),
+                 "fit_b は訓練期間 train 全体で推定しましょう（data = train）。")
+      expect_model(extract_fit_engine(fit_b), like = extract_fit_engine(.sol$fit_b))
+      expect_cols(.value, c(".metric", ".estimate"))
+      expect_value(.value, .sol_value, tol = 1e-6, label = "テスト期間の指標")
+    hints:
+      - collect_metrics() は、5回の評価の平均 mean と標準誤差 std_err を返します。2つのモデルの表に印を付けて縦につなぎます。最後は、交差検証で選んだモデルを、まだ一度も使っていないテスト期間で確かめる手順です。
+      - mutate(collect_metrics(res_b), model = "B")、filter(.metric == "rmse")、fit(wf_b, data = train)、metrics(truth = log_sales, estimate = .pred) です。
+      - |
+        cv_tab <- bind_rows(
+          mutate(collect_metrics(res_a), model = "A"),
+          mutate(collect_metrics(res_b), model = "B")
+        ) |>
+          filter(.metric == "rmse")
+        cv_tab
+        fit_b <- fit(wf_b, data = train)
+        augment(fit_b, new_data = test) |>
+          metrics(truth = log_sales, estimate = .pred)
+    tests:
+      fail:
+        - |
+          cv_tab <- bind_rows(
+            mutate(collect_metrics(res_a), model = "A"),
+            mutate(collect_metrics(res_b), model = "B")
+          ) |>
+            filter(.metric == "rsq")
+          cv_tab
+          fit_b <- fit(wf_b, data = train)
+          augment(fit_b, new_data = test) |>
+            metrics(truth = log_sales, estimate = .pred)
+        - |
+          cv_tab <- bind_rows(
+            mutate(collect_metrics(res_a), model = "A"),
+            mutate(collect_metrics(res_b), model = "B")
+          ) |>
+            filter(.metric == "rmse")
+          cv_tab
+          fit_b <- fit(wf_b, data = train)
+          augment(fit_b, new_data = train) |>
+            metrics(truth = log_sales, estimate = .pred)
+        - |
+          cv_tab <- bind_rows(
+            mutate(collect_metrics(res_a), model = "A"),
+            mutate(collect_metrics(res_b), model = "B")
+          ) |>
+            filter(.metric == "rmse")
+          cv_tab
+          fit_b <- fit(wf_a, data = train)
+          augment(fit_b, new_data = test) |>
+            metrics(truth = log_sales, estimate = .pred)
+  - id: d
+    type: interpret
+    prompt: |
+      a〜c では、日次の時系列データである訓練期間（2023〜2024年）を、日付と関係なく無作為に5つに分けて交差検証しました。モデルBの交差検証の RMSE は約0.083、テスト期間（2025年）の RMSE は約0.085でした。時系列データでの交差検証についての説明として最も適切なものはどれですか。
+    choices:
+      - "交差検証はどんなデータでも無作為に分ければよい。テスト期間で確かめる必要もない"
+      - "無作為に分けると、未来の日で推定して過去の日を評価することになる。このモデルは同じ日の曜日・月・気温・祝日・雨だけを使い、前日の売上などを使わないので、その影響は小さく、実際にテスト期間の RMSE とほぼ同じだった。前日や前年の売上を説明変数に使うときは、過去で推定して後の期間で評価する分け方にし、最後は必ず使っていないテスト期間で確かめる"
+      - "時系列データは交差検証できないので、a〜c の結果には意味がない"
+      - "交差検証の RMSE とテスト期間の RMSE がほぼ同じなので、2026年の予測の誤差も必ず約0.085になる"
+    answer: 1
+    explain: 無作為な交差検証では、検証用の日の前後の日が推定用に入ります。前日の売上（第73ステップのラグ）のような説明変数を使うと、「未来を知っている」状態で評価することになり、精度を過大に見積もりがちです。このモデルは同じ日の情報だけを使うので影響は小さく、交差検証の約0.083とテスト期間の約0.085がほぼ一致しました。時系列で公平に評価したいときは、第9部のように「過去で推定し、その後の期間で評価する」ことをくり返す分け方を使います（rsample には rolling_origin() などがあります）。2026年は2025年と条件が違うかもしれないので、誤差が必ず同じになるとは言えません。
+
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第93ステップの復習】setup の wf_a（モデルA）を訓練期間 train で fit() して fit_a に代入し、augment() でテスト期間 test に予測値を加えて pred_a に代入してください。
+      続けて、pred_a を月 month(date) ごとに分け、RMSE rmse = sqrt(mean((log_sales - .pred)^2)) を求めて表示します（月の列の名前は m とします）。
+    starter: |
+      fit_a <-
+      pred_a <-
+      pred_a |>
+        group_by(m = month(date)) |>
+        summarise()
+    solution: |
+      fit_a <- fit(wf_a, data = train)
+      pred_a <- augment(fit_a, new_data = test)
+      pred_a |>
+        group_by(m = month(date)) |>
+        summarise(rmse = sqrt(mean((log_sales - .pred)^2)))
+    check: |
+      expect_object("fit_a", class = "workflow")
+      expect_model(extract_fit_engine(fit_a), like = extract_fit_engine(.sol$fit_a))
+      expect_object("pred_a", class = "data.frame")
+      expect_nrow(pred_a, 365)
+      expect_df_equal(pred_a, .sol$pred_a, tol = 1e-8)
+      expect_cols(.value, c("m", "rmse"))
+      expect_nrow(.value, 12)
+      expect_value(.value, .sol_value, tol = 1e-6, label = "月ごとの RMSE")
+    hints:
+      - 第93ステップ b・c と同じく、fit() で推定し、augment() でテスト期間に予測値 .pred を加えます。
+      - fit(wf_a, data = train)、augment(fit_a, new_data = test)、summarise(rmse = sqrt(mean((log_sales - .pred)^2))) です。
+      - |
+        fit_a <- fit(wf_a, data = train)
+        pred_a <- augment(fit_a, new_data = test)
+        pred_a |>
+          group_by(m = month(date)) |>
+          summarise(rmse = sqrt(mean((log_sales - .pred)^2)))
+    tests:
+      fail:
+        - |
+          fit_a <- fit(wf_a, data = fuji)
+          pred_a <- augment(fit_a, new_data = test)
+          pred_a |>
+            group_by(m = month(date)) |>
+            summarise(rmse = sqrt(mean((log_sales - .pred)^2)))
+        - |
+          fit_a <- fit(wf_a, data = train)
+          pred_a <- augment(fit_a, new_data = test)
+          pred_a |>
+            group_by(m = month(date)) |>
+            summarise(rmse = mean(abs(log_sales - .pred)))

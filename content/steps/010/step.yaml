@@ -1,0 +1,133 @@
+id: "010"
+part: 2
+title: CSVとExcelを読む
+question: 商品は何カテゴリあるか
+minutes: 45
+mode: browser
+packages: [readr, dplyr, readxl, stringr]
+data: [ec_products.csv, ec_products.xlsx, sora_stores.csv]
+learn: [read_excel, excel_sheets, col_types, str_pad]
+setup: |
+  library(readr); library(dplyr); library(readxl); library(stringr)
+  stores <- read_csv("data/sora_stores.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      ネット通販の商品マスタ data/ec_products.csv を read_csv() で読み込み、products に代入してください。
+      このとき col_types で列の型を4列分指定します。product_id と category は文字列（c）、list_price と unit_cost は数値（d）です。
+    starter: |
+      products <- read_csv("data/ec_products.csv", col_types = )
+    solution: |
+      products <- read_csv("data/ec_products.csv", col_types = "ccdd")
+    check: |
+      expect_object("products", class = "data.frame")
+      expect_uses("read_csv")
+      expect_df_equal(products, .sol$products)
+    hints:
+      - read_csv() の引数 col_types に、列の型を1列1文字で並べた文字列を渡します。
+      - 文字列は c、数値は d です。列は product_id, category, list_price, unit_cost の順なので、4文字を並べます。
+      - products <- read_csv("data/ec_products.csv", col_types = "ccdd")
+    tests:
+      fail:
+        - "products <- read_csv(\"data/ec_products.csv\", col_types = \"dcdd\")"
+        - "products <- read_csv(\"data/ec_products.csv\", col_types = \"cccc\")"
+  - id: b
+    type: write
+    prompt: |
+      同じ商品マスタは Excel のファイル data/ec_products.xlsx でも届いています。このファイルには「説明」と「商品一覧」の2枚のシートがあります。
+      read_excel() で「商品一覧」のシートを読み込み、products_x に代入してください。
+    starter: |
+      products_x <- 
+    solution: |
+      products_x <- read_excel("data/ec_products.xlsx", sheet = "商品一覧")
+    check: |
+      expect_object("products_x", class = "data.frame")
+      expect_uses("read_excel")
+      expect_df_equal(products_x, .sol$products_x)
+    hints:
+      - read_excel() は、何も指定しないと1枚目のシートを読みます。1枚目は「説明」のシートです。
+      - 読むシートは引数 sheet で指定します。シートの名前を引用符で囲んで渡します。
+      - products_x <- read_excel("data/ec_products.xlsx", sheet = "商品一覧")
+    tests:
+      fail:
+        - "products_x <- read_excel(\"data/ec_products.xlsx\")"
+        - "products_x <- read_excel(\"data/ec_products.xlsx\", sheet = \"説明\")"
+  - id: c
+    type: fix
+    prompt: |
+      Excel の商品一覧を、a の products と同じ形（product_id が "00002" のような5桁の文字列）で products_x2 に読み込みたいのですが、次のコードでは product_id が "2" のようになり、先頭の0が消えてしまいます。
+      Excel のファイルには、商品IDが数値として保存されているためです。col_types で文字列として読むだけでは0は戻りません。product_id を5桁になるまで左に0で埋めるように直してください。
+    starter: |
+      products_x2 <- read_excel("data/ec_products.xlsx", sheet = "商品一覧",
+                                col_types = c("text", "text", "numeric", "numeric"))
+    solution: |
+      products_x2 <- read_excel("data/ec_products.xlsx", sheet = "商品一覧",
+                                col_types = c("text", "text", "numeric", "numeric")) |>
+        mutate(product_id = str_pad(product_id, width = 5, pad = "0"))
+    check: |
+      expect_object("products_x2", class = "data.frame")
+      expect_df_equal(products_x2, .sol$products_x2)
+      check_that(identical(products_x2$product_id, .sol$products$product_id),
+                 "product_id が CSV から読んだ products の product_id と一致しません。")
+    hints:
+      - 読み込んだ後に、product_id の列を mutate() で作り直します。消えた0を左側に足して、5桁にそろえます。
+      - str_pad(列, width = 5, pad = "0") は、文字列が5文字になるまで左に "0" を足します。
+      - "products_x2 <- read_excel(\"data/ec_products.xlsx\", sheet = \"商品一覧\", col_types = c(\"text\", \"text\", \"numeric\", \"numeric\")) |> mutate(product_id = str_pad(product_id, width = 5, pad = \"0\"))"
+    tests:
+      fail:
+        - |
+          products_x2 <- read_excel("data/ec_products.xlsx", sheet = "商品一覧") |>
+            mutate(product_id = str_pad(product_id, width = 4, pad = "0"))
+        - |
+          products_x2 <- read_excel("data/ec_products.xlsx", sheet = "商品一覧") |>
+            mutate(product_id = paste0("000", product_id))
+  - id: d
+    type: predict
+    prompt: |
+      a で読み込んだ products に対して、次のコードを実行します。結果の表は何行になりますか。
+      カテゴリ名の中には「本・文具」のように「・」を含むものがあります。
+
+      ```r
+      count(products, category)
+      ```
+    choices: ["4行", "8行", "10行", "200行"]
+    answer: 1
+    explain: |
+      count() はカテゴリごとに1行の表を作るので、行数はカテゴリの数と同じです。カテゴリは 食品、飲料、日用品、美容・健康、キッチン用品、家電、衣料品、本・文具 の8つです。「美容・健康」と「本・文具」はそれぞれ1つのカテゴリなので、10ではありません。Excel の「説明」シートにも「8カテゴリ」と書かれています。200 は商品の数（行数）です。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第9ステップの復習】店舗データ stores を立地（location）ごとに集計し、店舗数 n_store と、売場効率 sales / floor_m2 の平均 mean_eff の2列をもつ表を作って、loc_table に代入してください。
+      mean_eff の高い順に並べてください。
+    starter: |
+      loc_table <- stores |>
+    solution: |
+      loc_table <- stores |>
+        mutate(sales_per_m2 = sales / floor_m2) |>
+        group_by(location) |>
+        summarise(n_store = n(), mean_eff = mean(sales_per_m2)) |>
+        arrange(desc(mean_eff))
+    check: |
+      expect_object("loc_table", class = "data.frame")
+      expect_cols(loc_table, c("location", "n_store", "mean_eff"))
+      expect_df_equal(loc_table, .sol$loc_table)
+    hints:
+      - 「売場効率の列を作る → 立地でグループに分ける → 集計する → 並べ替える」の4段のパイプです。
+      - mutate(sales_per_m2 = sales / floor_m2) の後、group_by(location) と summarise(n_store = n(), mean_eff = mean(sales_per_m2)) を続け、arrange(desc(mean_eff)) で高い順にします。
+      - "loc_table <- stores |> mutate(sales_per_m2 = sales / floor_m2) |> group_by(location) |> summarise(n_store = n(), mean_eff = mean(sales_per_m2)) |> arrange(desc(mean_eff))"
+    tests:
+      fail:
+        - |
+          loc_table <- stores |>
+            mutate(sales_per_m2 = sales / floor_m2) |>
+            group_by(location) |>
+            summarise(n_store = n(), mean_eff = mean(sales_per_m2)) |>
+            arrange(mean_eff)
+        - |
+          loc_table <- stores |>
+            group_by(location) |>
+            summarise(n_store = n(), mean_eff = sum(sales) / sum(floor_m2)) |>
+            arrange(desc(mean_eff))
+review_of: "009"

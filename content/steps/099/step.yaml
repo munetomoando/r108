@@ -1,0 +1,301 @@
+id: "099"
+part: 11
+title: 総合演習：解約しそうな顧客500人のリストを作る
+question: 引き止めの施策をどの500人に向け、効果をどう確かめるか
+minutes: 60
+mode: browser
+packages: [readr, dplyr, rsample, recipes, parsnip, workflows, yardstick, tune, randomForest]
+data: [churn.csv]
+learn: []
+allow: [metric_set]
+setup: |
+  library(readr); library(dplyr)
+  library(rsample); library(recipes); library(parsnip); library(workflows); library(yardstick); library(tune)
+  # そらまめマーケット（架空の会社）のネット通販の顧客5,000人。churned は yes（解約）・no（継続）の因子
+  churn <- read_csv("data/churn.csv", show_col_types = FALSE) |>
+    mutate(churned = factor(churned, levels = c(1, 0), labels = c("yes", "no")))
+  # 第95ステップと同じ分け方（75%を訓練、解約の割合で層化）
+  set.seed(108)
+  churn_split <- initial_split(churn, prop = 0.75, strata = churned)
+  churn_train <- training(churn_split)
+  churn_test <- testing(churn_split)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      【2つのモデルを交差検証で比べる】訓練データ churn_train（3,749人）を5つに分けた交差検証で、ロジスティック回帰とランダムフォレストの AUC を比べます。
+      1. 先頭で set.seed(108) とし、vfold_cv() で churn_train を5分割（v = 5、strata = churned）して churn_folds に代入する
+      2. churn_train で、churned を recency・frequency・monetary・age・channel・rank で予測するレシピを recipe() で作って churn_rec に代入する
+      3. churn_rec と logistic_reg() のワークフローを logit_wf に、churn_rec と rand_forest(trees = 100, min_n = 50)（エンジン randomForest、分類）のワークフローを rf_wf に代入する
+      4. fit_resamples() で logit_wf、rf_wf の順に churn_folds で評価し（metrics = metric_set(roc_auc)）、logit_cv、rf_cv に代入する
+      5. bind_rows(logit = collect_metrics(logit_cv), rf = collect_metrics(rf_cv), .id = "model") を cv_tab に代入して表示する
+    starter: |
+      set.seed(108)
+      churn_folds <-
+      churn_rec <-
+      logit_wf <-
+      rf_wf <-
+      logit_cv <-
+      rf_cv <-
+      cv_tab <-
+      cv_tab
+    solution: |
+      set.seed(108)
+      churn_folds <- vfold_cv(churn_train, v = 5, strata = churned)
+      churn_rec <- recipe(churned ~ recency + frequency + monetary + age + channel + rank,
+                          data = churn_train)
+      logit_wf <- workflow() |>
+        add_recipe(churn_rec) |>
+        add_model(logistic_reg())
+      rf_wf <- workflow() |>
+        add_recipe(churn_rec) |>
+        add_model(rand_forest(trees = 100, min_n = 50) |>
+                    set_engine("randomForest") |>
+                    set_mode("classification"))
+      logit_cv <- fit_resamples(logit_wf, resamples = churn_folds, metrics = metric_set(roc_auc))
+      rf_cv <- fit_resamples(rf_wf, resamples = churn_folds, metrics = metric_set(roc_auc))
+      cv_tab <- bind_rows(logit = collect_metrics(logit_cv),
+                          rf = collect_metrics(rf_cv),
+                          .id = "model")
+      cv_tab
+    check: |
+      expect_object("churn_folds", class = "vfold_cv")
+      check_that(nrow(churn_folds) == 5, "churn_folds は5分割にしましょう（v = 5）。")
+      check_that(identical(churn_folds$splits[[1]]$in_id, .sol$churn_folds$splits[[1]]$in_id),
+                 "分割の仕方が違います。先頭で set.seed(108) を実行し、vfold_cv(churn_train, v = 5, strata = churned) としましょう。")
+      expect_object("logit_wf", class = "workflow")
+      expect_object("rf_wf", class = "workflow")
+      expect_object("cv_tab", class = "data.frame")
+      expect_cols(cv_tab, c("model", ".metric", "mean", "n", "std_err"))
+      expect_nrow(cv_tab, 2)
+      check_that(all(cv_tab$.metric == "roc_auc"), "指標は AUC だけにしましょう（metrics = metric_set(roc_auc)）。")
+      check_that(isTRUE(all.equal(cv_tab$mean[cv_tab$model == "logit"], .sol$cv_tab$mean[.sol$cv_tab$model == "logit"], tolerance = 1e-6)),
+                 "ロジスティック回帰の AUC が違います。churn_rec のレシピと logit_wf のモデルを確かめましょう。")
+      check_that(isTRUE(all.equal(cv_tab$mean[cv_tab$model == "rf"], .sol$cv_tab$mean[.sol$cv_tab$model == "rf"], tolerance = 1e-6)),
+                 "ランダムフォレストの AUC が違います。rand_forest(trees = 100, min_n = 50) とし、logit_cv、rf_cv の順に評価しましょう（乱数の使われる順番で結果が変わります）。")
+      expect_df_equal(cv_tab, .sol$cv_tab, tol = 1e-6)
+      expect_value(.value, .sol_value, label = "表示した cv_tab")
+    hints:
+      - 第94ステップの交差検証を、第95・98ステップの2つのモデルに使います。訓練データを5つに分け、4つで当てはめ、残る1つで AUC を測ることを5回くり返し、その平均で比べます。
+      - vfold_cv(churn_train, v = 5, strata = churned)、recipe(churned ~ recency + … + rank, data = churn_train)、fit_resamples(logit_wf, resamples = churn_folds, metrics = metric_set(roc_auc))、collect_metrics(logit_cv) です。ランダムフォレストも乱数を使うので、set.seed(108) から順に実行します。
+      - |
+        set.seed(108)
+        churn_folds <- vfold_cv(churn_train, v = 5, strata = churned)
+        churn_rec <- recipe(churned ~ recency + frequency + monetary + age + channel + rank,
+                            data = churn_train)
+        logit_wf <- workflow() |>
+          add_recipe(churn_rec) |>
+          add_model(logistic_reg())
+        rf_wf <- workflow() |>
+          add_recipe(churn_rec) |>
+          add_model(rand_forest(trees = 100, min_n = 50) |>
+                      set_engine("randomForest") |>
+                      set_mode("classification"))
+        logit_cv <- fit_resamples(logit_wf, resamples = churn_folds, metrics = metric_set(roc_auc))
+        rf_cv <- fit_resamples(rf_wf, resamples = churn_folds, metrics = metric_set(roc_auc))
+        cv_tab <- bind_rows(logit = collect_metrics(logit_cv),
+                            rf = collect_metrics(rf_cv),
+                            .id = "model")
+        cv_tab
+    tests:
+      fail:
+        - |
+          set.seed(108)
+          churn_folds <- vfold_cv(churn_train, v = 5)
+          churn_rec <- recipe(churned ~ recency + frequency + monetary + age + channel + rank,
+                              data = churn_train)
+          logit_wf <- workflow() |>
+            add_recipe(churn_rec) |>
+            add_model(logistic_reg())
+          rf_wf <- workflow() |>
+            add_recipe(churn_rec) |>
+            add_model(rand_forest(trees = 100, min_n = 50) |>
+                        set_engine("randomForest") |>
+                        set_mode("classification"))
+          logit_cv <- fit_resamples(logit_wf, resamples = churn_folds, metrics = metric_set(roc_auc))
+          rf_cv <- fit_resamples(rf_wf, resamples = churn_folds, metrics = metric_set(roc_auc))
+          cv_tab <- bind_rows(logit = collect_metrics(logit_cv),
+                              rf = collect_metrics(rf_cv),
+                              .id = "model")
+          cv_tab
+        - |
+          set.seed(108)
+          churn_folds <- vfold_cv(churn_train, v = 5, strata = churned)
+          churn_rec <- recipe(churned ~ recency + frequency + monetary + age + channel + rank,
+                              data = churn_train)
+          logit_wf <- workflow() |>
+            add_recipe(churn_rec) |>
+            add_model(logistic_reg())
+          rf_wf <- workflow() |>
+            add_recipe(churn_rec) |>
+            add_model(rand_forest(trees = 100) |>
+                        set_engine("randomForest") |>
+                        set_mode("classification"))
+          logit_cv <- fit_resamples(logit_wf, resamples = churn_folds, metrics = metric_set(roc_auc))
+          rf_cv <- fit_resamples(rf_wf, resamples = churn_folds, metrics = metric_set(roc_auc))
+          cv_tab <- bind_rows(logit = collect_metrics(logit_cv),
+                              rf = collect_metrics(rf_cv),
+                              .id = "model")
+          cv_tab
+  - id: b
+    type: write
+    prompt: |
+      【最良のモデルで全顧客を予測する】a で AUC の平均（mean）が高かった方のワークフローを選びます。
+      1. 選んだワークフロー（logit_wf か rf_wf）を、fit() で顧客5,000人全体 churn に当てはめて final_fit に代入する
+      2. churn に、final_fit で予測した解約の確率 prob（predict(final_fit, churn, type = "prob")$.pred_yes）を mutate() で加えて scored に代入する
+      3. scored の予測確率の平均 mean_prob = mean(prob) と、実際の解約率 churn_rate = mean(churned == "yes") を summarise() で求めて表示する
+    starter: |
+      final_fit <-
+      scored <-
+      scored |>
+        summarise(mean_prob = , churn_rate = )
+    solution: |
+      final_fit <- fit(logit_wf, data = churn)
+      scored <- churn |>
+        mutate(prob = predict(final_fit, churn, type = "prob")$.pred_yes)
+      scored |>
+        summarise(mean_prob = mean(prob), churn_rate = mean(churned == "yes"))
+    check: |
+      expect_object("final_fit", class = "workflow")
+      check_that(identical(class(extract_fit_engine(final_fit))[1], class(extract_fit_engine(.sol$final_fit))[1]),
+                 "選んだモデルが違います。a の cv_tab で、AUC の平均（mean）が高い方のワークフローを当てはめましょう。")
+      expect_object("scored", class = "data.frame")
+      expect_cols(scored, c("customer_id", "churned", "prob"))
+      check_that(nrow(scored) == 5000, "scored は顧客5,000人全体 churn から作りましょう。")
+      check_that(isTRUE(all.equal(scored$prob, .sol$scored$prob, tolerance = 1e-6)),
+                 "予測確率 prob が違います。final_fit を churn 全体で当てはめ、解約（yes）の確率 .pred_yes を使いましょう。")
+      expect_df_equal(scored, .sol$scored, tol = 1e-6)
+      expect_value(.value, .sol_value, label = "表示した平均")
+    hints:
+      - 交差検証はモデルを選ぶための手続きです。選んだら、使えるデータ全部で当てはめ直してから予測に使います（第81ステップで、テスト期間で比べた後に全期間で推定し直したのと同じです）。
+      - fit(logit_wf, data = churn) のように、ワークフローに直接 fit() を使えます。確率は predict(final_fit, churn, type = "prob")$.pred_yes です。
+      - |
+        final_fit <- fit(logit_wf, data = churn)
+        scored <- churn |>
+          mutate(prob = predict(final_fit, churn, type = "prob")$.pred_yes)
+        scored |>
+          summarise(mean_prob = mean(prob), churn_rate = mean(churned == "yes"))
+    tests:
+      fail:
+        - |
+          set.seed(108)
+          final_fit <- fit(rf_wf, data = churn)
+          scored <- churn |>
+            mutate(prob = predict(final_fit, churn, type = "prob")$.pred_yes)
+          scored |>
+            summarise(mean_prob = mean(prob), churn_rate = mean(churned == "yes"))
+        - |
+          final_fit <- fit(logit_wf, data = churn)
+          scored <- churn |>
+            mutate(prob = predict(final_fit, churn, type = "prob")$.pred_no)
+          scored |>
+            summarise(mean_prob = mean(prob), churn_rate = mean(churned == "yes"))
+  - id: c
+    type: write
+    prompt: |
+      【上位500人のリスト】引き止めの施策を向ける500人を選びます。
+      1. scored から解約の確率 prob が高い順に500人を slice_max(prob, n = 500, with_ties = FALSE) で取り出し、customer_id・prob・recency・frequency・monetary・rank・churned の列を select() して top500 に代入する
+      2. 全顧客 scored と top500 のそれぞれで、人数 n = n()、実際の解約率 churn_rate = mean(churned == "yes")、recency の平均 recency = mean(recency)、frequency の平均 frequency = mean(frequency)、ブロンズ会員の割合 bronze = mean(rank == "ブロンズ") を summarise() で求め、bind_rows(全顧客 = …, 上位500人 = …, .id = "group") で縦につないで list_sum に代入し、表示する
+    starter: |
+      top500 <- scored |>
+
+      list_sum <- bind_rows(全顧客 = ,
+                            上位500人 = ,
+                            .id = "group")
+      list_sum
+    solution: |
+      top500 <- scored |>
+        slice_max(prob, n = 500, with_ties = FALSE) |>
+        select(customer_id, prob, recency, frequency, monetary, rank, churned)
+      list_sum <- bind_rows(
+        全顧客 = summarise(scored, n = n(), churn_rate = mean(churned == "yes"),
+                           recency = mean(recency), frequency = mean(frequency),
+                           bronze = mean(rank == "ブロンズ")),
+        上位500人 = summarise(top500, n = n(), churn_rate = mean(churned == "yes"),
+                              recency = mean(recency), frequency = mean(frequency),
+                              bronze = mean(rank == "ブロンズ")),
+        .id = "group")
+      list_sum
+    check: |
+      expect_object("top500", class = "data.frame")
+      expect_cols(top500, c("customer_id", "prob", "recency", "frequency", "monetary", "rank", "churned"))
+      expect_nrow(top500, 500)
+      check_that(setequal(top500$customer_id, .sol$top500$customer_id),
+                 "選んだ500人が違います。prob の大きい順に500人を slice_max(prob, n = 500, with_ties = FALSE) で取り出しましょう。")
+      expect_df_equal(top500, .sol$top500, ignore_row_order = TRUE, tol = 1e-6)
+      expect_object("list_sum", class = "data.frame")
+      expect_cols(list_sum, c("group", "n", "churn_rate", "recency", "frequency", "bronze"))
+      expect_nrow(list_sum, 2)
+      expect_df_equal(list_sum, .sol$list_sum, ignore_row_order = TRUE, tol = 1e-6)
+      expect_value(.value, .sol_value, label = "表示した list_sum")
+    hints:
+      - リストの500人がどんな客か、全顧客と並べて比べます。上位500人の実際の解約率が全体の解約率よりどれだけ高いかが、リストの「当たり具合」の目安です。
+      - 上位の取り出しは slice_max(prob, n = 500, with_ties = FALSE)（第7ステップ）です。bind_rows(全顧客 = summarise(scored, …), 上位500人 = summarise(top500, …), .id = "group") のように、名前を付けてつなぐと group 列に入ります。
+      - |
+        top500 <- scored |>
+          slice_max(prob, n = 500, with_ties = FALSE) |>
+          select(customer_id, prob, recency, frequency, monetary, rank, churned)
+        list_sum <- bind_rows(
+          全顧客 = summarise(scored, n = n(), churn_rate = mean(churned == "yes"),
+                             recency = mean(recency), frequency = mean(frequency),
+                             bronze = mean(rank == "ブロンズ")),
+          上位500人 = summarise(top500, n = n(), churn_rate = mean(churned == "yes"),
+                                recency = mean(recency), frequency = mean(frequency),
+                                bronze = mean(rank == "ブロンズ")),
+          .id = "group")
+        list_sum
+    tests:
+      fail:
+        - |
+          top500 <- scored |>
+            slice_min(prob, n = 500, with_ties = FALSE) |>
+            select(customer_id, prob, recency, frequency, monetary, rank, churned)
+          list_sum <- bind_rows(
+            全顧客 = summarise(scored, n = n(), churn_rate = mean(churned == "yes"),
+                               recency = mean(recency), frequency = mean(frequency),
+                               bronze = mean(rank == "ブロンズ")),
+            上位500人 = summarise(top500, n = n(), churn_rate = mean(churned == "yes"),
+                                  recency = mean(recency), frequency = mean(frequency),
+                                  bronze = mean(rank == "ブロンズ")),
+            .id = "group")
+          list_sum
+        - |
+          top500 <- scored |>
+            slice_max(recency, n = 500, with_ties = FALSE) |>
+            select(customer_id, prob, recency, frequency, monetary, rank, churned)
+          list_sum <- bind_rows(
+            全顧客 = summarise(scored, n = n(), churn_rate = mean(churned == "yes"),
+                               recency = mean(recency), frequency = mean(frequency),
+                               bronze = mean(rank == "ブロンズ")),
+            上位500人 = summarise(top500, n = n(), churn_rate = mean(churned == "yes"),
+                                  recency = mean(recency), frequency = mean(frequency),
+                                  bronze = mean(rank == "ブロンズ")),
+            .id = "group")
+          list_sum
+  - id: d
+    type: interpret
+    free: true
+    prompt: |
+      a〜c の結果をもとに、マーケティング部への「引き止め施策の提案」を3行（3文）で書いてください。
+      1文目に a の交差検証の結果（2つのモデルの AUC と、どちらを選んだか）を、2文目に c のリスト（上位500人の実際の解約率と全体の解約率の比較、どんな客が多いか）を、3文目に施策の提案と、その効果をどう確かめるか（予測は因果ではないこと、A/Bテスト（第86〜88ステップ）で無作為に施策を割り当てて比べること）を書くと書きやすいでしょう。
+    solution: |
+      訓練データの5分割の交差検証で AUC の平均を比べると、ロジスティック回帰が約0.734、ランダムフォレストが約0.728で、差は標準誤差（約0.013）より小さいので、単純で説明しやすいロジスティック回帰を選び、顧客5,000人全体で当てはめ直して全員の解約確率を予測した。
+      確率の高い上位500人の実際の解約率は約68%で、全体の約26%の2.6倍あり、最後の注文から平均約333日（全体は約80日）たったブロンズ会員（8割）が中心である。
+      この500人に引き止めのクーポンを送ることを提案するが、解約しやすい客を当てる予測は施策が効くかどうかの因果を示さないので、500人を無作為に2群に分けて片方だけに送る A/B テストで解約率の差を測り、費用に見合うかを確かめてから全体に広げるべきである。
+    check: |
+      expect_min_chars(150)
+      expect_text("[0-9０-９]", "AUC や解約率などの数字を入れて書きましょう。")
+      expect_text("AUC|交差検証", "1文目に、交差検証での AUC の比較を書きましょう。")
+      expect_text("ロジスティック|ランダムフォレスト", "どちらのモデルを選んだかを書きましょう。")
+      expect_text("500", "2文目に、上位500人のリストについて書きましょう。")
+      expect_text("解約率|%|％|割", "上位500人の実際の解約率を、全体の解約率と比べて書きましょう。")
+      expect_text("A/B|ＡＢ|AB|無作為|ランダムに", "3文目に、施策の効果を A/B テスト（無作為な割り当て）で確かめることを書きましょう。")
+      expect_text("因果|効果", "予測が当たっても施策の効果（因果）は分からないことに触れましょう。")
+    hints:
+      - a の cv_tab の mean、c の list_sum の2行（全顧客・上位500人）を見直しましょう。上位500人の解約率が全体の何倍かを計算すると、リストの価値が伝わります。
+      - 「どのモデルをなぜ選んだか（AUC つき）」「リストの500人はどれくらい解約し、どんな客か」「何をすすめ、効果をどう確かめるか」を1文ずつ書きます。
+      - 例「交差検証の AUC はロジスティック回帰が約〇、ランダムフォレストが約〇で、〇〇を選んで全顧客の解約確率を予測した。上位500人の実際の解約率は約〇%で全体の約〇%の〇倍あり、〇〇の客が多い。この500人に引き止め策をすすめるが、予測は施策の効果を示さないので、500人を無作為に2群に分ける A/B テストで効果を確かめてから広げる。」
+    tests:
+      fail:
+        - 解約しそうな顧客500人にクーポンを送れば、解約は減ると思う。
+        - 交差検証の AUC はロジスティック回帰が約0.734で、ランダムフォレストより高かった。上位500人の解約率は約68%で全体の約26%より高い。この500人に引き止めのクーポンを送れば、解約は確実に減るので、すぐに全員に送るべきである。

@@ -1,0 +1,44 @@
+title: 賃金調査風の個票（架空）
+file: wage_survey.csv
+source: 合成データ（data-raw/synth_wage_survey.R、乱数シード108）
+rows: 3000
+unit_of_observation: 労働者
+notes: >-
+  log_wage = a + 0.07×educ_years + 0.035×exper − 0.0006×exper² + 0.01×tenure − 0.12×female
+  + 企業規模（〜29人 0、30〜299人 0.05、300〜999人 0.10、1000人以上 0.18）+ 0.15×regular + ε、
+  ε ~ N(0, (0.25 + 0.02×(educ_years − 12))²)（不均一分散）。a は時給の中央値が1,900円になるよう調整。
+  industry は賃金に影響しない
+columns:
+  - name: id
+    description: 個人ID
+    unit: なし
+  - name: female
+    description: 女性ダミー（1=女性、0=男性）
+    unit: なし（0/1）
+  - name: age
+    description: 年齢
+    unit: 歳
+  - name: educ_years
+    description: 教育年数（12=高卒、14=短大・専門卒、16=大卒、18=大学院卒）
+    unit: 年
+  - name: exper
+    description: 潜在的な経験年数（年齢 − 教育年数 − 6）
+    unit: 年
+  - name: tenure
+    description: 現在の勤め先での勤続年数
+    unit: 年
+  - name: firm_size
+    description: 企業規模（〜29人・30〜299人・300〜999人・1000人以上）
+    unit: なし
+  - name: regular
+    description: 正社員ダミー（1=正規雇用、0=非正規雇用）
+    unit: なし（0/1）
+  - name: industry
+    description: 産業
+    unit: なし
+  - name: hourly_wage
+    description: 時給
+    unit: 円
+  - name: log_wage
+    description: 時給の自然対数（log(hourly_wage)、小数4桁）
+    unit: なし

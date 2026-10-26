@@ -1,0 +1,9 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+public/r/r108check.R
+.Rhistory
+.DS_Store
+*.Rcheck/
+public/local/check_*.R

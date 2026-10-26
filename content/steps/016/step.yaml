@@ -1,0 +1,183 @@
+id: "016"
+part: 2
+title: 都道府県データをつなぐ
+question: パートの時給を決める前に：最低賃金は平均賃金の何割か
+minutes: 45
+mode: browser
+packages: [readr, dplyr, stringr, lubridate]
+data: [min_wage_pref.csv, wage_census_pref.csv, pref_basic.csv]
+learn: [as.integer, by]
+review_of: "015"
+setup: |
+  library(readr); library(dplyr); library(stringr); library(lubridate)
+  wage <- read_csv("data/wage_census_pref.csv", show_col_types = FALSE)
+  # 最低賃金の表は、県コードを "01" のような2桁の文字で受け取った、という設定にする
+  mw_raw <- read_csv("data/min_wage_pref.csv",
+                     col_types = cols(pref_code = col_character())) |>
+    mutate(pref_code = str_pad(pref_code, width = 2, pad = "0"))
+  prefs <- read_csv("data/pref_basic.csv", show_col_types = FALSE) |>
+    select(pref_code, pref)
+exercises:
+  - id: a
+    type: fix
+    prompt: |
+      賃金の表 wage の県コード pref_code は数値（1, 2, …）ですが、最低賃金の表 mw_raw の pref_code は "01", "02", … という文字列です。
+      次のコードは、2025年6月の平均賃金（男女計）と、そのとき効いていた2024年度の最低賃金を県コードで結合しようとしていますが、「incompatible types」（型が合わない）というエラーで止まります。
+      mw を作る行を直し、mw の pref_code を整数にしてから結合が通るようにしてください。結合の行（check_2025）は変えなくてかまいません。
+    starter: |
+      mw <- mw_raw
+      check_2025 <- inner_join(filter(wage, year == 2025, sex == "男女計"),
+                               filter(mw, fiscal_year == 2024),
+                               by = "pref_code")
+    solution: |
+      mw <- mutate(mw_raw, pref_code = as.integer(pref_code))
+      check_2025 <- inner_join(filter(wage, year == 2025, sex == "男女計"),
+                               filter(mw, fiscal_year == 2024),
+                               by = "pref_code")
+    check: |
+      expect_object("mw", class = "data.frame")
+      check_that(is.numeric(mw$pref_code),
+                 "mw の pref_code がまだ数値になっていません。as.integer() で整数に直しましょう。")
+      expect_df_equal(mw, .sol$mw)
+      expect_object("check_2025", class = "data.frame")
+      expect_df_equal(check_2025, .sol$check_2025, ignore_row_order = TRUE)
+    hints:
+      - 結合のキーは、両方の表で同じ型でなければなりません。glimpse(wage) と glimpse(mw_raw) で pref_code の型（<dbl> と <chr>）を見比べましょう。
+      - mutate() で pref_code を作り直します。as.integer("01") は整数の 1 になり、先頭の0は消えます。
+      - mw <- mutate(mw_raw, pref_code = as.integer(pref_code))
+    tests:
+      fail:
+        - |
+          mw <- mw_raw
+          wage_c <- mutate(wage, pref_code = as.character(pref_code))
+          check_2025 <- inner_join(filter(wage_c, year == 2025, sex == "男女計"),
+                                   filter(mw, fiscal_year == 2024),
+                                   by = "pref_code")
+  - id: b
+    type: write
+    prompt: |
+      全部の年をまとめて結合します。賃金構造基本統計調査は毎年6月分の賃金で、最低賃金は毎年10月ごろに改定されます。そのため year 年6月に効いていた最低賃金は、前の年度（fiscal_year = year − 1）の額です。
+      wage から男女計（sex == "男女計"）の行だけを取り出し、mw に列 year = fiscal_year + 1 を足した表を、pref_code と year の2つのキーで左結合（left_join）して、mw_wage に代入してください。47県 × 7年（2019〜2025年）の329行になります。
+    starter: |
+      mw_wage <- wage |>
+    solution: |
+      mw_wage <- wage |>
+        filter(sex == "男女計") |>
+        left_join(mutate(mw, year = fiscal_year + 1), by = c("pref_code", "year"))
+    check: |
+      expect_object("mw_wage", class = "data.frame")
+      expect_cols(mw_wage, c("pref_code", "year", "scheduled_wage", "hours", "fiscal_year", "min_wage"))
+      check_that(nrow(mw_wage) == 329,
+                 paste0("mw_wage は47県×7年＝329行になるはずですが、", nrow(mw_wage), "行あります。結合のキーを見直しましょう。"))
+      expect_df_equal(mw_wage, .sol$mw_wage, ignore_row_order = TRUE)
+    hints:
+      - 「男女計に絞る → 最低賃金の表を結合する」の2段のパイプです。結合する前に、最低賃金の表に year の列を作っておきます。
+      - 右の表は mutate(mw, year = fiscal_year + 1) です。キーが2つのときは by = c("pref_code", "year") と書きます。
+      - "mw_wage <- wage |> filter(sex == \"男女計\") |> left_join(mutate(mw, year = fiscal_year + 1), by = c(\"pref_code\", \"year\"))"
+    tests:
+      fail:
+        - |
+          mw_wage <- wage |>
+            filter(sex == "男女計") |>
+            left_join(mutate(mw, year = fiscal_year), by = c("pref_code", "year"))
+        - |
+          mw_wage <- wage |>
+            filter(sex == "男女計") |>
+            left_join(mutate(mw, year = fiscal_year - 1), by = c("pref_code", "year"))
+        - |
+          mw_wage <- wage |>
+            left_join(mutate(mw, year = fiscal_year + 1), by = c("pref_code", "year"))
+  - id: c
+    type: write
+    prompt: |
+      mw_wage に2つの列を足して kaitz_tbl に代入してください。
+      - avg_wage … 平均時給（円/時）。所定内給与額 scheduled_wage は千円/月、所定内実労働時間数 hours は時間/月なので、scheduled_wage * 1000 / hours で求めます
+      - kaitz … カイツ指標。最低賃金 ÷ 平均時給（min_wage / avg_wage）
+    starter: |
+      kaitz_tbl <- mw_wage |>
+    solution: |
+      kaitz_tbl <- mw_wage |>
+        mutate(avg_wage = scheduled_wage * 1000 / hours,
+               kaitz = min_wage / avg_wage)
+    check: |
+      expect_object("kaitz_tbl", class = "data.frame")
+      expect_cols(kaitz_tbl, c("avg_wage", "kaitz"))
+      expect_df_equal(kaitz_tbl, .sol$kaitz_tbl, ignore_row_order = TRUE)
+    hints:
+      - mutate() の中に2つの列をカンマで区切って書きます。後の列（kaitz）では、先に作った列（avg_wage）を使えます。
+      - 千円を円に直すために1000を掛けてから、1か月の時間数で割ります。avg_wage = scheduled_wage * 1000 / hours です。
+      - "kaitz_tbl <- mw_wage |> mutate(avg_wage = scheduled_wage * 1000 / hours, kaitz = min_wage / avg_wage)"
+    tests:
+      fail:
+        - |
+          kaitz_tbl <- mw_wage |>
+            mutate(avg_wage = scheduled_wage / hours,
+                   kaitz = min_wage / avg_wage)
+        - |
+          kaitz_tbl <- mw_wage |>
+            mutate(avg_wage = scheduled_wage * 1000 / hours,
+                   kaitz = avg_wage / min_wage)
+  - id: d
+    type: write
+    prompt: |
+      2025年について、カイツ指標の高い上位5県を求めます。kaitz_tbl を2025年の行に絞り、県名の表 prefs（pref_code と県名 pref の2列）を pref_code で結合してから、kaitz の大きい5県を取り出し、pref, min_wage, avg_wage, kaitz の4列を top5 に代入してください。並び順は kaitz の高い順です。
+    starter: |
+      top5 <- kaitz_tbl |>
+    solution: |
+      top5 <- kaitz_tbl |>
+        filter(year == 2025) |>
+        left_join(prefs, by = "pref_code") |>
+        slice_max(kaitz, n = 5) |>
+        select(pref, min_wage, avg_wage, kaitz)
+    check: |
+      expect_object("top5", class = "data.frame")
+      expect_cols(top5, c("pref", "min_wage", "avg_wage", "kaitz"))
+      expect_df_equal(top5, .sol$top5)
+    hints:
+      - 「2025年に絞る → 県名を結合する → 上位5県を取り出す → 列を選ぶ」の4段のパイプです。
+      - 値の大きいものから取り出すのは第7ステップの slice_max(kaitz, n = 5) です。県名は left_join(prefs, by = "pref_code") で付けます。
+      - "top5 <- kaitz_tbl |> filter(year == 2025) |> left_join(prefs, by = \"pref_code\") |> slice_max(kaitz, n = 5) |> select(pref, min_wage, avg_wage, kaitz)"
+    tests:
+      fail:
+        - |
+          top5 <- kaitz_tbl |>
+            left_join(prefs, by = "pref_code") |>
+            slice_max(kaitz, n = 5) |>
+            select(pref, min_wage, avg_wage, kaitz)
+        - |
+          top5 <- kaitz_tbl |>
+            filter(year == 2025) |>
+            left_join(prefs, by = "pref_code") |>
+            slice_min(kaitz, n = 5) |>
+            select(pref, min_wage, avg_wage, kaitz)
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第15ステップの復習】mw の発効日 effective_date は日付型です。2025年度（fiscal_year == 2025）の改定がいつ効き始めたかを見るため、2025年度の行に絞り、発効日をその月の1日にそろえた列 month_start を作って、month_start ごとに県の数を数えた表を start_2025 に代入してください（数えた列は count() の既定の名前 n のままにします）。
+    starter: |
+      start_2025 <- mw |>
+    solution: |
+      start_2025 <- mw |>
+        filter(fiscal_year == 2025) |>
+        mutate(month_start = floor_date(effective_date, unit = "month")) |>
+        count(month_start)
+    check: |
+      expect_object("start_2025", class = "data.frame")
+      expect_cols(start_2025, c("month_start", "n"))
+      expect_df_equal(start_2025, .sol$start_2025, ignore_row_order = TRUE)
+    hints:
+      - 「2025年度に絞る → 月の1日にそろえた列を作る → 数える」の3段のパイプです。
+      - 日付を月の1日に切り下げるのは floor_date(effective_date, unit = "month")、グループごとの行数を数えるのは count() です。
+      - "start_2025 <- mw |> filter(fiscal_year == 2025) |> mutate(month_start = floor_date(effective_date, unit = \"month\")) |> count(month_start)"
+    tests:
+      fail:
+        - |
+          start_2025 <- mw |>
+            filter(fiscal_year == 2025) |>
+            mutate(month_start = month(effective_date)) |>
+            count(month_start)
+        - |
+          start_2025 <- mw |>
+            mutate(month_start = floor_date(effective_date, unit = "month")) |>
+            count(month_start)

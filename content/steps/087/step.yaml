@@ -1,0 +1,198 @@
+id: "087"
+part: 10
+title: A/Bテストの分析
+question: 新しい画面で購入率は上がったか
+minutes: 45
+mode: browser
+packages: [readr, dplyr]
+data: [ab_test.csv]
+learn: [prop.test]
+review_of: "086"
+setup: |
+  library(readr); library(dplyr)
+  # そらまめマーケットのネット通販で行った購入画面のA/Bテスト（訪問者2万人。教材用の合成データ）
+  # group: A=今の画面、B=新しい画面。converted: 1=購入。revenue: 売上（円、購入しなかった人は0）
+  ab <- read_csv("data/ab_test.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      ab を group ごとにまとめ、訪問者数 n（n()）、購入者数 buyers（sum(converted)）、購入率 rate（mean(converted)）の3つを求めて conv_tab に代入し、表示してください。続けて、B の購入率から A の購入率を引いた差 conv_tab$rate[2] - conv_tab$rate[1] を表示してください。
+    starter: |
+      conv_tab <- ab |>
+        group_by(group) |>
+        summarise()
+      conv_tab
+
+    solution: |
+      conv_tab <- ab |>
+        group_by(group) |>
+        summarise(n = n(), buyers = sum(converted), rate = mean(converted))
+      conv_tab
+      conv_tab$rate[2] - conv_tab$rate[1]
+    check: |
+      expect_object("conv_tab", class = "data.frame")
+      expect_cols(conv_tab, c("group", "n", "buyers", "rate"))
+      expect_nrow(conv_tab, 2)
+      expect_df_equal(conv_tab, .sol$conv_tab)
+      expect_value(.value, .sol_value, label = "最後に表示した購入率の差")
+    hints:
+      - converted は購入した人が1、しなかった人が0の列です。0/1 の列の合計は購入者数、平均は購入率になります。
+      - summarise(n = n(), buyers = sum(converted), rate = mean(converted)) です。group は A・B の順に並ぶので、2行目が B、1行目が A です。
+      - |
+        conv_tab <- ab |>
+          group_by(group) |>
+          summarise(n = n(), buyers = sum(converted), rate = mean(converted))
+        conv_tab
+        conv_tab$rate[2] - conv_tab$rate[1]
+    tests:
+      fail:
+        - |
+          conv_tab <- ab |>
+            group_by(group) |>
+            summarise(n = n(), buyers = sum(converted), rate = mean(converted))
+          conv_tab
+          conv_tab$rate[1] - conv_tab$rate[2]
+        - |
+          conv_tab <- ab |>
+            group_by(group) |>
+            summarise(n = n(), buyers = sum(converted), rate = sum(converted) / 20000)
+          conv_tab
+          conv_tab$rate[2] - conv_tab$rate[1]
+  - id: b
+    type: write
+    prompt: |
+      購入率の差が偶然で説明できるかを、比率の差の検定で確かめます。prop.test() の1つ目に購入者数 conv_tab$buyers、2つ目に訪問者数 conv_tab$n を渡した結果を pt に代入して pt を表示し、続けて差の95%信頼区間 pt$conf.int を表示してください。
+    starter: |
+      pt <-
+      pt
+
+    solution: |
+      pt <- prop.test(conv_tab$buyers, conv_tab$n)
+      pt
+      pt$conf.int
+    check: |
+      expect_object("pt", class = "htest")
+      expect_uses("prop.test", "割合の差の検定は prop.test() で行います。")
+      check_that(isTRUE(all.equal(unname(pt$estimate), unname(.sol$pt$estimate))),
+                 "検定に渡した値が違います。1つ目に購入者数 conv_tab$buyers、2つ目に訪問者数 conv_tab$n を渡しましょう（購入率 rate ではありません）。")
+      expect_value(pt$p.value, .sol$pt$p.value, label = "p値")
+      expect_value(.value, .sol_value, label = "最後に表示した pt$conf.int")
+    hints:
+      - prop.test(成功した数, 試した数) の形で、2つの群の割合が同じかを検定します。ここでは成功＝購入、試した数＝訪問者数です。
+      - prop.test(conv_tab$buyers, conv_tab$n) です。信頼区間は結果の $conf.int で取り出せます。A − B の差の区間なので、マイナスの値になります。
+      - |
+        pt <- prop.test(conv_tab$buyers, conv_tab$n)
+        pt
+        pt$conf.int
+    tests:
+      fail:
+        - |
+          pt <- prop.test(conv_tab$buyers, conv_tab$n)
+          pt
+          pt$p.value
+        - |
+          pt <- prop.test(conv_tab$buyers, c(20000, 20000))
+          pt
+          pt$conf.int
+  - id: c
+    type: write
+    prompt: |
+      上司が本当に知りたいのは、購入率よりも売上です。購入しなかった人の売上を0として含めた、**訪問者1人当たりの売上**を比べます。
+      1. ab を group ごとにまとめ、revenue の平均 rev_per を求めて rev_tab に代入し、表示する
+      2. t.test(revenue ~ group, data = ab) の結果を tt に代入し、差の95%信頼区間 tt$conf.int を表示する
+    starter: |
+      rev_tab <- ab |>
+        group_by(group) |>
+        summarise()
+      rev_tab
+      tt <-
+
+    solution: |
+      rev_tab <- ab |>
+        group_by(group) |>
+        summarise(rev_per = mean(revenue))
+      rev_tab
+      tt <- t.test(revenue ~ group, data = ab)
+      tt$conf.int
+    check: |
+      expect_object("rev_tab", class = "data.frame")
+      expect_cols(rev_tab, c("group", "rev_per"))
+      check_that(isTRUE(all.equal(rev_tab$rev_per, .sol$rev_tab$rev_per)),
+                 "rev_per が違います。購入しなかった人（revenue が0）も含めて、全員の revenue の平均をとりましょう。filter() で購入者に絞ってはいけません。")
+      expect_df_equal(rev_tab, .sol$rev_tab)
+      expect_object("tt", class = "htest")
+      expect_uses("t.test")
+      expect_value(tt$p.value, .sol$tt$p.value, label = "t検定のp値")
+      expect_value(.value, .sol_value, label = "最後に表示した tt$conf.int")
+    hints:
+      - 1人当たり売上は、訪問者全員（購入しなかった人の0円も含む）の revenue の平均です。平均の差の検定は第32・33ステップの t.test() です。
+      - summarise(rev_per = mean(revenue)) と t.test(revenue ~ group, data = ab) です。信頼区間は $conf.int で、A − B の差の区間です。
+      - |
+        rev_tab <- ab |>
+          group_by(group) |>
+          summarise(rev_per = mean(revenue))
+        rev_tab
+        tt <- t.test(revenue ~ group, data = ab)
+        tt$conf.int
+    tests:
+      fail:
+        - |
+          rev_tab <- ab |>
+            filter(converted == 1) |>
+            group_by(group) |>
+            summarise(rev_per = mean(revenue))
+          rev_tab
+          tt <- t.test(revenue ~ group, data = ab)
+          tt$conf.int
+        - |
+          rev_tab <- ab |>
+            group_by(group) |>
+            summarise(rev_per = mean(revenue))
+          rev_tab
+          tt <- t.test(revenue ~ group, data = filter(ab, converted == 1))
+          tt$conf.int
+  - id: d
+    type: interpret
+    prompt: |
+      a〜c の結果は次のとおりでした。購入率は A 4.0%・B 5.2%（差 +1.2ポイント、95%信頼区間 約0.6〜1.8ポイント、p値 約0.00006）。訪問者1人当たり売上は A 約250円・B 約319円（差 約69円、95%信頼区間 約25〜112円）。購入画面の訪問者は月に約30万人で、新しい画面に切り替える費用は一度きりの約300万円です。経営会議への報告として最も適切なものはどれですか。
+    choices:
+      - "p値が0.00006と非常に小さいので、新しい画面は売上を非常に大きく伸ばす。効果の大きさを示す必要はない"
+      - "1人当たり売上が約69円増え、月30万人なら売上は月に約2,000万円増える見込み（信頼区間から少なくとも月700万円程度）。一度きりの費用300万円を考えても、統計的に有意なだけでなく事業的にも十分に意味のある改善で、切り替えを勧める"
+      - "購入率の差は1.2ポイントしかなく小さいので、事業的には意味がない"
+      - "購入率の信頼区間が0.6〜1.8ポイントと幅があるので、効果はあるかどうか分からず、もう一度テストをやり直すべきだ"
+    answer: 1
+    explain: |
+      「統計的に有意」は「差が0とは考えにくい」という意味で、差が大きいかどうかは別の問題です（第35ステップ）。事業として意味があるかは、差の大きさを売上や利益に直して、費用と比べて判断します。1人当たり約69円 × 月30万人 ≈ 月2,060万円で、信頼区間の下限25円でも月約750万円です。一度きりの300万円は1か月ほどで回収できるので、事業的にも重要な改善と言えます（売上の増加なので、利益で見るなら原価を引いて考えます）。購入率の差1.2ポイントは小さく見えますが、元の4.0%から見れば3割増しです。信頼区間に幅があっても0を含まず、下限でも費用を上回るので、やり直す理由にはなりません。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第86ステップの復習】このテストでは、スマホの訪問者が A・B に6,000人ずつでした。スマホだけで効果を調べるとき、スマホの今の購入率を3.5%として、検出力80%で見つけられる最小の差を求めます。
+      power.prop.test() に n = 6000、p1 = 0.035、power = 0.8 を渡した結果を mde_sp に代入し、mde_sp$p2 - 0.035 を表示してください。
+    starter: |
+      mde_sp <-
+
+    solution: |
+      mde_sp <- power.prop.test(n = 6000, p1 = 0.035, power = 0.8)
+      mde_sp$p2 - 0.035
+    check: |
+      expect_object("mde_sp", class = "power.htest")
+      expect_uses("power.prop.test")
+      check_that(isTRUE(all.equal(c(mde_sp$n, mde_sp$p1, mde_sp$power), c(.sol$mde_sp$n, .sol$mde_sp$p1, .sol$mde_sp$power))),
+                 "指定が違います。n = 6000、p1 = 0.035、power = 0.8 を渡し、p2 は書かないでおきましょう。")
+      expect_value(.value, .sol_value, label = "最後に表示した mde_sp$p2 - 0.035")
+    hints:
+      - 第86ステップ b と同じく、n を書いて p2 を書かなければ、見つけられる購入率 p2 が計算されます。
+      - power.prop.test(n = 6000, p1 = 0.035, power = 0.8) の $p2 から 0.035 を引きます。
+      - |
+        mde_sp <- power.prop.test(n = 6000, p1 = 0.035, power = 0.8)
+        mde_sp$p2 - 0.035
+    tests:
+      fail:
+        - |
+          mde_sp <- power.prop.test(n = 6000, p1 = 0.035, power = 0.8)
+          mde_sp$p2
+        - |
+          mde_sp <- power.prop.test(n = 12000, p1 = 0.035, power = 0.8)
+          mde_sp$p2 - 0.035

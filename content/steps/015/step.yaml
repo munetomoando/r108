@@ -1,0 +1,163 @@
+id: "015"
+part: 2
+title: 日付を扱う
+question: 売上が最も多い月と曜日は
+minutes: 45
+mode: browser
+packages: [readr, dplyr, lubridate]
+data: [ec_orders.csv, ec_products.csv]
+learn: [ymd, year, month, wday, floor_date]
+review_of: "014"
+setup: |
+  library(readr); library(dplyr); library(lubridate)
+  orders_raw <- read_csv("data/ec_orders.csv",
+                         col_types = cols(order_date = col_character()),
+                         show_col_types = FALSE)
+  products <- read_csv("data/ec_products.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      orders_raw の注文日 order_date は、"2024-01-01" のような文字列になっています。order_date を日付型（Date）に変換した表を orders に代入してください。列名は order_date のままにします。
+    starter: |
+      orders <-
+    solution: |
+      orders <- mutate(orders_raw, order_date = ymd(order_date))
+    check: |
+      expect_object("orders", class = "data.frame")
+      check_that(inherits(orders$order_date, "Date"),
+                 "orders の order_date がまだ日付型（Date）になっていません。ymd() で変換しましょう。")
+      expect_df_equal(orders, .sol$orders)
+    hints:
+      - 列を作り直すのは mutate() です。同じ列名 order_date に、変換した結果を入れ直します。
+      - 「年-月-日」の順に並んだ文字列は、lubridate の ymd() で日付型に変わります。
+      - orders <- mutate(orders_raw, order_date = ymd(order_date))
+    tests:
+      fail:
+        - "orders <- orders_raw"
+        - "orders <- mutate(orders_raw, date = ymd(order_date))"
+  - id: b
+    type: write
+    prompt: |
+      orders から月次売上を求めます。明細ごとの売上 sales（qty × unit_price）と、注文日をその月の1日にそろえた列 month_start を作り、month_start ごとに sales を合計して（列名は sales のまま）、monthly に代入してください。2024年1月から2025年12月までの24行になります。
+    starter: |
+      monthly <- orders |>
+    solution: |
+      monthly <- orders |>
+        mutate(sales = qty * unit_price,
+               month_start = floor_date(order_date, unit = "month")) |>
+        group_by(month_start) |>
+        summarise(sales = sum(sales))
+    check: |
+      expect_object("monthly", class = "data.frame")
+      expect_cols(monthly, c("month_start", "sales"))
+      expect_df_equal(monthly, .sol$monthly, ignore_row_order = TRUE)
+    hints:
+      - 「列を2つ作る → month_start でグループに分ける → 合計する」の3段のパイプです。
+      - floor_date(order_date, unit = "month") で、日付をその月の1日（2024-03-17 なら 2024-03-01）に切り下げます。
+      - "monthly <- orders |> mutate(sales = qty * unit_price, month_start = floor_date(order_date, unit = \"month\")) |> group_by(month_start) |> summarise(sales = sum(sales))"
+    tests:
+      fail:
+        - |
+          monthly <- orders |>
+            mutate(sales = qty * unit_price,
+                   month_start = month(order_date)) |>
+            group_by(month_start) |>
+            summarise(sales = sum(sales))
+        - |
+          monthly <- orders |>
+            mutate(sales = qty * unit_price,
+                   month_start = floor_date(order_date, unit = "month")) |>
+            group_by(month_start) |>
+            summarise(sales = n())
+  - id: c
+    type: write
+    prompt: |
+      曜日別の売上を求めます。orders に売上 sales（qty × unit_price）と、曜日を名前で表した列 weekday を作り、weekday ごとに sales を合計して（列名は sales のまま）、by_weekday に代入してください。曜日は wday() に label = TRUE を付けて作ります。
+    starter: |
+      by_weekday <- orders |>
+    solution: |
+      by_weekday <- orders |>
+        mutate(sales = qty * unit_price,
+               weekday = wday(order_date, label = TRUE)) |>
+        group_by(weekday) |>
+        summarise(sales = sum(sales))
+    check: |
+      expect_object("by_weekday", class = "data.frame")
+      expect_cols(by_weekday, c("weekday", "sales"))
+      check_that(nrow(by_weekday) == 7, "曜日は7種類なので、by_weekday は7行になるはずです。")
+      expect_df_equal(by_weekday, .sol$by_weekday, ignore_row_order = TRUE)
+    hints:
+      - b と同じ形のパイプです。月の代わりに曜日の列を作ってグループに分けます。
+      - wday(order_date, label = TRUE) で、日付が何曜日かを名前（日・月・…、環境によっては Sun, Mon, …）で返します。
+      - "by_weekday <- orders |> mutate(sales = qty * unit_price, weekday = wday(order_date, label = TRUE)) |> group_by(weekday) |> summarise(sales = sum(sales))"
+    tests:
+      fail:
+        - |
+          by_weekday <- orders |>
+            mutate(sales = qty * unit_price,
+                   weekday = wday(order_date)) |>
+            group_by(weekday) |>
+            summarise(sales = sum(sales))
+        - |
+          by_weekday <- orders |>
+            mutate(sales = qty * unit_price,
+                   weekday = wday(order_date, label = TRUE)) |>
+            group_by(weekday) |>
+            summarise(sales = sum(qty))
+  - id: d
+    type: interpret
+    prompt: |
+      b の monthly を表示し、24か月の売上の動きを見てください。12月と8月の動きについて、読み取れることとして最も適切なものはどれですか。必要なら次のコードで、年と月を別の列にして見比べてもかまいません。
+
+      ```r
+      monthly |>
+        mutate(year = year(month_start), month = month(month_start)) |>
+        filter(month %in% c(7, 8, 9, 11, 12))
+      ```
+    choices:
+      - "12月は前後の月より売上が大きく伸び、8月は前の7月・後の9月より落ち込む。2024年と2025年の両方で同じ形が見られるので、毎年くり返す季節の動き（季節性）と考えられる"
+      - "8月は1年のうちで売上が最も少ない月なので、8月の売上を見ればその年の不調がわかる"
+      - "12月に売上が多いのは2025年だけで、2024年の12月はほかの月と変わらない"
+      - "売上は2024年1月から2025年12月まで、毎月必ず前の月より増えている"
+    answer: 0
+    explain: |
+      どちらの年も、12月は11月より大きく伸び、8月は7月・9月より低くなっています。同じ形が毎年くり返すので、年末の贈り物や帰省、夏休みの外出といった季節の要因と考えられます（データは架空です）。
+      一方で、売上は2年間を通じて全体に伸びています。そのため2024年は1月が最も少なく、8月は「1年で最低の月」ではありません。季節の動きを見るときは、すぐ前後の月や前年の同じ月と比べるのが基本です。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第14ステップの復習】a の orders に商品マスタ products を product_id で結合し、2025年の注文だけに絞ってから、カテゴリ category ごとの売上 sales（qty × unit_price の合計）を求め、cat_2025 に代入してください。2025年かどうかは year(order_date) == 2025 で判定します。並び順は問いません。
+    starter: |
+      cat_2025 <- orders |>
+    solution: |
+      cat_2025 <- orders |>
+        left_join(products, by = "product_id") |>
+        filter(year(order_date) == 2025) |>
+        mutate(sales = qty * unit_price) |>
+        group_by(category) |>
+        summarise(sales = sum(sales))
+    check: |
+      expect_object("cat_2025", class = "data.frame")
+      expect_cols(cat_2025, c("category", "sales"))
+      expect_df_equal(cat_2025, .sol$cat_2025, ignore_row_order = TRUE)
+    hints:
+      - 「結合する → 2025年に絞る → 売上を作る → カテゴリで分ける → 合計する」の順にパイプでつなぎます。
+      - left_join(products, by = "product_id") で商品の列を付け、filter(year(order_date) == 2025) で2025年に絞ります。
+      - "cat_2025 <- orders |> left_join(products, by = \"product_id\") |> filter(year(order_date) == 2025) |> mutate(sales = qty * unit_price) |> group_by(category) |> summarise(sales = sum(sales))"
+    tests:
+      fail:
+        - |
+          cat_2025 <- orders |>
+            left_join(products, by = "product_id") |>
+            mutate(sales = qty * unit_price) |>
+            group_by(category) |>
+            summarise(sales = sum(sales))
+        - |
+          cat_2025 <- orders |>
+            left_join(products, by = "product_id") |>
+            filter(year(order_date) == 2025) |>
+            mutate(sales = qty * list_price) |>
+            group_by(category) |>
+            summarise(sales = sum(sales))

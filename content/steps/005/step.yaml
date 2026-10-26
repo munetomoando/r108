@@ -1,0 +1,103 @@
+id: "005"
+part: 1
+title: "列を選ぶ・作る"
+question: "客単価と売場効率が最も高い店舗は"
+minutes: 45
+mode: browser
+packages: [readr, dplyr]
+data: [sora_stores.csv]
+learn: [select, mutate, if_else]
+setup: |
+  library(readr); library(dplyr)
+  stores <- read_csv("data/sora_stores.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      stores に、客単価（客1人あたりの買い物額、単位は円）を表す列 spend を加え、stores_spend に代入してください。売上 sales の単位は万円なので、spend は sales * 10000 / customers で計算します。元の列はすべて残します。
+    starter: |
+      stores_spend <-
+    solution: |
+      stores_spend <- mutate(stores, spend = sales * 10000 / customers)
+    check: |
+      expect_object("stores_spend", class = "data.frame")
+      expect_df_equal(stores_spend, .sol$stores_spend, ignore_row_order = TRUE)
+    hints:
+      - 新しい列を作るには mutate() を使います。
+      - mutate(データ, 新しい列名 = 計算式) の形です。万円を円に直すために 10000 を掛け、客数 customers で割ります。
+      - stores_spend <- mutate(stores, spend = sales * 10000 / customers)
+    tests:
+      fail:
+        - "stores_spend <- mutate(stores, spend = sales / customers)"
+        - "stores_spend <- mutate(stores, tanka = sales * 10000 / customers)"
+  - id: b
+    type: write
+    prompt: |
+      a で作った stores_spend から、store_name、region、location、spend の4列だけを残し、stores_small に代入してください。
+    starter: |
+      stores_small <-
+    solution: |
+      stores_small <- select(stores_spend, store_name, region, location, spend)
+    check: |
+      expect_object("stores_small", class = "data.frame")
+      expect_df_equal(stores_small, .sol$stores_small, ignore_row_order = TRUE)
+    hints:
+      - 列を選ぶには select() を使います。
+      - select(データ, 列名1, 列名2, ...) の形で、残したい列を並べます。列名に引用符は不要です。
+      - stores_small <- select(stores_spend, store_name, region, location, spend)
+    tests:
+      fail:
+        - "stores_small <- select(stores_spend, store_name, spend)"
+        - "stores_small <- stores_spend"
+  - id: c
+    type: write
+    prompt: |
+      stores_spend に列 trend を加え、今年の売上 sales が前年の売上 sales_last 以上なら "増収"、そうでなければ "減収" という文字を入れて、stores_trend に代入してください。
+    starter: |
+      stores_trend <-
+    solution: |
+      stores_trend <- mutate(stores_spend, trend = if_else(sales >= sales_last, "増収", "減収"))
+    check: |
+      expect_object("stores_trend", class = "data.frame")
+      expect_df_equal(stores_trend, .sol$stores_trend, ignore_row_order = TRUE)
+    hints:
+      - mutate() の中で、条件によって値を変える if_else() を使います。
+      - if_else(条件, TRUEのときの値, FALSEのときの値) の形です。「以上」は >= です。
+      - stores_trend <- mutate(stores_spend, trend = if_else(sales >= sales_last, "増収", "減収"))
+    tests:
+      fail:
+        - "stores_trend <- mutate(stores_spend, trend = if_else(sales >= sales_last, \"減収\", \"増収\"))"
+        - "stores_trend <- mutate(stores_spend, trend = if_else(spend >= 2000, \"増収\", \"減収\"))"
+  - id: d
+    type: predict
+    prompt: |
+      stores は11列です。次のコードを実行すると、stores_test は何列になりますか。
+
+      ```r
+      stores_test <- mutate(stores, spend = sales * 10000 / customers,
+                            sales_per_m2 = sales / floor_m2)
+      ```
+    choices: ["2列", "11列", "12列", "13列"]
+    answer: 3
+    explain: mutate() は元の列をすべて残したまま、新しい列を右端に加えます。spend と sales_per_m2 の2列が加わるので 11 + 2 = 13 列です。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第4ステップの復習】a で作った stores_spend を客単価 spend の高い順（降順）に並べ替え、spend_rank に代入してください。1行目が客単価の最も高い店舗になります。
+    starter: |
+      spend_rank <-
+    solution: |
+      spend_rank <- arrange(stores_spend, desc(spend))
+    check: |
+      expect_object("spend_rank", class = "data.frame")
+      expect_df_equal(spend_rank, .sol$spend_rank)
+    hints:
+      - 行の並べ替えは第4ステップで学んだ arrange() です。
+      - 大きい順にするには列名を desc() で包みます。
+      - spend_rank <- arrange(stores_spend, desc(spend))
+    tests:
+      fail:
+        - "spend_rank <- arrange(stores_spend, spend)"
+        - "spend_rank <- arrange(stores_spend, desc(sales))"
+review_of: "004"

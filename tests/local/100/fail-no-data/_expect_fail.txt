@@ -1,0 +1,2 @@
+ec_orders.csv と ec_products.csv
+レンダリングできる

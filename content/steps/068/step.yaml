@@ -1,0 +1,202 @@
+id: "068"
+part: 8
+title: 実データDID
+question: 登録方法の変更で臓器提供は増えたか
+minutes: 50
+mode: browser
+packages: [readr, dplyr, ggplot2, fixest, causaldata]
+data: []
+learn: []
+review_of: "067"
+setup: |
+  library(readr); library(dplyr); library(ggplot2); library(fixest)
+  # 米国の27の州（ワシントンD.C.を含む）×6四半期（2010年第4四半期〜2012年第1四半期）の臓器提供の登録率（causaldata パッケージ）
+  # カリフォルニア州が2011年第3四半期（Quarter_Num = 4）に登録の聞き方を変えた
+  od <- causaldata::organ_donations
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      差の差分析で、カリフォルニア州の変更の効果を推定します。
+      1. od に mutate() で、treated（State が "California" なら1、それ以外は0）と post（Quarter_Num が4以上なら1、それ以外は0）を加えて od_did に代入する。as.numeric() で0と1にする
+      2. Rate を treated:post で説明し、州（State）と四半期（Quarter_Num）の固定効果を入れ、州でクラスタした標準誤差を使うモデルを推定して did_od に代入する
+      3. coef(did_od) と se(did_od) を表示する
+    starter: |
+      od_did <- od |>
+        mutate(treated = ,
+               post = )
+      did_od <-
+      coef(did_od)
+      se(did_od)
+    solution: |
+      od_did <- od |>
+        mutate(treated = as.numeric(State == "California"),
+               post = as.numeric(Quarter_Num >= 4))
+      did_od <- feols(Rate ~ treated:post | State + Quarter_Num,
+                      data = od_did, cluster = ~State)
+      coef(did_od)
+      se(did_od)
+    check: |
+      expect_object("od_did", class = "data.frame")
+      expect_cols(od_did, c("treated", "post"))
+      check_that(sum(od_did$treated) == 6,
+                 "treated が1になるのはカリフォルニア州の6行です。State == \"California\" を確認しましょう。")
+      check_that(sum(od_did$post) == 81,
+                 "post は2011年第3四半期（Quarter_Num = 4）以降で1にします。Quarter_Num >= 4 を確認しましょう。")
+      expect_df_equal(od_did, .sol$od_did)
+      expect_object("did_od", class = "fixest")
+      expect_model(did_od, like = .sol$did_od)
+      check_that(isTRUE(all.equal(as.numeric(se(did_od)), as.numeric(se(.sol$did_od)), tolerance = 1e-6)),
+                 "標準誤差が違います。cluster = ~State で州ごとにクラスタしましょう。")
+      expect_value(.value, .sol_value, label = "表示した se(did_od)")
+    hints:
+      - 第66ステップと同じ形です。処置の変数と事後の変数を作り、その積の係数を二元固定効果モデルで推定します。
+      - treated = as.numeric(State == "California")、post = as.numeric(Quarter_Num >= 4)。式は Rate ~ treated:post | State + Quarter_Num です。
+      - |
+        od_did <- od |>
+          mutate(treated = as.numeric(State == "California"),
+                 post = as.numeric(Quarter_Num >= 4))
+        did_od <- feols(Rate ~ treated:post | State + Quarter_Num,
+                        data = od_did, cluster = ~State)
+        coef(did_od)
+        se(did_od)
+    tests:
+      fail:
+        - |
+          od_did <- od |>
+            mutate(treated = as.numeric(State == "California"),
+                   post = as.numeric(Quarter_Num >= 3))
+          did_od <- feols(Rate ~ treated:post | State + Quarter_Num,
+                          data = od_did, cluster = ~State)
+          coef(did_od)
+          se(did_od)
+        - |
+          od_did <- od |>
+            mutate(treated = as.numeric(State == "California"),
+                   post = as.numeric(Quarter_Num >= 4))
+          did_od <- feols(Rate ~ treated:post | State + Quarter_Num, data = od_did)
+          coef(did_od)
+          se(did_od)
+  - id: b
+    type: write
+    prompt: |
+      四半期ごとの効果をイベントスタディで推定します。
+      1. od_did に、変更の四半期を0とする相対四半期 rel_q = Quarter_Num - 4 を加えて od_es に代入する（カリフォルニア州以外の州にも同じ式で付ける）
+      2. Rate を i(rel_q, treated, ref = -1) で説明し、州と四半期の固定効果を入れ、州でクラスタした標準誤差を使うモデルを推定して es_od に代入する
+      3. coef(es_od) を表示する
+    starter: |
+      od_es <- od_did |>
+        mutate()
+      es_od <-
+      coef(es_od)
+    solution: |
+      od_es <- od_did |>
+        mutate(rel_q = Quarter_Num - 4)
+      es_od <- feols(Rate ~ i(rel_q, treated, ref = -1) | State + Quarter_Num,
+                     data = od_es, cluster = ~State)
+      coef(es_od)
+    check: |
+      expect_object("od_es", class = "data.frame")
+      expect_cols(od_es, "rel_q")
+      check_that(sum(is.na(od_es$rel_q)) == 0,
+                 "rel_q に NA があります。カリフォルニア州以外にも Quarter_Num - 4 を付けましょう。")
+      expect_df_equal(od_es, .sol$od_es)
+      expect_object("es_od", class = "fixest")
+      check_that(length(coef(es_od)) == 5,
+                 "係数は5個（相対四半期 −3〜2 のうち基準 −1 を除く）になるはずです。ref = -1 を確認しましょう。")
+      expect_model(es_od, like = .sol$es_od)
+      check_that(isTRUE(all.equal(as.numeric(se(es_od)), as.numeric(se(.sol$es_od)), tolerance = 1e-6)),
+                 "標準誤差が違います。cluster = ~State で州ごとにクラスタしましょう。")
+      expect_value(.value, .sol_value, label = "表示した coef(es_od)")
+    hints:
+      - 第67ステップと同じ手順です。相対四半期を作り、i() で四半期ごとの処置州ダミーを作ります。基準は変更の直前の四半期（2011年第2四半期）です。
+      - rel_q = Quarter_Num - 4 とし、式は Rate ~ i(rel_q, treated, ref = -1) | State + Quarter_Num です。
+      - |
+        od_es <- od_did |>
+          mutate(rel_q = Quarter_Num - 4)
+        es_od <- feols(Rate ~ i(rel_q, treated, ref = -1) | State + Quarter_Num,
+                       data = od_es, cluster = ~State)
+        coef(es_od)
+    tests:
+      fail:
+        - |
+          od_es <- od_did |>
+            mutate(rel_q = Quarter_Num - 3)
+          es_od <- feols(Rate ~ i(rel_q, treated, ref = -1) | State + Quarter_Num,
+                         data = od_es, cluster = ~State)
+          coef(es_od)
+        - |
+          od_es <- od_did |>
+            mutate(rel_q = Quarter_Num - 4)
+          es_od <- feols(Rate ~ i(rel_q, treated, ref = 0) | State + Quarter_Num,
+                         data = od_es, cluster = ~State)
+          coef(es_od)
+  - id: c
+    type: interpret
+    prompt: |
+      a の差の差の推定値は約 −0.0225（州でクラスタした標準誤差は約0.0061）でした。変更前のカリフォルニア州の登録率の平均は約0.271です。
+      b のイベントスタディでは、変更後の3つの係数が約 −0.022、−0.020、−0.022、変更前の2つが約 −0.003、+0.006 でした。
+      この結果の読み方として、最も適切なものはどれですか。
+    choices:
+      - "登録の聞き方の変更で、登録率は約2.25%上がった"
+      - "登録率は約2.2ポイント（変更前の水準の1割弱）下がったと推定される。平行トレンドの仮定のもとでの推定で、処置を受けたのはカリフォルニア州1つだけなので、標準誤差と有意性は控えめに受け止める"
+      - "変更前の係数が0でないので、この推定には意味がない"
+      - "固定効果とクラスタ標準誤差を使ったので、平行トレンドの仮定がなくても因果効果だと言える"
+    answer: 1
+    explain: Rate は割合（0.271 は27.1%）なので、−0.0225 は約2.2ポイントの低下で、変更前の水準 0.271 の約8%にあたります。上がったのではありません（選択肢1は誤り）。イベントスタディでも、変更の四半期から低下が現れて続いています。変更前の係数のうち −2 は約 +0.006 で信頼区間が0をわずかに外れますが、効果の大きさ（約 −0.02）よりずっと小さく、それだけで推定が無意味になるわけではありません（選択肢3は誤り）。ただし、注意点が2つあります。推定は「変更がなければカリフォルニア州も他の州と平行に動いた」という仮定に頼っており、固定効果を入れてもこの仮定は不要になりません（選択肢4は誤り）。また、処置を受けたのは1州だけなので、州でクラスタした標準誤差は信頼できる精度で計算できず、p値は参考程度にとどめます。
+  - id: d
+    type: fill
+    review: true
+    prompt: |
+      【第67ステップの復習】b の es_od の係数と95%信頼区間を図にします。
+      1. confint(es_od) を ci_od に代入する
+      2. 列 rel_q（係数の名前から parse_number() で取り出す）、estimate、lower、upper を持つ表を tibble() で作り、es_od_tab に代入する
+      3. 横軸 rel_q、縦軸 estimate で、geom_pointrange() と geom_hline(yintercept = 0) を使って描く
+    starter: |
+      ci_od <- confint(es_od)
+      es_od_tab <- tibble(rel_q = ___,
+                          estimate = coef(es_od),
+                          lower = ___,
+                          upper = ___)
+      ggplot(es_od_tab, aes(x = rel_q, y = estimate)) +
+        ___ +
+        geom_hline(yintercept = 0)
+    solution: |
+      ci_od <- confint(es_od)
+      es_od_tab <- tibble(rel_q = parse_number(names(coef(es_od))),
+                          estimate = coef(es_od),
+                          lower = ci_od[[1]],
+                          upper = ci_od[[2]])
+      ggplot(es_od_tab, aes(x = rel_q, y = estimate)) +
+        geom_pointrange(aes(ymin = lower, ymax = upper)) +
+        geom_hline(yintercept = 0)
+    check: |
+      expect_object("es_od_tab", class = "data.frame")
+      expect_cols(es_od_tab, c("rel_q", "estimate", "lower", "upper"))
+      expect_df_equal(es_od_tab, .sol$es_od_tab)
+      expect_ggplot(geom = "pointrange", x = "rel_q", y = "estimate")
+      check_that(any(vapply(.plot$layers, function(l) inherits(l$geom, "GeomHline"), logical(1))),
+                 "0 の水平線がありません。+ geom_hline(yintercept = 0) を加えましょう。")
+      expect_df_equal(.plot$data, .sol_plot$data)
+    hints:
+      - 第67ステップの c と同じ形です。係数の名前（"rel_q::-3:treated" など）から相対四半期の数字を取り出します。
+      - rel_q = parse_number(names(coef(es_od)))、lower = ci_od[[1]]、upper = ci_od[[2]]、層は geom_pointrange(aes(ymin = lower, ymax = upper)) です。
+      - |
+        es_od_tab <- tibble(rel_q = parse_number(names(coef(es_od))),
+                            estimate = coef(es_od),
+                            lower = ci_od[[1]],
+                            upper = ci_od[[2]])
+        ggplot(es_od_tab, aes(x = rel_q, y = estimate)) +
+          geom_pointrange(aes(ymin = lower, ymax = upper)) +
+          geom_hline(yintercept = 0)
+    tests:
+      fail:
+        - |
+          ci_od <- confint(es_od)
+          es_od_tab <- tibble(rel_q = parse_number(names(coef(es_od))),
+                              estimate = coef(es_od),
+                              lower = ci_od[[1]],
+                              upper = ci_od[[2]])
+          ggplot(es_od_tab, aes(x = rel_q, y = estimate)) +
+            geom_point() +
+            geom_hline(yintercept = 0)

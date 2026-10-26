@@ -1,0 +1,171 @@
+id: "034"
+part: 4
+title: クロス集計
+question: 女性ほど非正規雇用が多いか
+minutes: 40
+mode: browser
+packages: [readr, dplyr]
+data: [wage_survey.csv]
+learn: [table, prop.table, chisq.test]
+review_of: "033"
+setup: |
+  library(readr); library(dplyr)
+  # 架空の賃金調査の個票（3,000人）
+  wage <- read_csv("data/wage_survey.csv", show_col_types = FALSE)
+  # 0/1 の列を読みやすいラベルにした列を足しておく
+  wage <- mutate(wage,
+                 sex = if_else(female == 1, "女性", "男性"),
+                 emp = if_else(regular == 1, "正規", "非正規"))
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      性別と雇用形態のクロス表を作ります。wage の列 sex（"女性"・"男性"）を行に、列 emp（"正規"・"非正規"）を列にして、table() で人数を数えた表を tab に代入し、tab を表示してください。
+    starter: |
+      tab <-
+      tab
+    solution: |
+      tab <- table(wage$sex, wage$emp)
+      tab
+    check: |
+      expect_object("tab", class = "table")
+      expect_uses("table")
+      check_that(length(dim(tab)) == 2 && all(dim(tab) == c(2, 2)),
+                 "2行×2列の表になっていません。table() に sex と emp の2つの列を渡しましょう。")
+      check_that(identical(unname(dimnames(tab)), unname(dimnames(.sol$tab))),
+                 "行と列が違います。table() の1つ目に行にしたい wage$sex、2つ目に列にしたい wage$emp を書きましょう。")
+      expect_value(as.vector(tab), as.vector(.sol$tab), label = "表の人数")
+    hints:
+      - table() に2つの列を渡すと、1つ目が行、2つ目が列のクロス表になり、組み合わせごとの人数を数えます。
+      - 列は wage$sex のように $ で取り出します。行が性別なので、1つ目が wage$sex、2つ目が wage$emp です。
+      - |
+        tab <- table(wage$sex, wage$emp)
+        tab
+    tests:
+      fail:
+        - |
+          tab <- table(wage$emp, wage$sex)
+          tab
+        - |
+          tab <- table(wage$sex, wage$firm_size)
+          tab
+        - |
+          tab <- table(wage$sex)
+          tab
+  - id: b
+    type: fill
+    prompt: |
+      人数のままでは比べにくいので、行ごとの割合（女性の中で正規・非正規がそれぞれ何割か、男性の中で何割か）にします。
+      a の tab を prop.table() に渡し、margin = 1（行ごとに合計が1になる）を指定した結果を share に代入して、share を表示してください。
+    starter: |
+      share <- prop.table(tab, ___)
+      share
+    solution: |
+      share <- prop.table(tab, margin = 1)
+      share
+    check: |
+      expect_object("share", class = "table")
+      expect_uses("prop.table")
+      check_that(identical(unname(dimnames(share)), unname(dimnames(.sol$share))),
+                 "行と列が違います。a の tab（行が性別、列が雇用形態）をそのまま prop.table() に渡しましょう。")
+      check_that(isTRUE(all(abs(rowSums(share) - 1) < 1e-8)),
+                 "各行の合計が1になっていません。行ごとの割合にするには margin = 1 を指定します（margin = 2 は列ごと、指定なしは全体の割合です）。")
+      expect_value(as.vector(share), as.vector(.sol$share), label = "行の割合")
+    hints:
+      - prop.table() は、表の人数を割合に直します。margin でどの方向の合計を1にするかを決めます。
+      - margin = 1 は行ごと（性別ごと）、margin = 2 は列ごと（雇用形態ごと）です。この問いでは「女性の中で何割が非正規か」を知りたいので行ごとです。
+      - |
+        share <- prop.table(tab, margin = 1)
+        share
+    tests:
+      fail:
+        - |
+          share <- prop.table(tab)
+          share
+        - |
+          share <- prop.table(tab, margin = 2)
+          share
+  - id: c
+    type: write
+    prompt: |
+      性別と雇用形態が無関係（独立）だとしても、標本の偶然でこれくらいの偏りが出るかを、カイ二乗検定で確かめます。
+      a の人数の表 tab を chisq.test() に渡した結果を res に代入して res を表示し、続けて res$p.value でp値だけを表示してください。引数は既定のまま（tab だけを渡す）にします。
+    starter: |
+      res <-
+      res
+      res$p.value
+    solution: |
+      res <- chisq.test(tab)
+      res
+      res$p.value
+    check: |
+      expect_object("res", class = "htest")
+      expect_uses("chisq.test")
+      check_that(identical(res$method, .sol$res$method),
+                 "検定の方法が違います。chisq.test() には tab だけを渡し、ほかの引数は書かないでおきましょう。")
+      expect_value(res$statistic, .sol$res$statistic, label = "カイ二乗値（X-squared）")
+      expect_value(.value, .sol_value, label = "最後に表示したp値")
+    hints:
+      - chisq.test() には、割合の表 share ではなく、人数の表 tab を渡します。検定は人数の多さも使って判断するからです。
+      - 結果は htest という種類のオブジェクトで、res$statistic でカイ二乗値、res$p.value でp値を取り出せます。
+      - |
+        res <- chisq.test(tab)
+        res
+        res$p.value
+    tests:
+      fail:
+        - |
+          res <- chisq.test(share)
+          res
+          res$p.value
+        - |
+          res <- chisq.test(tab, correct = FALSE)
+          res
+          res$p.value
+        - |
+          res <- chisq.test(tab)
+          res
+          res$statistic
+  - id: d
+    type: interpret
+    prompt: |
+      b と c の結果（女性の非正規の割合は約43.8%、男性は約19.4%。カイ二乗検定のp値は 2.2e-16 より小さい）を報告書に書きます。最も適切な書き方はどれですか。
+    choices:
+      - "p値がほぼ0なので、女性はほぼ確実に非正規雇用になる。"
+      - "p値がほぼ0なので、「性別と雇用形態は無関係」という帰無仮説が正しい確率はほぼ0%である。"
+      - "非正規の割合は女性で約44%、男性で約19%だった。性別と雇用形態が無関係なら、これほど大きな偏りが標本の偶然で生じることはまず考えにくい（カイ二乗検定、p < 0.001）。ただし、これは関連を示すもので、性別そのものが非正規になる原因だとまでは言えない。"
+      - "カイ二乗値が約206と大きいので、女性が非正規になる割合は男性の約206倍である。"
+    answer: 2
+    explain: |
+      報告では、まず割合の差そのもの（女性約44%、男性約19%）を書き、次に検定の結果を「無関係だとしたら、これほどの偏りが偶然に出ることはまれ」という意味で添えます。p値は「帰無仮説が正しい確率」ではなく、帰無仮説が正しいと仮定したときに、手元のデータと同じかそれ以上に偏った結果が出る確率です（第33ステップ）。また、p値が小さいことは「1人ひとりがほぼ確実にそうなる」ことを意味しません。女性でも半分以上は正規雇用です。カイ二乗値は検定に使う指標で、割合の倍率ではありません。さらに、関連があっても、年齢・学歴・産業などの違いが背後にあるかもしれず、因果関係までは言えません。なお、このデータは教材用の架空のものです。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第33ステップの復習】男女の平均時給の差を、t検定で確かめます。t.test(hourly_wage ~ female, data = wage) の結果を tt に代入し、tt$p.value でp値を表示してください。
+    starter: |
+      tt <-
+      tt$p.value
+    solution: |
+      tt <- t.test(hourly_wage ~ female, data = wage)
+      tt$p.value
+    check: |
+      expect_object("tt", class = "htest")
+      expect_uses("t.test")
+      expect_value(tt$statistic, .sol$tt$statistic, label = "t値")
+      expect_value(tt$estimate, .sol$tt$estimate, label = "男女それぞれの平均")
+      expect_value(.value, .sol_value, label = "最後に表示したp値")
+    hints:
+      - t.test() に「比べたい数値の列 ~ グループを分ける列」の式と、data = を渡します。
+      - 時給は hourly_wage、グループは female（1=女性、0=男性）です。p値は結果の $p.value で取り出せます。
+      - |
+        tt <- t.test(hourly_wage ~ female, data = wage)
+        tt$p.value
+    tests:
+      fail:
+        - |
+          tt <- t.test(log_wage ~ female, data = wage)
+          tt$p.value
+        - |
+          tt <- t.test(hourly_wage ~ regular, data = wage)
+          tt$p.value

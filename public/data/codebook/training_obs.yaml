@@ -1,0 +1,30 @@
+title: 職業訓練の観察データ
+file: training_obs.csv
+source: 合成データ（data-raw/synth_training.R、乱数シード108）
+rows: 4000
+unit_of_observation: 個人
+notes: >-
+  年収の式は training_rct と同じ（真の効果 +30万円/年）。参加は自己選択で、
+  logit(p) = −1 − 0.01×(prior_earn − 250) − 0.02×(age − 35)。前年収入の低い人ほど参加するので、単純比較は負の値になる
+columns:
+  - name: id
+    description: 個人ID
+    unit: なし
+  - name: treat
+    description: 訓練に参加（1=参加、0=不参加）
+    unit: なし（0/1）
+  - name: age
+    description: 年齢
+    unit: 歳
+  - name: female
+    description: 女性ダミー
+    unit: なし（0/1）
+  - name: educ_years
+    description: 教育年数（12・14・16）
+    unit: 年
+  - name: prior_earn
+    description: 訓練前年の年収
+    unit: 万円
+  - name: earn_post
+    description: 訓練後の年収
+    unit: 万円

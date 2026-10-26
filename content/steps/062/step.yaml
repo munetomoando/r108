@@ -1,0 +1,236 @@
+id: "062"
+part: 7
+title: 実データ：NSWの職業訓練
+question: 観察データは実験の答えを再現できるか
+minutes: 50
+mode: browser
+packages: [readr, dplyr, causaldata]
+data: [training_obs.csv]
+learn: []
+review_of: "061"
+setup: |
+  library(readr); library(dplyr)
+  # NSW（米国の職業訓練の社会実験）の参加者185人と、無作為に外された260人（causaldata パッケージ）
+  nsw <- causaldata::nsw_mixtape
+  # 比較群の候補：米国の人口動態調査（CPS）の15,992人。全員 treat = 0
+  cps <- causaldata::cps_mixtape
+  # 第59〜61ステップの職業訓練の観察データ（e の復習で使う）
+  obs <- read_csv("data/training_obs.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      まず、実験のデータ nsw だけで訓練の効果を推定します。nsw では参加者（treat = 1）と対照群（treat = 0）が無作為に分けられています。
+      1978年の年収 re78 を treat で説明する回帰を lm() で推定して exp_model に代入し、coef(exp_model) を表示してください。
+    starter: |
+      exp_model <-
+      coef(exp_model)
+    solution: |
+      exp_model <- lm(re78 ~ treat, data = nsw)
+      coef(exp_model)
+    check: |
+      expect_object("exp_model", class = "lm")
+      check_that(nobs(exp_model) == 445, "nsw の445人全員で推定しましょう。data = nsw を確認してください。")
+      expect_model(exp_model, like = .sol$exp_model)
+      expect_value(.value, .sol_value, label = "表示した coef(exp_model)")
+    hints:
+      - 第56ステップと同じく、無作為に割り当てた実験では、結果を処置のダミーだけで回帰した係数が平均の差になります。
+      - 式は re78 ~ treat、data は nsw です。
+      - |
+        exp_model <- lm(re78 ~ treat, data = nsw)
+        coef(exp_model)
+    tests:
+      fail:
+        - |
+          exp_model <- lm(re75 ~ treat, data = nsw)
+          coef(exp_model)
+        - |
+          exp_model <- lm(re78 ~ treat, data = cps)
+          coef(exp_model)
+  - id: b
+    type: write
+    prompt: |
+      実験の対照群がなかったとして、NSW の参加者を、一般の人の調査 CPS と比べます。
+      1. nsw から参加者だけを filter() で取り出し、cps と bind_rows() で縦につないで nsw_cps に代入する（参加者185人＋CPS 15,992人）
+      2. re78 を treat で説明する回帰を nsw_cps で推定して naive_model に代入し、coef(naive_model) を表示する
+    starter: |
+      nsw_cps <- bind_rows(filter(nsw, ___), cps)
+      naive_model <-
+      coef(naive_model)
+    solution: |
+      nsw_cps <- bind_rows(filter(nsw, treat == 1), cps)
+      naive_model <- lm(re78 ~ treat, data = nsw_cps)
+      coef(naive_model)
+    check: |
+      expect_object("nsw_cps", class = "data.frame")
+      check_that(sum(nsw_cps$treat == 1) == 185,
+                 "nsw_cps の参加者が185人になっていません。nsw から filter(nsw, treat == 1) で参加者だけを取り出しましょう。")
+      check_that(nrow(nsw_cps) == 185 + 15992,
+                 "nsw_cps は参加者185人と CPS の15,992人で、16,177行になります。NSW の対照群（treat = 0 の260人）は入れません。")
+      expect_df_equal(nsw_cps, .sol$nsw_cps, ignore_row_order = TRUE)
+      expect_object("naive_model", class = "lm")
+      expect_model(naive_model, like = .sol$naive_model)
+      expect_value(.value, .sol_value, label = "表示した coef(naive_model)")
+    hints:
+      - 比べたいのは「NSW の参加者」と「CPS の人々」です。NSW の対照群は実験でしか手に入らないので、ここでは使いません。bind_rows() は列名のそろった表を縦につなぎます（第29ステップ）。
+      - filter(nsw, treat == 1) で参加者だけになります。回帰の式は a と同じ re78 ~ treat で、data = nsw_cps です。
+      - |
+        nsw_cps <- bind_rows(filter(nsw, treat == 1), cps)
+        naive_model <- lm(re78 ~ treat, data = nsw_cps)
+        coef(naive_model)
+    tests:
+      fail:
+        - |
+          nsw_cps <- bind_rows(nsw, cps)
+          naive_model <- lm(re78 ~ treat, data = nsw_cps)
+          coef(naive_model)
+        - |
+          nsw_cps <- bind_rows(filter(nsw, treat == 0), cps)
+          naive_model <- lm(re78 ~ treat, data = nsw_cps)
+          coef(naive_model)
+  - id: c
+    type: fill
+    prompt: |
+      第61ステップと同じ作り方で、nsw_cps の参加者にとっての平均効果（ATT）を傾向スコアの重みで推定します。
+      傾向スコアのモデル ps_nsw は starter のままにして、`___` を埋めてください。
+      1. nsw_cps に ps = predict(ps_nsw, type = "response") と重み w（参加者は1、比較群は ps / (1 - ps)）を加えて nsw_w に代入する
+      2. treat ごとに 年収78 = weighted.mean(re78, w) を集計して tab_nsw に代入する
+      3. 参加者 − 比較群 の差を att_nsw に代入し、att_nsw を表示する
+    starter: |
+      ps_nsw <- glm(treat ~ age + I(age^2) + educ + black + hisp + marr + nodegree + re74 + re75,
+                    data = nsw_cps, family = binomial)
+      nsw_w <- nsw_cps |>
+        mutate(ps = ___,
+               w = ___)
+      tab_nsw <- nsw_w |>
+        group_by(treat) |>
+        summarise(年収78 = ___)
+      att_nsw <- tab_nsw$年収78[2] - tab_nsw$年収78[1]
+      att_nsw
+    solution: |
+      ps_nsw <- glm(treat ~ age + I(age^2) + educ + black + hisp + marr + nodegree + re74 + re75,
+                    data = nsw_cps, family = binomial)
+      nsw_w <- nsw_cps |>
+        mutate(ps = predict(ps_nsw, type = "response"),
+               w = if_else(treat == 1, 1, ps / (1 - ps)))
+      tab_nsw <- nsw_w |>
+        group_by(treat) |>
+        summarise(年収78 = weighted.mean(re78, w))
+      att_nsw <- tab_nsw$年収78[2] - tab_nsw$年収78[1]
+      att_nsw
+    check: |
+      expect_object("ps_nsw", class = "glm")
+      expect_model(ps_nsw, like = .sol$ps_nsw)
+      expect_object("nsw_w", class = "data.frame")
+      expect_cols(nsw_w, c("ps", "w"))
+      check_that(isTRUE(all(nsw_w$ps >= 0 & nsw_w$ps <= 1)),
+                 "ps が確率（0〜1）になっていません。predict() に type = \"response\" を付けましょう。")
+      check_that(isTRUE(all(nsw_w$w[nsw_w$treat == 1] == 1)),
+                 "参加者（treat = 1）の重みは1にしましょう。")
+      expect_df_equal(nsw_w, .sol$nsw_w)
+      expect_uses("weighted.mean")
+      expect_df_equal(tab_nsw, .sol$tab_nsw, ignore_row_order = TRUE)
+      expect_value(att_nsw, .sol$att_nsw, label = "att_nsw")
+      expect_value(.value, .sol_value, label = "表示した att_nsw")
+    hints:
+      - 第61ステップの b・c と同じです。傾向スコアは予測確率、重みは参加者1・比較群 ps / (1 - ps)、年収は重みつき平均です。
+      - ps = predict(ps_nsw, type = "response")、w = if_else(treat == 1, 1, ps / (1 - ps))、年収78 = weighted.mean(re78, w) です。
+      - |
+        nsw_w <- nsw_cps |>
+          mutate(ps = predict(ps_nsw, type = "response"),
+                 w = if_else(treat == 1, 1, ps / (1 - ps)))
+        tab_nsw <- nsw_w |>
+          group_by(treat) |>
+          summarise(年収78 = weighted.mean(re78, w))
+        att_nsw <- tab_nsw$年収78[2] - tab_nsw$年収78[1]
+        att_nsw
+    tests:
+      fail:
+        - |
+          ps_nsw <- glm(treat ~ age + I(age^2) + educ + black + hisp + marr + nodegree + re74 + re75,
+                        data = nsw_cps, family = binomial)
+          nsw_w <- nsw_cps |>
+            mutate(ps = predict(ps_nsw, type = "response"),
+                   w = if_else(treat == 1, 1, ps / (1 - ps)))
+          tab_nsw <- nsw_w |>
+            group_by(treat) |>
+            summarise(年収78 = mean(re78))
+          att_nsw <- tab_nsw$年収78[2] - tab_nsw$年収78[1]
+          att_nsw
+        - |
+          ps_nsw <- glm(treat ~ age + I(age^2) + educ + black + hisp + marr + nodegree + re74 + re75,
+                        data = nsw_cps, family = binomial)
+          nsw_w <- nsw_cps |>
+            mutate(ps = predict(ps_nsw, type = "response"),
+                   w = if_else(treat == 1, 1 / ps, 1 / (1 - ps)))
+          tab_nsw <- nsw_w |>
+            group_by(treat) |>
+            summarise(年収78 = weighted.mean(re78, w))
+          att_nsw <- tab_nsw$年収78[2] - tab_nsw$年収78[1]
+          att_nsw
+  - id: d
+    type: interpret
+    prompt: |
+      1978年の年収で見た訓練の効果は、実験（a）で約1,794ドル、CPS との単純比較（b）で約−8,498ドル、傾向スコアの重み（c）で約1,315ドルでした。
+      この結果の読み方として、最も適切なものはどれですか。
+    choices:
+      - "観察できる変数で調整すると実験の値にかなり近づいたが、一致はしない。調整後の値は、参加が観察できる変数だけで説明でき、似た比較相手がいるという仮定に頼っており、実験の答えがない研究ではその仮定が正しいかを確かめられない"
+      - "傾向スコアで調整すれば観察データでも実験と同じ答えが得られるので、実験は必要ない"
+      - "単純比較が負になったのは、訓練が年収を下げたからである"
+      - "実験の推定値と違うので、傾向スコアの推定値は役に立たない"
+    answer: 0
+    explain: CPS の人々は NSW の参加者より年長で、1975年の年収の平均が約13,651ドル（参加者は約1,532ドル）と、もともとずっと稼いでいます。単純比較の約−8,498ドルは、訓練の効果ではなくこの違い（選択バイアス）です。傾向スコアの重みをつけると、比較群の1975年の年収は約1,546ドルになって参加者とそろい、推定値は約1,315ドルまで実験に近づきます。それでも約480ドルの差が残り、モデルに1974・1975年の年収が0かどうかのダミーを加えると約1,503ドルになるなど、モデルの選び方で値が動きます。実験の答えが分かっているからこそ「近づいた」と言えるのであって、ふつうの観察研究では、どのモデルが正しいかをデータだけでは決められません。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第61ステップの復習】第61ステップの観察データ obs で、傾向スコアの重みが年齢もそろえるかを確かめます。
+      1. treat を prior_earn、age、educ_years、female で説明するロジットを ps_model に代入する
+      2. obs に ps（予測確率）と w（参加者は1、不参加者は ps / (1 - ps)）を加えて obs_w に代入する
+      3. treat ごとに 年齢 = mean(age)、年齢_重みつき = weighted.mean(age, w) を集計して age_balance に代入し、age_balance を表示する
+    starter: |
+      ps_model <- glm(treat ~ prior_earn + age + educ_years + female, data = obs, family = binomial)
+      obs_w <- obs |>
+        mutate()
+      age_balance <- obs_w |>
+
+      age_balance
+    solution: |
+      ps_model <- glm(treat ~ prior_earn + age + educ_years + female, data = obs, family = binomial)
+      obs_w <- obs |>
+        mutate(ps = predict(ps_model, type = "response"),
+               w = if_else(treat == 1, 1, ps / (1 - ps)))
+      age_balance <- obs_w |>
+        group_by(treat) |>
+        summarise(年齢 = mean(age), 年齢_重みつき = weighted.mean(age, w))
+      age_balance
+    check: |
+      expect_object("ps_model", class = "glm")
+      expect_model(ps_model, like = .sol$ps_model)
+      expect_object("obs_w", class = "data.frame")
+      expect_cols(obs_w, c("ps", "w"))
+      expect_df_equal(obs_w, .sol$obs_w)
+      expect_object("age_balance", class = "data.frame")
+      expect_df_equal(age_balance, .sol$age_balance, ignore_row_order = TRUE)
+    hints:
+      - 第61ステップの a・b と同じ手順です。mutate() の中で、先に作った ps をすぐ次の w の計算に使えます。
+      - ps = predict(ps_model, type = "response")、w = if_else(treat == 1, 1, ps / (1 - ps))、年齢_重みつき = weighted.mean(age, w) です。
+      - |
+        obs_w <- obs |>
+          mutate(ps = predict(ps_model, type = "response"),
+                 w = if_else(treat == 1, 1, ps / (1 - ps)))
+        age_balance <- obs_w |>
+          group_by(treat) |>
+          summarise(年齢 = mean(age), 年齢_重みつき = weighted.mean(age, w))
+        age_balance
+    tests:
+      fail:
+        - |
+          ps_model <- glm(treat ~ prior_earn + age + educ_years + female, data = obs, family = binomial)
+          obs_w <- obs |>
+            mutate(ps = predict(ps_model, type = "response"),
+                   w = if_else(treat == 1, 1, ps))
+          age_balance <- obs_w |>
+            group_by(treat) |>
+            summarise(年齢 = mean(age), 年齢_重みつき = weighted.mean(age, w))
+          age_balance

@@ -1,0 +1,139 @@
+id: "007"
+part: 1
+title: パイプで処理をつなぐ
+question: 売上上位5店の客単価は
+minutes: 45
+mode: browser
+packages: [readr, dplyr]
+data: [sora_stores.csv]
+learn: ["|>", count, slice_max, slice_min]
+setup: |
+  library(readr); library(dplyr)
+  stores <- read_csv("data/sora_stores.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      stores から、パイプ |> で次の3段の処理をつなぎ、結果を top5 に代入してください。
+      (1) mutate で客単価（円）の列 spend（sales * 10000 / customers）を作る
+      (2) slice_max で売上 sales が大きい順に5店を取り出す
+      (3) select で store_name, sales, spend の3列だけを残す
+    starter: |
+      top5 <- stores |>
+    solution: |
+      top5 <- stores |>
+        mutate(spend = sales * 10000 / customers) |>
+        slice_max(sales, n = 5) |>
+        select(store_name, sales, spend)
+    check: |
+      expect_object("top5", class = "data.frame")
+      expect_uses("|>", "パイプ |> で処理をつないで書いてみましょう。")
+      expect_df_equal(top5, .sol$top5)
+    hints:
+      - 「列を作る → 5店に絞る → 列を選ぶ」の順に、行末に |> を付けて3つの処理をつなぎます。
+      - mutate(spend = sales * 10000 / customers)、slice_max(sales, n = 5)、select(store_name, sales, spend) を使います。
+      - "top5 <- stores |> mutate(spend = sales * 10000 / customers) |> slice_max(sales, n = 5) |> select(store_name, sales, spend)"
+    tests:
+      fail:
+        - |
+          top5 <- stores |>
+            mutate(spend = sales * 10000 / customers) |>
+            slice_max(spend, n = 5) |>
+            select(store_name, sales, spend)
+        - |
+          top5 <- stores |>
+            mutate(spend = sales / customers) |>
+            slice_max(sales, n = 5) |>
+            select(store_name, sales, spend)
+        - |
+          top5 <- stores |>
+            slice_max(sales, n = 5) |>
+            select(store_name, sales)
+  - id: b
+    type: fix
+    prompt: |
+      前年より売上が落ちた店舗（sales が sales_last より小さい店舗）だけを対象に、地域（region）ごとの店舗数を n_down という列名で数え、down_region に代入したいのですが、次のコードはエラーになります。
+      処理の順番を直してください。
+    starter: |
+      down_region <- stores |>
+        group_by(region) |>
+        summarise(n_down = n()) |>
+        filter(sales < sales_last)
+    solution: |
+      down_region <- stores |>
+        filter(sales < sales_last) |>
+        group_by(region) |>
+        summarise(n_down = n())
+    check: |
+      expect_object("down_region", class = "data.frame")
+      expect_df_equal(down_region, .sol$down_region, ignore_row_order = TRUE)
+    hints:
+      - summarise の後の表には region と n_down の列しか残りません。店舗の売上で絞り込むのは集計の前です。
+      - filter(sales < sales_last) を group_by の前に移します。
+      - "down_region <- stores |> filter(sales < sales_last) |> group_by(region) |> summarise(n_down = n())"
+    tests:
+      fail:
+        - |
+          down_region <- stores |>
+            group_by(region) |>
+            summarise(n_down = n())
+        - |
+          down_region <- stores |>
+            filter(sales > sales_last) |>
+            group_by(region) |>
+            summarise(n_down = n())
+  - id: c
+    type: write
+    prompt: |
+      count を使って、stores の立地（location）ごとの店舗数を数え、location_n に代入してください。
+      列名は count が自動で付ける n のままで構いません。
+    starter: |
+      location_n <- stores |>
+    solution: |
+      location_n <- stores |>
+        count(location)
+    check: |
+      expect_object("location_n", class = "data.frame")
+      expect_uses("count")
+      expect_df_equal(location_n, .sol$location_n, ignore_row_order = TRUE)
+    hints:
+      - group_by と summarise(n = n()) の2段の処理を、1つの関数でまとめて書けます。
+      - count() の中に、数えたい列の名前を書きます。
+      - "location_n <- stores |> count(location)"
+    tests:
+      fail:
+        - |
+          location_n <- stores |>
+            group_by(location) |>
+            summarise(n = n())
+        - |
+          location_n <- stores |>
+            count(region)
+  - id: d
+    type: write
+    review: true
+    prompt: |
+      【第6ステップの復習】group_by と summarise を使って、地域（region）ごとの売上（sales）の合計を total_sales という列名で求め、region_sales に代入してください。
+    starter: |
+      region_sales <- stores |>
+    solution: |
+      region_sales <- stores |>
+        group_by(region) |>
+        summarise(total_sales = sum(sales))
+    check: |
+      expect_object("region_sales", class = "data.frame")
+      expect_df_equal(region_sales, .sol$region_sales, ignore_row_order = TRUE)
+    hints:
+      - まず地域でグループに分け、グループごとに売上を足し合わせます。
+      - group_by(region) の後に summarise(total_sales = sum(sales)) をつなぎます。
+      - "region_sales <- stores |> group_by(region) |> summarise(total_sales = sum(sales))"
+    tests:
+      fail:
+        - |
+          region_sales <- stores |>
+            group_by(region) |>
+            summarise(total_sales = mean(sales))
+        - |
+          region_sales <- stores |>
+            summarise(total_sales = sum(sales))
+review_of: "006"

@@ -1,0 +1,103 @@
+id: "002"
+part: 1
+title: ベクトルと型
+question: 5都市の家賃の平均はいくらか
+minutes: 45
+mode: browser
+learn: [c, length, mean, sum, class]
+review_of: "001"
+exercises:
+  - id: a
+    type: fill
+    prompt: |
+      5都市のワンルームの家賃（万円）は 7.2, 6.5, 8.8, 5.9, 9.4 です。
+      c() でまとめて rent に代入し、mean() で平均を求めて rent_mean に代入してください。
+    starter: |
+      rent <- c(___)
+      rent_mean <- ___
+    solution: |
+      rent <- c(7.2, 6.5, 8.8, 5.9, 9.4)
+      rent_mean <- mean(rent)
+    check: |
+      expect_object("rent", class = "numeric")
+      expect_value(rent, .sol$rent, label = "rent")
+      expect_object("rent_mean")
+      expect_value(rent_mean, .sol$rent_mean, label = "rent_mean")
+    hints:
+      - まず5つの数をカンマで区切って c() に入れ、ベクトルを作ります。
+      - 平均は mean(ベクトル) で求められます。
+      - "rent <- c(7.2, 6.5, 8.8, 5.9, 9.4) と書き、次の行に rent_mean <- mean(rent)"
+    tests:
+      fail:
+        - "rent <- c(7.2, 6.5, 8.8, 5.9, 9.4)\nrent_mean <- sum(rent)"
+        - "rent <- c(7.2, 6.5, 8.8, 5.9)\nrent_mean <- mean(rent)"
+  - id: b
+    type: fix
+    prompt: |
+      別の調査では、3番目の都市の家賃が分からず NA（欠損値）になっています。
+      下のコードでは rent_na_mean が NA になってしまいます。NA を除いて平均を求めるように直してください。
+    starter: |
+      rent_na <- c(7.2, 6.5, NA, 5.9, 9.4)
+      rent_na_mean <- mean(rent_na)
+    solution: |
+      rent_na <- c(7.2, 6.5, NA, 5.9, 9.4)
+      rent_na_mean <- mean(rent_na, na.rm = TRUE)
+    check: |
+      expect_object("rent_na_mean")
+      expect_value(rent_na_mean, .sol$rent_na_mean, label = "rent_na_mean")
+    hints:
+      - NA が1つでも入っていると、mean() の結果は NA になります。
+      - mean() には、NA を取り除いて計算する引数 na.rm があります。
+      - rent_na_mean <- mean(rent_na, na.rm = TRUE)
+    tests:
+      fail:
+        - "rent_na <- c(7.2, 6.5, NA, 5.9, 9.4)\nrent_na_mean <- sum(rent_na, na.rm = TRUE)"
+  - id: c
+    type: write
+    prompt: |
+      a で作った rent のうち、家賃が8万円を超える都市はいくつありますか。
+      比較 rent > 8 と sum() を使って数え、n_over8 に代入してください。
+    starter: |
+      # rent > 8 は TRUE / FALSE のベクトルになります
+    solution: |
+      n_over8 <- sum(rent > 8)
+    check: |
+      expect_object("n_over8")
+      expect_uses("sum")
+      expect_value(n_over8, .sol$n_over8, label = "n_over8")
+    hints:
+      - rent > 8 を実行すると、都市ごとに TRUE（超える）か FALSE（超えない）が並びます。
+      - sum() は TRUE を1、FALSE を0として足し算します。
+      - n_over8 <- sum(rent > 8)
+    tests:
+      fail:
+        - "n_over8 <- length(rent)"
+        - "n_over8 <- sum(rent >= 9)"
+  - id: d
+    type: predict
+    prompt: "`class(c(1, \"a\"))` を実行すると、何が表示されるでしょうか。"
+    choices: ["\"numeric\"", "\"character\"", "\"logical\"", "エラーになる"]
+    answer: 1
+    explain: "ベクトルには1つの型しか入りません。数値と文字を混ぜると、すべてが文字に変換されます（1 は \"1\" になります）。そのため class() は \"character\" を返します。"
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【復習：第1ステップ】a で求めた平均家賃 rent_mean（万円）が、毎年3%ずつ5年間上がり続けたとします。
+      5年後の家賃を計算し、round() で小数第2位に丸めて rent_future に代入してください。
+    starter: |
+      # 5年後 = いま × (1 + 上昇率)^年数
+    solution: |
+      rent_future <- round(rent_mean * (1 + 0.03)^5, 2)
+    check: |
+      expect_object("rent_future")
+      expect_uses("round")
+      expect_value(rent_future, .sol$rent_future, label = "rent_future")
+    hints:
+      - 第1ステップの複利の計算と同じ形です。毎年1.03倍が5回くり返されます。
+      - べき乗は ^、丸めは round(数値, 桁数) で書きます。
+      - rent_future <- round(rent_mean * (1 + 0.03)^5, 2)
+    tests:
+      fail:
+        - "rent_future <- round(rent_mean * 1.03 * 5, 2)"
+        - "rent_future <- rent_mean * (1 + 0.03)^5"

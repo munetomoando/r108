@@ -1,0 +1,46 @@
+title: 都道府県別 最低賃金・平均時給・カイツ指標のパネル（2019〜2025年）
+file: pref_panel.csv
+source: 厚生労働省「賃金構造基本統計調査」（wage_census_pref.csv）、厚生労働省「地域別最低賃金改定状況」（min_wage_pref.csv）、総務省統計局「令和2年国勢調査」（pref_basic.csv）を data-raw/build_pref_panel.R で結合した加工データ。第18ステップ b の正解と同じ表（スクリプトの中で一致を確かめている）
+rows: 329
+unit_of_observation: 都道府県×年（47県×2019〜2025年）。pref_code, year の順に並ぶ
+notes: >-
+  year は賃金構造基本統計調査の調査年で、賃金・労働時間はその年の6月分（一般労働者＝短時間労働者を除く、企業規模10人以上、男女計）。
+  min_wage は year 年6月に効いていた地域別最低賃金で、前の年度（fiscal_year = year − 1）の額を付けている。
+  最低賃金は毎年10月前後（2025年度は県により2025年10月〜2026年3月）に改定されるので、year 年度の額は year 年6月にはまだ効いていない。
+  このため2025年度の最低賃金（2026年6月の賃金と比べる額）は含まれない。
+  avg_wage（平均時給）= scheduled_wage × 1000 ÷ hours、kaitz（カイツ指標）= min_wage ÷ avg_wage で、どちらも丸めていない。
+  hours は6月の平日の日数によって年ごとに上下する（2020〜2023年は多く、2019・2024年は少ない）ため、avg_wage と kaitz には暦の影響が少し乗る。
+  2019年の賃金は、2020年調査と同じ推計方法による厚生労働省の参考系列の値。
+  population は2020年10月1日現在の国勢調査人口で、どの年にも同じ値を付けている（年ごとの人口ではない）。
+  欠損はない
+columns:
+  - name: pref_code
+    description: 都道府県コード（JIS X 0401。北海道=1〜沖縄県=47）
+    unit: なし（整数）
+  - name: pref
+    description: 都道府県名
+    unit: なし
+  - name: region
+    description: 8地方区分（北海道・東北・関東・中部・近畿・中国・四国・九州）
+    unit: なし
+  - name: year
+    description: 年（賃金構造基本統計調査の調査年。賃金・労働時間はその年の6月分）
+    unit: 年
+  - name: min_wage
+    description: その年の6月に効いていた地域別最低賃金の時間額（min_wage_pref の fiscal_year = year − 1 の額）
+    unit: 円/時
+  - name: scheduled_wage
+    description: 所定内給与額（一般労働者、男女計、6月分）
+    unit: 千円/月
+  - name: hours
+    description: 所定内実労働時間数（一般労働者、男女計、6月分）
+    unit: 時間/月
+  - name: avg_wage
+    description: 平均時給。scheduled_wage × 1000 ÷ hours（丸めない）
+    unit: 円/時
+  - name: kaitz
+    description: カイツ指標。min_wage ÷ avg_wage（最低賃金が平均時給の何割か。丸めない）
+    unit: なし（比）
+  - name: population
+    description: 総人口（2020年国勢調査。全年に同じ値）
+    unit: 人

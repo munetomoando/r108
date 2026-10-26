@@ -1,0 +1,24 @@
+id: "104"
+part: 12
+title: Gitで履歴を残す
+question: 先週は正しかった数字が今日変わったとき、どの変更が原因か突き止められるか
+minutes: 60
+mode: local
+packages: []
+data: []
+learn: []
+local:
+  script: check_104.R
+  code_sha256: "b453fbf39eb8a188e10fa65fc8a1b06bd55f04be1ae26314195b1fbdc583bad0"
+  instructions: |
+    **実行する前に**
+    - 本文の手順を終え、ステップ102のプロジェクト（`sora_app`）が Git のリポジトリになっていて、コミットが3つ以上あること
+    - `.gitignore` に `data/` と `.Renviron` を書き、コミットしてあること
+
+    ダウンロードした `check_104.R` をプロジェクトのフォルダ（`app.R` のあるフォルダ）に置き、コンソールで次を実行します。
+
+    ```r
+    source("check_104.R", encoding = "UTF-8")
+    ```
+
+    確認スクリプトは git コマンドで履歴と設定を読むだけで、リポジトリは書き換えません。`check_104.R` 自体はコミットしなくて構いません（「コミットしていない変更」には数えません）。

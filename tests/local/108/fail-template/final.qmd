@@ -1,0 +1,101 @@
+---
+title: "（題名）"
+subtitle: "R データ分析108ステップ 修了課題"
+author: "氏名"
+date: today
+lang: ja
+format:
+  html:
+    embed-resources: true   # 図も中に入れた1つの HTML ファイルにする
+execute:
+  echo: false
+  warning: false
+  message: false
+knitr:
+  opts_chunk:
+    dev: ragg_png           # 図の日本語を文字化けさせない
+---
+
+<!--
+修了課題の雛形（R108 ステップ108）。
+- このファイルを final.qmd という名前で、修了課題のプロジェクトのフォルダ（.Rproj と同じ場所）に置きます。
+- ダッシュボードにするなら、format: を dashboard にし、ステップ101の dashboard.qmd の形で書きます。
+- この囲みのようなメモ（HTML のコメント）は出力されません。書き終えたら消してかまいません。
+- 確認スクリプト check_108.R が確かめること: 題名と名前、最初の見出しが「要約」、「問い」の見出し、
+  モデル1つ以上とその表、図3つ以上、相対パスでデータを読むこと、HTML へのレンダリング、
+  README.md、コミット5つ以上、GitHub への push。
+-->
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(modelsummary)
+
+# 使うデータを data フォルダに置き、ここで読む（別のデータを使うなら書き換える）
+orders <- read_csv("data/ec_orders.csv", show_col_types = FALSE)
+customers <- read_csv("data/ec_customers.csv", show_col_types = FALSE)
+products <- read_csv("data/ec_products.csv", show_col_types = FALSE)
+
+# 分析に使う表を作る（要約のインラインコードで使う数値も、ここで計算しておく）
+```
+
+## 要約
+
+<!--
+問いへの答えを、数値入りで2〜3行。数値は手で打たず、インラインコードで埋め込む（ステップ100）。
+1行目：問いへの答え（結論）  2行目：根拠の数字（推定値と95%信頼区間など）  3行目：次の一手
+-->
+
+ここに要約を書きます。
+
+## 問い
+
+<!--
+- 何を明らかにしたいのかを、1文の疑問文で書く
+- なぜその問いが大事か（誰が、何を決めるのに使うか）
+- 問いの類型（記述・因果・予測）と、この報告でどこまで言うか
+-->
+
+ここに問いを書きます。
+
+## データ
+
+<!--
+- データの出所・期間・観測の単位・観測数、主な変数の定義と単位
+- 加工したこと（除いた行、結合、集計）
+-->
+
+ここにデータの説明を書きます。
+
+```{r}
+#| label: fig-first
+#| fig-cap: "（図の説明）"
+#| fig-width: 7
+#| fig-height: 3.5
+orders |>
+  mutate(ym = floor_date(order_date, unit = "month")) |>
+  count(ym) |>
+  ggplot(aes(x = ym, y = n)) +
+  geom_line() +
+  labs(x = NULL, y = "注文明細の数")
+```
+
+## 分析
+
+<!--
+- 問いに答える図を、あと2つ以上（1つのチャンクに1つの図。#| label: fig-… と #| fig-cap: を付ける）
+- モデルを1つ以上推定し、modelsummary() などで表にする（#| label: tbl-… と #| tbl-cap: を付ける）
+- 係数を単位つきの言葉で読む。統計的に0と区別できるかと、事業として大きいかの両方を書く
+-->
+
+ここに分析を書きます。
+
+## 結論と次の一手
+
+<!--
+- 問いへの答え（数字で）
+- この結論の前提と限界（因果と言えるか、データの範囲など）
+- 次に何をすべきか
+-->
+
+ここに結論を書きます。

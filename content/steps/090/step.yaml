@@ -1,0 +1,303 @@
+id: "090"
+part: 10
+title: 総合演習：広告キャンペーンは効いたか
+question: 広告キャンペーンで注文はどれだけ増え、費用に見合ったか
+minutes: 60
+mode: browser
+packages: [readr, dplyr, lubridate, ggplot2, fixest]
+data: [ec_orders.csv, ec_customers.csv, ec_products.csv]
+learn: []
+setup: |
+  library(readr); library(dplyr); library(lubridate); library(ggplot2); library(fixest)
+  # そらまめマーケット（架空の会社）のネット通販の注文明細・顧客マスタ・商品マスタ
+  orders <- read_csv("data/ec_orders.csv", show_col_types = FALSE)
+  customers <- read_csv("data/ec_customers.csv", show_col_types = FALSE)
+  products <- read_csv("data/ec_products.csv", show_col_types = FALSE)
+  # 2025年6月から広告キャンペーンを実施した10県の県コード
+  camp_prefs <- c(4, 8, 9, 10, 22, 26, 28, 34, 40, 43)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      【実施県と非実施県の推移】県×月の注文件数の表を作り、キャンペーンの前後の推移を図で比べます。
+      1. orders に customers を customer_id で inner_join() し、注文月 ym（floor_date(order_date, unit = "month")）、実施県なら1の treat（pref_code %in% camp_prefs）、2025年6月以降なら1の post（ym >= ymd("2025-06-01")）を、どちらも if_else(条件, 1, 0) で作って od に代入する
+      2. od を pref_code・treat・ym・post でグループに分け、注文件数 n = n_distinct(order_id) を集計して（.groups = "drop"）pm に代入する（47県×24か月で1,128行）
+      3. pm を treat と ym でグループに分けて n を合計し（.groups = "drop"）、treat ごとに、キャンペーン前（2025年5月まで）の月平均を100とした指数 index = 100 * n / mean(n[ym < ymd("2025-06-01")]) を加えて trend に代入する（最後に ungroup()）
+      4. trend で、横軸 ym・縦軸 index・色 factor(treat) の折れ線グラフに、2025年6月1日の縦線 geom_vline(xintercept = ymd("2025-06-01")) を加えて描く
+    starter: |
+      od <- orders |>
+
+      pm <- od |>
+
+      trend <- pm |>
+
+      ggplot(trend, aes(x = ym, y = index, colour = factor(treat))) +
+
+    solution: |
+      od <- orders |>
+        inner_join(customers, by = "customer_id") |>
+        mutate(ym = floor_date(order_date, unit = "month"),
+               treat = if_else(pref_code %in% camp_prefs, 1, 0),
+               post = if_else(ym >= ymd("2025-06-01"), 1, 0))
+      pm <- od |>
+        group_by(pref_code, treat, ym, post) |>
+        summarise(n = n_distinct(order_id), .groups = "drop")
+      trend <- pm |>
+        group_by(treat, ym) |>
+        summarise(n = sum(n), .groups = "drop") |>
+        group_by(treat) |>
+        mutate(index = 100 * n / mean(n[ym < ymd("2025-06-01")])) |>
+        ungroup()
+      ggplot(trend, aes(x = ym, y = index, colour = factor(treat))) +
+        geom_line() +
+        geom_vline(xintercept = ymd("2025-06-01"))
+    check: |
+      expect_object("od", class = "data.frame")
+      expect_cols(od, c("ym", "treat", "post", "pref_code"))
+      check_that(nrow(od) == nrow(.sol$od),
+                 "od の行数が違います。customers と inner_join() で結合しましょう（顧客マスタにない顧客の注文は除かれます）。")
+      expect_df_equal(od, .sol$od)
+      expect_object("pm", class = "data.frame")
+      expect_cols(pm, c("pref_code", "treat", "ym", "post", "n"))
+      expect_nrow(pm, 1128)
+      expect_df_equal(pm, .sol$pm, ignore_row_order = TRUE)
+      expect_object("trend", class = "data.frame")
+      expect_cols(trend, c("treat", "ym", "n", "index"))
+      expect_nrow(trend, 48)
+      expect_df_equal(trend, .sol$trend, ignore_row_order = TRUE)
+      expect_ggplot(geom = "line", x = "ym", y = "index")
+      check_that(any(vapply(.plot$layers, function(l) inherits(l$geom, "GeomVline"), logical(1))),
+                 "キャンペーン開始の縦線がありません。+ geom_vline(xintercept = ymd(\"2025-06-01\")) を加えましょう。")
+    hints:
+      - 「結合して列を作る（od）→ 県×月で注文件数を数える（pm）→ 実施・非実施の2本にまとめて指数にする（trend）→ 図」の順です。注文件数は明細の行数ではなく、order_id の種類の数です。
+      - treat は if_else(pref_code %in% camp_prefs, 1, 0)、post は if_else(ym >= ymd("2025-06-01"), 1, 0) です。指数は group_by(treat) のあとの mutate() で、キャンペーン前の月だけの平均 mean(n[ym < ymd("2025-06-01")]) で割ります。
+      - |
+        od <- orders |>
+          inner_join(customers, by = "customer_id") |>
+          mutate(ym = floor_date(order_date, unit = "month"),
+                 treat = if_else(pref_code %in% camp_prefs, 1, 0),
+                 post = if_else(ym >= ymd("2025-06-01"), 1, 0))
+        pm <- od |>
+          group_by(pref_code, treat, ym, post) |>
+          summarise(n = n_distinct(order_id), .groups = "drop")
+        trend <- pm |>
+          group_by(treat, ym) |>
+          summarise(n = sum(n), .groups = "drop") |>
+          group_by(treat) |>
+          mutate(index = 100 * n / mean(n[ym < ymd("2025-06-01")])) |>
+          ungroup()
+        ggplot(trend, aes(x = ym, y = index, colour = factor(treat))) +
+          geom_line() +
+          geom_vline(xintercept = ymd("2025-06-01"))
+    tests:
+      fail:
+        - |
+          od <- orders |>
+            inner_join(customers, by = "customer_id") |>
+            mutate(ym = floor_date(order_date, unit = "month"),
+                   treat = if_else(pref_code %in% camp_prefs, 1, 0),
+                   post = if_else(ym >= ymd("2025-06-01"), 1, 0))
+          pm <- od |>
+            group_by(pref_code, treat, ym, post) |>
+            summarise(n = n(), .groups = "drop")
+          trend <- pm |>
+            group_by(treat, ym) |>
+            summarise(n = sum(n), .groups = "drop") |>
+            group_by(treat) |>
+            mutate(index = 100 * n / mean(n[ym < ymd("2025-06-01")])) |>
+            ungroup()
+          ggplot(trend, aes(x = ym, y = index, colour = factor(treat))) +
+            geom_line() +
+            geom_vline(xintercept = ymd("2025-06-01"))
+        - |
+          od <- orders |>
+            inner_join(customers, by = "customer_id") |>
+            mutate(ym = floor_date(order_date, unit = "month"),
+                   treat = if_else(pref_code %in% camp_prefs, 1, 0),
+                   post = if_else(ym >= ymd("2025-06-01"), 1, 0))
+          pm <- od |>
+            group_by(pref_code, treat, ym, post) |>
+            summarise(n = n_distinct(order_id), .groups = "drop")
+          trend <- pm |>
+            group_by(treat, ym) |>
+            summarise(n = sum(n), .groups = "drop") |>
+            group_by(treat) |>
+            mutate(index = 100 * n / mean(n)) |>
+            ungroup()
+          ggplot(trend, aes(x = ym, y = index, colour = factor(treat))) +
+            geom_line() +
+            geom_vline(xintercept = ymd("2025-06-01"))
+  - id: b
+    type: write
+    prompt: |
+      【差の差分析で効果を推定する】a の県×月の表 pm を使い、注文件数の対数 log(n) を treat:post で説明し、県（pref_code）と月（ym）の固定効果を入れ、県でクラスタした標準誤差を使うモデルを m_did に代入してください。
+      続けて coeftable(m_did) と confint(m_did) を表示します。
+    starter: |
+      m_did <-
+      coeftable(m_did)
+      confint(m_did)
+    solution: |
+      m_did <- feols(log(n) ~ treat:post | pref_code + ym,
+                     data = pm, cluster = ~pref_code)
+      coeftable(m_did)
+      confint(m_did)
+    check: |
+      expect_object("m_did", class = "fixest")
+      check_that(identical(sort(m_did$fixef_vars), c("pref_code", "ym")),
+                 "固定効果は pref_code と ym の2つです。式の | の右に pref_code + ym と書きましょう。")
+      expect_model(m_did, like = .sol$m_did)
+      check_that(isTRUE(all.equal(as.numeric(se(m_did)), as.numeric(se(.sol$m_did)), tolerance = 1e-6)),
+                 "標準誤差が違います。cluster = ~pref_code で県ごとにクラスタしましょう。")
+      expect_value(.value, .sol_value, label = "表示した confint(m_did)")
+    hints:
+      - 第66ステップの差の差の回帰を、県×月のデータに当てはめます。被説明変数を対数にすると、係数はおおよその変化率（0.05 なら約5%増）と読めます。
+      - feols(log(n) ~ treat:post | pref_code + ym, data = pm, cluster = ~pref_code) です。
+      - |
+        m_did <- feols(log(n) ~ treat:post | pref_code + ym,
+                       data = pm, cluster = ~pref_code)
+        coeftable(m_did)
+        confint(m_did)
+    tests:
+      fail:
+        - |
+          m_did <- feols(n ~ treat:post | pref_code + ym,
+                         data = pm, cluster = ~pref_code)
+          coeftable(m_did)
+          confint(m_did)
+        - |
+          m_did <- feols(log(n) ~ treat:post | pref_code + ym, data = pm)
+          coeftable(m_did)
+          confint(m_did)
+        - |
+          m_did <- feols(log(n) ~ treat:post | ym,
+                         data = pm, cluster = ~pref_code)
+          coeftable(m_did)
+          confint(m_did)
+  - id: c
+    type: write
+    prompt: |
+      【費用対効果】広告費は月5万円、2025年6〜12月の7か月で計35万円だったとします（架空の前提）。
+      1. 実施県のキャンペーン後（treat == 1 かつ post == 1）の注文件数の合計を pm から求めて n_post に代入する（pull() で1つの数にする）
+      2. od に products の unit_cost を product_id で結合し、粗利の合計 sum((unit_price - unit_cost) * qty) を注文件数 n_distinct(order_id) で割った「1注文あたりの粗利」を求めて profit_per_order に代入する（pull() で1つの数にする）
+      3. ad_cost <- 50000 * 7 とする
+      4. confint(m_did) を ci に代入し、case（"下限", "推定値", "上限"）と beta（信頼区間の下限、treat:post の係数、上限）の2列の tibble() を作る。そこに、増えた注文件数 extra_orders = n_post * (1 - exp(-beta))、増えた粗利 extra_profit = extra_orders * profit_per_order、広告費を引いた差 net = extra_profit - ad_cost を加えて roi に代入し、表示する
+    starter: |
+      n_post <-
+      profit_per_order <-
+      ad_cost <- 50000 * 7
+      ci <- confint(m_did)
+      roi <-
+      roi
+    solution: |
+      n_post <- pm |>
+        filter(treat == 1, post == 1) |>
+        summarise(n = sum(n)) |>
+        pull(n)
+      profit_per_order <- od |>
+        left_join(select(products, product_id, unit_cost), by = "product_id") |>
+        summarise(profit = sum((unit_price - unit_cost) * qty) / n_distinct(order_id)) |>
+        pull(profit)
+      ad_cost <- 50000 * 7
+      ci <- confint(m_did)
+      roi <- tibble(case = c("下限", "推定値", "上限"),
+                    beta = c(ci[[1]], coef(m_did)[["treat:post"]], ci[[2]])) |>
+        mutate(extra_orders = n_post * (1 - exp(-beta)),
+               extra_profit = extra_orders * profit_per_order,
+               net = extra_profit - ad_cost)
+      roi
+    check: |
+      check_that(exists("n_post") && is.numeric(n_post) && length(n_post) == 1,
+                 "n_post は1つの数にしましょう。summarise() のあとに pull(n) を付けます。")
+      expect_value(n_post, .sol$n_post, label = "n_post")
+      check_that(exists("profit_per_order") && is.numeric(profit_per_order) && length(profit_per_order) == 1,
+                 "profit_per_order は1つの数にしましょう。summarise() のあとに pull() を付けます。")
+      expect_value(profit_per_order, .sol$profit_per_order, label = "profit_per_order")
+      expect_value(ad_cost, .sol$ad_cost, label = "ad_cost")
+      expect_object("roi", class = "data.frame")
+      expect_cols(roi, c("case", "beta", "extra_orders", "extra_profit", "net"))
+      expect_nrow(roi, 3)
+      expect_df_equal(roi, .sol$roi)
+      expect_value(.value, .sol_value, label = "表示した roi")
+    hints:
+      - 実際の注文件数は「キャンペーンがなかった場合の件数 × exp(beta)」なので、なかった場合は「実際 × exp(−beta)」、増えた分は「実際 × (1 − exp(−beta))」です。信頼区間の両端でも同じ計算をすると、費用対効果の幅が分かります。
+      - n_post は filter(treat == 1, post == 1) |> summarise(n = sum(n)) |> pull(n)、1注文あたりの粗利は left_join(select(products, product_id, unit_cost), by = "product_id") のあと summarise(profit = sum((unit_price - unit_cost) * qty) / n_distinct(order_id)) |> pull(profit) です。beta は c(ci[[1]], coef(m_did)[["treat:post"]], ci[[2]]) です。
+      - |
+        n_post <- pm |>
+          filter(treat == 1, post == 1) |>
+          summarise(n = sum(n)) |>
+          pull(n)
+        profit_per_order <- od |>
+          left_join(select(products, product_id, unit_cost), by = "product_id") |>
+          summarise(profit = sum((unit_price - unit_cost) * qty) / n_distinct(order_id)) |>
+          pull(profit)
+        ad_cost <- 50000 * 7
+        ci <- confint(m_did)
+        roi <- tibble(case = c("下限", "推定値", "上限"),
+                      beta = c(ci[[1]], coef(m_did)[["treat:post"]], ci[[2]])) |>
+          mutate(extra_orders = n_post * (1 - exp(-beta)),
+                 extra_profit = extra_orders * profit_per_order,
+                 net = extra_profit - ad_cost)
+        roi
+    tests:
+      fail:
+        - |
+          n_post <- pm |>
+            filter(treat == 1, post == 1) |>
+            summarise(n = sum(n)) |>
+            pull(n)
+          profit_per_order <- od |>
+            left_join(select(products, product_id, unit_cost), by = "product_id") |>
+            summarise(profit = sum((unit_price - unit_cost) * qty) / n()) |>
+            pull(profit)
+          ad_cost <- 50000 * 7
+          ci <- confint(m_did)
+          roi <- tibble(case = c("下限", "推定値", "上限"),
+                        beta = c(ci[[1]], coef(m_did)[["treat:post"]], ci[[2]])) |>
+            mutate(extra_orders = n_post * (1 - exp(-beta)),
+                   extra_profit = extra_orders * profit_per_order,
+                   net = extra_profit - ad_cost)
+          roi
+        - |
+          n_post <- pm |>
+            filter(treat == 1, post == 1) |>
+            summarise(n = sum(n)) |>
+            pull(n)
+          profit_per_order <- od |>
+            left_join(select(products, product_id, unit_cost), by = "product_id") |>
+            summarise(profit = sum((unit_price - unit_cost) * qty) / n_distinct(order_id)) |>
+            pull(profit)
+          ad_cost <- 50000 * 7
+          ci <- confint(m_did)
+          roi <- tibble(case = c("下限", "推定値", "上限"),
+                        beta = c(ci[[1]], coef(m_did)[["treat:post"]], ci[[2]])) |>
+            mutate(extra_orders = n_post * beta,
+                   extra_profit = extra_orders * profit_per_order,
+                   net = extra_profit - ad_cost)
+          roi
+  - id: d
+    type: interpret
+    free: true
+    prompt: |
+      a〜c の結果をもとに、「広告キャンペーンで注文はどれだけ増え、費用に見合ったか」への経営会議向けの結論を3行（3文）で書いてください。
+      1文目に差の差分析の推定値（注文件数が何%増えたか）と95%信頼区間を、2文目に費用対効果（増えた粗利と広告費35万円の比較。信頼区間の両端での結果も）を、3文目にこの結論が成り立つための前提（平行トレンド、a の図でキャンペーン前の推移がそろっていたか、1注文あたりの粗利を平均で見積もったこと など）と、次に何をすべきかを書くと書きやすいでしょう。
+    solution: |
+      差の差分析では、キャンペーンを実施した10県の注文件数は、実施しなかった県と比べて約7%（対数の係数 約0.072、95%信頼区間 約0.011〜0.132）増えたと推定され、2025年6〜12月の7か月で約360件の注文の上積みにあたる。
+      1注文あたりの粗利を約1,124円とすると増えた粗利は約40万円で、広告費35万円を約5万円上回るが、信頼区間の下限では約6万円にとどまり約29万円の赤字、上限では約72万円で約38万円の黒字となり、費用に見合ったかどうかは確かとは言えない。
+      この推定は、キャンペーンがなければ実施県と非実施県の注文が同じように推移したという平行トレンドの前提に立っており、a の図でキャンペーン前の2本の線がほぼ重なっていたことは前提と矛盾しないが証明ではないので、継続するなら実施県を無作為に選んで効果をもう一度測ることを提案する。
+    check: |
+      expect_min_chars(150)
+      expect_text("[0-9０-９]", "推定値や金額などの数字を入れて書きましょう。")
+      expect_text("%|％|割", "1文目に、注文件数が何%増えたかを書きましょう。")
+      expect_text("信頼区間|標準誤差|有意", "推定値の不確かさ（信頼区間など）にも触れましょう。")
+      expect_text("広告費|費用|35万", "2文目に、広告費と比べた結果を書きましょう。")
+      expect_text("粗利|利益", "増えた粗利（利益）で費用対効果を書きましょう。")
+      expect_text("下限|上限|幅|範囲", "信頼区間の両端で費用対効果がどう変わるかを書きましょう。")
+      expect_text("平行トレンド|平行|同じように推移", "3文目に、平行トレンドの前提を書きましょう。")
+    hints:
+      - b の係数と信頼区間、c の roi の3行（下限・推定値・上限）の net を見直しましょう。net が正なら広告費を上回っています。
+      - 「注文は何%増えたか（信頼区間つき）」「増えた粗利は広告費に見合ったか（区間の両端でどうか）」「どんな前提のもとで言えるか、次に何をするか」を1文ずつ書きます。
+      - 例「差の差分析では、実施県の注文件数は約〇%（95%信頼区間 約〇〜〇）増え、7か月で約〇件の上積みと推定される。増えた粗利は約〇万円で広告費35万円を約〇万円上回るが、信頼区間の下限では約〇万円の赤字になり、見合ったとは言い切れない。キャンペーン前の推移はそろっていたが、平行トレンドの前提は証明できないので、続けるなら実施県を無作為に選んで測り直す。」
+    tests:
+      fail:
+        - 広告キャンペーンは効果があったので続けるべきだ。
+        - 差の差分析では注文件数が約7%増え、信頼区間は0をまたがなかったので統計的に有意だった。増えた粗利は約40万円で広告費35万円を上回ったので、キャンペーンは確実に黒字であり全国に広げるべきである。

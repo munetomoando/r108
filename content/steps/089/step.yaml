@@ -1,0 +1,287 @@
+id: "089"
+part: 10
+title: 価格と需要
+question: 2割引きで販売数はどれだけ増え、利益は増えるか
+minutes: 55
+mode: browser
+packages: [readr, dplyr, fixest]
+data: [ec_orders.csv, ec_products.csv, ab_test_srm.csv]
+learn: []
+review_of: "088"
+setup: |
+  library(readr); library(dplyr); library(fixest)
+  # そらまめマーケット（架空の会社）のネット通販の注文明細と商品マスタ
+  orders <- read_csv("data/ec_orders.csv", show_col_types = FALSE)
+  products <- read_csv("data/ec_products.csv", show_col_types = FALSE)
+  # 復習用：割当比率が崩れた A/B テスト
+  ab_srm <- read_csv("data/ab_test_srm.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      クーポン（20%引き）を使った明細と使わなかった明細で、1明細あたりの平均数量を比べます。
+      orders を coupon でグループに分け、明細の数 lines = n()、注文の件数 n_orders = n_distinct(order_id)、平均数量 qty = mean(qty) を集計して qty_tab に代入し、qty_tab を表示してください。
+    starter: |
+      qty_tab <- orders |>
+
+      qty_tab
+    solution: |
+      qty_tab <- orders |>
+        group_by(coupon) |>
+        summarise(lines = n(), n_orders = n_distinct(order_id), qty = mean(qty))
+      qty_tab
+    check: |
+      expect_object("qty_tab", class = "data.frame")
+      expect_cols(qty_tab, c("coupon", "lines", "n_orders", "qty"))
+      expect_nrow(qty_tab, 2)
+      expect_df_equal(qty_tab, .sol$qty_tab, ignore_row_order = TRUE)
+      expect_value(.value, .sol_value, label = "表示した qty_tab")
+    hints:
+      - coupon（0 か 1）でグループに分け、3つの値を summarise() でまとめて求めます。
+      - 明細の数は n()、注文の件数は n_distinct(order_id)（同じ注文の明細は同じ order_id）、平均数量は mean(qty) です。
+      - |
+        qty_tab <- orders |>
+          group_by(coupon) |>
+          summarise(lines = n(), n_orders = n_distinct(order_id), qty = mean(qty))
+        qty_tab
+    tests:
+      fail:
+        - |
+          qty_tab <- orders |>
+            group_by(coupon) |>
+            summarise(lines = n(), n_orders = n(), qty = mean(qty))
+          qty_tab
+        - |
+          qty_tab <- orders |>
+            group_by(coupon) |>
+            summarise(lines = n(), n_orders = n_distinct(order_id), qty = sum(qty))
+          qty_tab
+  - id: b
+    type: fill
+    prompt: |
+      対数-対数の回帰で価格弾力性を推定します。`___` を埋めてください。
+      1. orders を product_id と coupon でグループに分け、平均数量 qty = mean(qty) と平均価格 price = mean(unit_price) を集計して pq に代入する（商品200点×クーポンの有無で400行）
+      2. log(qty) を log(price) で説明する回帰を、商品の違いを考えずに lm() で推定して m_pool に代入する
+      3. 同じ式に商品（product_id）の固定効果を入れ、商品でクラスタした標準誤差を使うモデルを feols() で推定して m_fe に代入する
+      4. 2つの log(price) の係数を c(coef(m_pool)[["log(price)"]], coef(m_fe)[["log(price)"]]) で表示する
+    starter: |
+      pq <- orders |>
+        group_by(___) |>
+        summarise(qty = mean(qty), price = mean(unit_price), .groups = "drop")
+      m_pool <- lm(log(qty) ~ log(price), data = pq)
+      m_fe <- feols(log(qty) ~ log(price) | ___, data = pq, cluster = ___)
+      c(coef(m_pool)[["log(price)"]], coef(m_fe)[["log(price)"]])
+    solution: |
+      pq <- orders |>
+        group_by(product_id, coupon) |>
+        summarise(qty = mean(qty), price = mean(unit_price), .groups = "drop")
+      m_pool <- lm(log(qty) ~ log(price), data = pq)
+      m_fe <- feols(log(qty) ~ log(price) | product_id, data = pq, cluster = ~product_id)
+      c(coef(m_pool)[["log(price)"]], coef(m_fe)[["log(price)"]])
+    check: |
+      expect_object("pq", class = "data.frame")
+      expect_cols(pq, c("product_id", "coupon", "qty", "price"))
+      expect_nrow(pq, 400)
+      expect_df_equal(pq, .sol$pq, ignore_row_order = TRUE)
+      expect_object("m_pool", class = "lm")
+      expect_model(m_pool, like = .sol$m_pool)
+      expect_object("m_fe", class = "fixest")
+      check_that(identical(m_fe$fixef_vars, "product_id"),
+                 "固定効果は商品（product_id）です。式の | の右に product_id と書きましょう。")
+      expect_model(m_fe, like = .sol$m_fe)
+      check_that(isTRUE(all.equal(as.numeric(se(m_fe)), as.numeric(se(.sol$m_fe)), tolerance = 1e-6)),
+                 "標準誤差が違います。cluster = ~product_id で商品ごとにクラスタしましょう。")
+      expect_value(.value, .sol_value, label = "表示した2つの係数")
+    hints:
+      - 同じ商品の「クーポンなし」と「クーポンあり」を1行ずつにするので、商品とクーポンの2つでグループに分けます。固定効果は、商品ごとの数量の水準の違いを取り除くために入れます。
+      - group_by(product_id, coupon) です。feols() の式は log(qty) ~ log(price) | product_id、標準誤差は cluster = ~product_id です。
+      - |
+        pq <- orders |>
+          group_by(product_id, coupon) |>
+          summarise(qty = mean(qty), price = mean(unit_price), .groups = "drop")
+        m_pool <- lm(log(qty) ~ log(price), data = pq)
+        m_fe <- feols(log(qty) ~ log(price) | product_id, data = pq, cluster = ~product_id)
+        c(coef(m_pool)[["log(price)"]], coef(m_fe)[["log(price)"]])
+    tests:
+      fail:
+        - |
+          pq <- orders |>
+            group_by(product_id) |>
+            summarise(qty = mean(qty), price = mean(unit_price), .groups = "drop")
+          m_pool <- lm(log(qty) ~ log(price), data = pq)
+          m_fe <- feols(log(qty) ~ log(price) | product_id, data = pq, cluster = ~product_id)
+          c(coef(m_pool)[["log(price)"]], coef(m_fe)[["log(price)"]])
+        - |
+          pq <- orders |>
+            group_by(product_id, coupon) |>
+            summarise(qty = mean(qty), price = mean(unit_price), .groups = "drop")
+          m_pool <- lm(log(qty) ~ log(price), data = pq)
+          m_fe <- feols(log(qty) ~ log(price) | coupon, data = pq, cluster = ~coupon)
+          c(coef(m_pool)[["log(price)"]], coef(m_fe)[["log(price)"]])
+        - |
+          pq <- orders |>
+            group_by(product_id, coupon) |>
+            summarise(qty = mean(qty), price = mean(unit_price), .groups = "drop")
+          m_pool <- lm(log(qty) ~ log(price), data = pq)
+          m_fe <- feols(log(qty) ~ log(price) | product_id, data = pq)
+          c(coef(m_pool)[["log(price)"]], coef(m_fe)[["log(price)"]])
+  - id: c
+    type: fill
+    prompt: |
+      値引きが利益（粗利＝（販売単価 − 仕入原価）× 数量）をどう変えるかを計算します。`___` を埋めてください。
+      1. orders に products の unit_cost を product_id で結合し、明細ごとの売上 sales = qty * unit_price と粗利 profit = (unit_price - unit_cost) * qty を作って op に代入する
+      2. op を coupon でグループに分け、1明細あたりの平均売上 sales と平均粗利 profit を集計して profit_tab に代入し、表示する
+      3. b の弾力性 e と、クーポンなしの明細の平均売上 base_sales・平均仕入額 base_cost を使い、値引き率 discount（0〜0.3、0.05刻み）ごとの1明細あたりの粗利の見込みを sim に代入し、表示する
+    starter: |
+      op <- orders |>
+        left_join(select(products, product_id, unit_cost), by = "product_id") |>
+        mutate(sales = qty * unit_price, profit = ___)
+      profit_tab <- op |>
+        group_by(coupon) |>
+        summarise(sales = mean(sales), profit = mean(profit))
+      profit_tab
+      e <- coef(m_fe)[["log(price)"]]
+      base <- op |>
+        filter(coupon == 0) |>
+        summarise(base_sales = mean(sales), base_cost = mean(qty * unit_cost))
+      sim <- tibble(discount = seq(0, 0.3, by = 0.05)) |>
+        mutate(qty_ratio = (1 - discount)^___,
+               profit = qty_ratio * ((1 - discount) * base$base_sales - ___))
+      sim
+    solution: |
+      op <- orders |>
+        left_join(select(products, product_id, unit_cost), by = "product_id") |>
+        mutate(sales = qty * unit_price, profit = (unit_price - unit_cost) * qty)
+      profit_tab <- op |>
+        group_by(coupon) |>
+        summarise(sales = mean(sales), profit = mean(profit))
+      profit_tab
+      e <- coef(m_fe)[["log(price)"]]
+      base <- op |>
+        filter(coupon == 0) |>
+        summarise(base_sales = mean(sales), base_cost = mean(qty * unit_cost))
+      sim <- tibble(discount = seq(0, 0.3, by = 0.05)) |>
+        mutate(qty_ratio = (1 - discount)^e,
+               profit = qty_ratio * ((1 - discount) * base$base_sales - base$base_cost))
+      sim
+    check: |
+      expect_object("op", class = "data.frame")
+      expect_cols(op, c("unit_cost", "sales", "profit"))
+      expect_df_equal(op, .sol$op)
+      expect_object("profit_tab", class = "data.frame")
+      expect_df_equal(profit_tab, .sol$profit_tab, ignore_row_order = TRUE)
+      expect_object("sim", class = "data.frame")
+      expect_cols(sim, c("discount", "qty_ratio", "profit"))
+      expect_nrow(sim, 7)
+      expect_df_equal(sim, .sol$sim)
+      expect_value(.value, .sol_value, label = "表示した sim")
+    hints:
+      - 粗利は「1個あたりのもうけ（販売単価 − 仕入原価）× 数量」です。値引き率 d のとき、価格は (1 − d) 倍、数量は (1 − d) の e 乗倍になります（e は弾力性）。
+      - profit = (unit_price - unit_cost) * qty です。sim では qty_ratio = (1 - discount)^e、仕入額は値引きしても変わらないので base$base_cost を引きます。
+      - |
+        op <- orders |>
+          left_join(select(products, product_id, unit_cost), by = "product_id") |>
+          mutate(sales = qty * unit_price, profit = (unit_price - unit_cost) * qty)
+        profit_tab <- op |>
+          group_by(coupon) |>
+          summarise(sales = mean(sales), profit = mean(profit))
+        profit_tab
+        e <- coef(m_fe)[["log(price)"]]
+        base <- op |>
+          filter(coupon == 0) |>
+          summarise(base_sales = mean(sales), base_cost = mean(qty * unit_cost))
+        sim <- tibble(discount = seq(0, 0.3, by = 0.05)) |>
+          mutate(qty_ratio = (1 - discount)^e,
+                 profit = qty_ratio * ((1 - discount) * base$base_sales - base$base_cost))
+        sim
+    tests:
+      fail:
+        - |
+          op <- orders |>
+            left_join(select(products, product_id, unit_cost), by = "product_id") |>
+            mutate(sales = qty * unit_price, profit = unit_price * qty)
+          profit_tab <- op |>
+            group_by(coupon) |>
+            summarise(sales = mean(sales), profit = mean(profit))
+          profit_tab
+          e <- coef(m_fe)[["log(price)"]]
+          base <- op |>
+            filter(coupon == 0) |>
+            summarise(base_sales = mean(sales), base_cost = mean(qty * unit_cost))
+          sim <- tibble(discount = seq(0, 0.3, by = 0.05)) |>
+            mutate(qty_ratio = (1 - discount)^e,
+                   profit = qty_ratio * ((1 - discount) * base$base_sales - base$base_cost))
+          sim
+        - |
+          op <- orders |>
+            left_join(select(products, product_id, unit_cost), by = "product_id") |>
+            mutate(sales = qty * unit_price, profit = (unit_price - unit_cost) * qty)
+          profit_tab <- op |>
+            group_by(coupon) |>
+            summarise(sales = mean(sales), profit = mean(profit))
+          profit_tab
+          e <- coef(m_fe)[["log(price)"]]
+          base <- op |>
+            filter(coupon == 0) |>
+            summarise(base_sales = mean(sales), base_cost = mean(qty * unit_cost))
+          sim <- tibble(discount = seq(0, 0.3, by = 0.05)) |>
+            mutate(qty_ratio = (1 - discount)^e,
+                   profit = qty_ratio * ((1 - discount) * base$base_sales - (1 - discount) * base$base_cost))
+          sim
+  - id: d
+    type: interpret
+    prompt: |
+      このデータでは、クーポンは注文ごとに無作為に（くじ引きのように）付けられています。この事実から言えることとして、最も適切なものはどれですか。
+    choices:
+      - "クーポンを使うのはもともとたくさん買う客なので、a の数量の差は値引きの効果ではなく、客の違いを表している"
+      - "クーポンの有無は客や商品の性質と無関係に決まるので、クーポンあり・なしの数量の差は値引きによる因果効果と読める。ただし分かるのは観察した0%と20%引きの間の反応で、30%引きや値上げのときの反応は、弾力性が一定という仮定を置いた見込みにすぎない"
+      - "無作為なので、商品の固定効果を入れない m_pool の係数も、入れた m_fe の係数と同じく因果効果と読める"
+      - "数量が増えたので、クーポンは利益も増やしたと言える"
+    answer: 1
+    explain: クーポンは注文ごとに無作為に付けたので、クーポンを受け取った注文と受け取らなかった注文は、客や商品の構成が平均的に同じです。だから数量の差は値引きの効果と読めます（選択肢1は誤り。客が自分で選んで使うクーポンなら、この心配が当たります）。m_pool が比べているのは「安い商品と高い商品」で、値引きとは関係のない商品の違いが混ざります。無作為なのは商品の中での値引きの有無だけなので、商品の固定効果を入れて同じ商品の中で比べた m_fe が因果効果です（選択肢3は誤り）。c で見たとおり、数量は約1.4倍に増えても粗利は1明細あたり約1,058円から約789円に減りました（選択肢4は誤り）。また観察したのは0%と20%の2つの価格だけなので、ほかの値引き率での反応は仮定を置いた見込みです。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第88ステップの復習】ab_srm は、A と B に半分ずつ割り当てたはずの A/B テストの記録です。
+      1. table(ab_srm$group) を srm_tab に代入して表示する
+      2. chisq.test() に srm_tab と p = c(0.5, 0.5)（本来の割当比率）を渡した結果を res_srm に代入し、res_srm$p.value を表示する
+    starter: |
+      srm_tab <-
+      srm_tab
+      res_srm <-
+      res_srm$p.value
+    solution: |
+      srm_tab <- table(ab_srm$group)
+      srm_tab
+      res_srm <- chisq.test(srm_tab, p = c(0.5, 0.5))
+      res_srm$p.value
+    check: |
+      expect_object("srm_tab", class = "table")
+      expect_value(as.vector(srm_tab), as.vector(.sol$srm_tab), label = "群ごとの人数")
+      expect_object("res_srm", class = "htest")
+      expect_uses("chisq.test")
+      check_that(length(res_srm$observed) == 2,
+                 "chisq.test() には、群ごとの人数の表 srm_tab（2つの数）を渡しましょう。")
+      expect_value(res_srm$p.value, .sol$res_srm$p.value, label = "p値")
+      expect_value(.value, .sol_value, label = "最後に表示した res_srm$p.value")
+    hints:
+      - 割当の不具合（SRM）は、各グループの人数が予定の比率（1:1）から偶然では説明できないほどずれていないかで調べます。
+      - table(ab_srm$group) で人数を数え、chisq.test(srm_tab, p = c(0.5, 0.5)) で 1:1 と比べます。p値は res_srm$p.value で取り出せます。
+      - |
+        srm_tab <- table(ab_srm$group)
+        srm_tab
+        res_srm <- chisq.test(srm_tab, p = c(0.5, 0.5))
+        res_srm$p.value
+    tests:
+      fail:
+        - |
+          srm_tab <- table(ab_srm$group)
+          srm_tab
+          res_srm <- chisq.test(srm_tab, p = c(0.51, 0.49))
+          res_srm$p.value
+        - |
+          srm_tab <- table(ab_srm$device)
+          srm_tab
+          res_srm <- chisq.test(srm_tab, p = c(0.5, 0.5))
+          res_srm$p.value

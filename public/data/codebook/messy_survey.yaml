@@ -1,0 +1,25 @@
+title: そらまめマーケット 来店客アンケート（わざと汚いデータ）
+file: messy_survey.csv
+source: 合成データ（data-raw/synth_messy_survey.R、乱数シード108）。架空の回答。店頭の紙のアンケートを複数の担当者が手入力した、という設定
+rows: 500
+unit_of_observation: 回答者
+notes: 回答日以外の列は文字列として読まれる（回答日は read_csv が数値として読む）。全角数字、表記ゆれ、欠損の表記（「-」「不明」・空欄）、Excelの日付シリアル値を含む（第12ステップ）
+columns:
+  - name: 回答ID
+    description: 回答の番号（R001〜R500）
+    unit: なし
+  - name: 年代
+    description: 回答者の年代。「30代」「30歳代」「３０代」「70代以上」などの書き方が混在
+    unit: 歳
+  - name: 性別
+    description: 性別。男 / 男性 / M / Ｍ、女 / 女性 / F / Ｆ、その他 の表記ゆれがある
+    unit: なし
+  - name: 来店回数
+    description: 1か月の来店回数。「4」「4回」「４」などが混在
+    unit: 回/月
+  - name: 購入金額
+    description: 1回の買い物の金額。「3500」「3,500円」「３５００」などが混在
+    unit: 円
+  - name: 回答日
+    description: 回答日をExcelの日付シリアル値で記録（1899-12-30 からの日数。例 45762 = 2025-04-15）。一部空欄
+    unit: 日（シリアル値）

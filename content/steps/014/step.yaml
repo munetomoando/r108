@@ -1,0 +1,140 @@
+id: "014"
+part: 2
+title: 表を結合する
+question: カテゴリ別の売上はいくらか
+minutes: 45
+mode: browser
+packages: [readr, dplyr, tidyr]
+data: [ec_orders.csv, ec_products.csv, ec_customers.csv]
+learn: [left_join, inner_join, anti_join]
+review_of: "013"
+setup: |
+  library(readr); library(dplyr); library(tidyr)
+  orders <- read_csv("data/ec_orders.csv", show_col_types = FALSE)
+  products <- read_csv("data/ec_products.csv", show_col_types = FALSE)
+  customers <- read_csv("data/ec_customers.csv", show_col_types = FALSE)
+  target_wide <- data.frame(
+    category = c("食品", "衣料品", "家電"),
+    q1 = c(400, 350, 250),
+    q2 = c(420, 360, 260),
+    q3 = c(430, 380, 270),
+    q4 = c(520, 450, 330)
+  )
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      注文明細 orders には商品ID product_id はありますが、商品のカテゴリ category はありません。商品マスタ products を product_id で結合し、orders のすべての行にカテゴリと定価などの列を付けた表を orders_p に代入してください。orders の行はすべて残し、並び順も orders のままにします。
+    starter: |
+      orders_p <-
+    solution: |
+      orders_p <- left_join(orders, products, by = "product_id")
+    check: |
+      expect_object("orders_p", class = "data.frame")
+      expect_cols(orders_p, c("order_id", "product_id", "category", "list_price"))
+      expect_df_equal(orders_p, .sol$orders_p)
+    hints:
+      - 元の表（orders）の行をすべて残して、別の表（products）の列を横に付け足すのが left_join() です。
+      - left_join(左の表, 右の表, by = "結合に使う列名") の形です。左に orders、右に products を置きます。
+      - orders_p <- left_join(orders, products, by = "product_id")
+    tests:
+      fail:
+        - "orders_p <- left_join(products, orders, by = \"product_id\")"
+        - "orders_p <- orders"
+  - id: b
+    type: write
+    prompt: |
+      orders_p を使って、カテゴリ別の売上を求めます。明細ごとの売上 sales を数量 qty × 販売単価 unit_price で作り、カテゴリ category ごとに sales を合計して（列名は sales のまま）、売上の多い順に並べた表を category_sales に代入してください。パイプ |> でつないで書きましょう。
+    starter: |
+      category_sales <- orders_p |>
+    solution: |
+      category_sales <- orders_p |>
+        mutate(sales = qty * unit_price) |>
+        group_by(category) |>
+        summarise(sales = sum(sales)) |>
+        arrange(desc(sales))
+    check: |
+      expect_object("category_sales", class = "data.frame")
+      expect_cols(category_sales, c("category", "sales"))
+      expect_df_equal(category_sales, .sol$category_sales)
+    hints:
+      - 「列を作る → カテゴリでグループに分ける → 合計する → 並べ替える」の4段のパイプです。
+      - mutate(sales = qty * unit_price) で売上を作り、group_by(category)、summarise(sales = sum(sales))、arrange(desc(sales)) とつなぎます。定価 list_price ではなく、実際に売れた値段 unit_price を使います。
+      - "category_sales <- orders_p |> mutate(sales = qty * unit_price) |> group_by(category) |> summarise(sales = sum(sales)) |> arrange(desc(sales))"
+    tests:
+      fail:
+        - |
+          category_sales <- orders_p |>
+            mutate(sales = qty * list_price) |>
+            group_by(category) |>
+            summarise(sales = sum(sales)) |>
+            arrange(desc(sales))
+        - |
+          category_sales <- orders_p |>
+            group_by(category) |>
+            summarise(sales = sum(unit_price)) |>
+            arrange(desc(sales))
+        - |
+          category_sales <- orders_p |>
+            mutate(sales = qty * unit_price) |>
+            group_by(category) |>
+            summarise(sales = sum(sales))
+  - id: c
+    type: write
+    prompt: |
+      顧客マスタ customers に載っていない顧客ID の注文が混じっていないかを調べます。orders のうち、customer_id が customers に見つからない明細だけを取り出し、no_customer に代入してください。
+    starter: |
+      no_customer <-
+    solution: |
+      no_customer <- anti_join(orders, customers, by = "customer_id")
+    check: |
+      expect_object("no_customer", class = "data.frame")
+      expect_df_equal(no_customer, .sol$no_customer, ignore_row_order = TRUE)
+    hints:
+      - 「相手の表に見つからない行だけ」を残すのが anti_join() です。調べたいのは注文のほうなので、注文の表を左に置きます。
+      - anti_join(orders, customers, by = "customer_id") の形です。左右を逆にすると「注文のない顧客」を探すことになります。
+      - no_customer <- anti_join(orders, customers, by = "customer_id")
+    tests:
+      fail:
+        - "no_customer <- anti_join(customers, orders, by = \"customer_id\")"
+        - "no_customer <- inner_join(orders, customers, by = \"customer_id\")"
+  - id: d
+    type: predict
+    prompt: |
+      orders（61,275行）に customers を customer_id で結合します。次の2つを実行すると、それぞれ何行になるでしょうか。実行する前に予想してください。
+
+      ```r
+      nrow(left_join(orders, customers, by = "customer_id"))
+      nrow(inner_join(orders, customers, by = "customer_id"))
+      ```
+    choices:
+      - "どちらも 61,275 行になる"
+      - "left_join は 61,275 行のまま、inner_join は c で見つけた明細の行数だけ少なくなる"
+      - "どちらも顧客の数と同じ 5,000 行になる"
+      - "left_join は 5,000 行、inner_join は 61,275 行になる"
+    answer: 1
+    explain: |
+      left_join は左の表（orders）の行をすべて残し、相手が見つからない行は顧客の列を NA で埋めます。そのため行数は 61,275 行のままです。inner_join は両方の表に見つかる行だけを残すので、顧客マスタにない c の明細の分だけ行が減ります。
+      顧客1人に注文が何件あっても、注文の行が増えたり減ったりはしません。ただし右の表に同じキーの行が2つ以上あると、結合後の行数は左の表より増えます。結合の前後で nrow() を確かめる習慣をつけましょう。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第13ステップの復習】target_wide は、主な3カテゴリの四半期ごとの売上目標（万円）を、Excel でよく見る横長の形で書いた表です。列 q1〜q4 を縦に並べ、四半期を表す列 quarter と目標額の列 target をもつ縦長の表にして、target_long に代入してください。
+    starter: |
+      target_long <-
+    solution: |
+      target_long <- pivot_longer(target_wide, cols = c(q1, q2, q3, q4),
+                                  names_to = "quarter", values_to = "target")
+    check: |
+      expect_object("target_long", class = "data.frame")
+      expect_cols(target_long, c("category", "quarter", "target"))
+      expect_df_equal(target_long, .sol$target_long, ignore_row_order = TRUE)
+    hints:
+      - 横に並んだ列を縦に積み直すのは pivot_longer() です。積み直したあとは 3カテゴリ × 4四半期 = 12行になります。
+      - pivot_longer(表, cols = 縦にする列, names_to = "元の列名が入る列の名前", values_to = "値が入る列の名前") の形です。
+      - "target_long <- pivot_longer(target_wide, cols = c(q1, q2, q3, q4), names_to = \"quarter\", values_to = \"target\")"
+    tests:
+      fail:
+        - "target_long <- pivot_longer(target_wide, cols = c(q1, q2, q3), names_to = \"quarter\", values_to = \"target\")"
+        - "target_long <- pivot_longer(target_wide, cols = c(q1, q2, q3, q4), names_to = \"target\", values_to = \"quarter\")"

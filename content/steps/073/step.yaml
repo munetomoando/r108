@@ -1,0 +1,200 @@
+id: "073"
+part: 9
+title: 時系列データの扱い
+question: 失業率は前年同月より上がったか
+minutes: 45
+mode: browser
+packages: [readr, dplyr, lubridate, ggplot2, fixest]
+data: [lfs_monthly.csv, minwage_panel.csv]
+learn: [lag]
+review_of: "072"
+setup: |
+  library(readr); library(dplyr); library(lubridate); library(ggplot2); library(fixest)
+  # 総務省統計局「労働力調査」長期時系列（2026年8月分公表時点）。2000年1月〜2026年8月の月次
+  lfs <- read_csv("data/lfs_monthly.csv", show_col_types = FALSE)
+  # 第72ステップの復習用：47県×2012〜2024年の架空パネル
+  mw <- read_csv("data/minwage_panel.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      lfs に2つの列を加えて lfs_m に代入してください。
+      - prev_sa … 1か月前の完全失業率（季節調整値 unemp_rate_sa）。lag() で作ります
+      - diff_sa … 前月差（unemp_rate_sa − prev_sa）
+      続けて、lfs_m を2026年1月1日以降の行に絞って表示します。
+    starter: |
+      lfs_m <- lfs |>
+        mutate()
+      filter(lfs_m, date >= ymd("2026-01-01"))
+    solution: |
+      lfs_m <- lfs |>
+        mutate(prev_sa = lag(unemp_rate_sa),
+               diff_sa = unemp_rate_sa - prev_sa)
+      filter(lfs_m, date >= ymd("2026-01-01"))
+    check: |
+      expect_object("lfs_m", class = "data.frame")
+      expect_cols(lfs_m, c("prev_sa", "diff_sa"))
+      check_that(is.na(lfs_m$prev_sa[1]),
+                 "最初の月（2000年1月）の prev_sa は、その前の月がないので NA になるはずです。lag(unemp_rate_sa) で作りましょう。")
+      expect_df_equal(lfs_m, .sol$lfs_m)
+      expect_value(.value, .sol_value, label = "表示した2026年の行")
+    hints:
+      - lag() は、列の値を1行ずつ下にずらします。表が古い月から順に並んでいるので、ずらした値は「1か月前の値」になります。
+      - mutate(prev_sa = lag(unemp_rate_sa), diff_sa = unemp_rate_sa - prev_sa) のように、mutate() の中で先に作った列を続けて使えます。
+      - |
+        lfs_m <- lfs |>
+          mutate(prev_sa = lag(unemp_rate_sa),
+                 diff_sa = unemp_rate_sa - prev_sa)
+        filter(lfs_m, date >= ymd("2026-01-01"))
+    tests:
+      fail:
+        - |
+          lfs_m <- lfs |>
+            mutate(prev_sa = lag(unemp_rate_sa, 12),
+                   diff_sa = unemp_rate_sa - prev_sa)
+          filter(lfs_m, date >= ymd("2026-01-01"))
+        - |
+          lfs_m <- lfs |>
+            mutate(prev_sa = lag(unemp_rate_nsa),
+                   diff_sa = unemp_rate_nsa - prev_sa)
+          filter(lfs_m, date >= ymd("2026-01-01"))
+        - |
+          lfs_m <- lfs |>
+            mutate(prev_sa = lag(unemp_rate_sa),
+                   diff_sa = prev_sa - unemp_rate_sa)
+          filter(lfs_m, date >= ymd("2026-01-01"))
+  - id: b
+    type: write
+    prompt: |
+      前年の同じ月と比べます。lfs に2つの列を加えて lfs_yoy に代入し、2026年1月1日以降の行を表示してください。
+      - yoy_diff … 完全失業率の原数値 unemp_rate_nsa の前年同月差（ポイント）。12か月前の値は lag(列, 12) です
+      - emp_yoy … 就業者数 employed_10k の前年同月比（％）。（今月 ÷ 12か月前 − 1）× 100 で計算します
+    starter: |
+      lfs_yoy <- lfs |>
+        mutate()
+      filter(lfs_yoy, date >= ymd("2026-01-01"))
+    solution: |
+      lfs_yoy <- lfs |>
+        mutate(yoy_diff = unemp_rate_nsa - lag(unemp_rate_nsa, 12),
+               emp_yoy = (employed_10k / lag(employed_10k, 12) - 1) * 100)
+      filter(lfs_yoy, date >= ymd("2026-01-01"))
+    check: |
+      expect_object("lfs_yoy", class = "data.frame")
+      expect_cols(lfs_yoy, c("yoy_diff", "emp_yoy"))
+      check_that(sum(is.na(lfs_yoy$yoy_diff)) == 12,
+                 "yoy_diff の最初の12か月（2000年）は、前年の値がないので NA になるはずです。lag(unemp_rate_nsa, 12) で12か月ずらしましょう。")
+      check_that(isTRUE(all.equal(lfs_yoy$yoy_diff, .sol$lfs_yoy$yoy_diff)),
+                 "yoy_diff の値が違います。前年同月と比べるときは、季節の影響が同じ月どうしなので原数値 unemp_rate_nsa を使います。")
+      check_that(isTRUE(all.equal(lfs_yoy$emp_yoy, .sol$lfs_yoy$emp_yoy)),
+                 "emp_yoy の値が違います。差ではなく比です。(employed_10k / lag(employed_10k, 12) - 1) * 100 で％にしましょう。")
+      expect_df_equal(lfs_yoy, .sol$lfs_yoy)
+      expect_value(.value, .sol_value, label = "表示した2026年の行")
+    hints:
+      - 前年同月は「12行前」です。lag() の2つ目の引数に、何行ずらすかを渡します。率（％）は差、人数は比で比べるのが一般的です。
+      - yoy_diff = unemp_rate_nsa - lag(unemp_rate_nsa, 12)、emp_yoy = (employed_10k / lag(employed_10k, 12) - 1) * 100 です。
+      - |
+        lfs_yoy <- lfs |>
+          mutate(yoy_diff = unemp_rate_nsa - lag(unemp_rate_nsa, 12),
+                 emp_yoy = (employed_10k / lag(employed_10k, 12) - 1) * 100)
+        filter(lfs_yoy, date >= ymd("2026-01-01"))
+    tests:
+      fail:
+        - |
+          lfs_yoy <- lfs |>
+            mutate(yoy_diff = unemp_rate_nsa - lag(unemp_rate_nsa),
+                   emp_yoy = (employed_10k / lag(employed_10k) - 1) * 100)
+          filter(lfs_yoy, date >= ymd("2026-01-01"))
+        - |
+          lfs_yoy <- lfs |>
+            mutate(yoy_diff = unemp_rate_sa - lag(unemp_rate_sa, 12),
+                   emp_yoy = (employed_10k / lag(employed_10k, 12) - 1) * 100)
+          filter(lfs_yoy, date >= ymd("2026-01-01"))
+        - |
+          lfs_yoy <- lfs |>
+            mutate(yoy_diff = unemp_rate_nsa - lag(unemp_rate_nsa, 12),
+                   emp_yoy = employed_10k - lag(employed_10k, 12))
+          filter(lfs_yoy, date >= ymd("2026-01-01"))
+  - id: c
+    type: write
+    prompt: |
+      b の lfs_yoy を2019年1月1日以降の行に絞って lfs_recent に代入し、横軸に date、縦軸に前年同月差 yoy_diff をとった折れ線グラフを描いてください。
+      前年と同じ水準を示す 0 の水平線を geom_hline(yintercept = 0) で加えます。線より上の月は、前年同月より失業率が高かった月です。
+    starter: |
+      lfs_recent <-
+
+    solution: |
+      lfs_recent <- filter(lfs_yoy, date >= ymd("2019-01-01"))
+      ggplot(lfs_recent, aes(x = date, y = yoy_diff)) +
+        geom_line() +
+        geom_hline(yintercept = 0)
+    check: |
+      expect_object("lfs_recent", class = "data.frame")
+      check_that(nrow(lfs_recent) == nrow(.sol$lfs_recent),
+                 "lfs_recent の行数が違います。2019年1月から2026年8月までの92か月に絞りましょう。")
+      expect_df_equal(lfs_recent, .sol$lfs_recent)
+      expect_ggplot(geom = "line", x = "date", y = "yoy_diff")
+      check_that(any(vapply(.plot$layers, function(l) inherits(l$geom, "GeomHline"), logical(1))),
+                 "0 の水平線がありません。+ geom_hline(yintercept = 0) を加えましょう。")
+      expect_df_equal(.plot$data, .sol_plot$data)
+    hints:
+      - 「期間を絞る」「折れ線を描く」「水平線を足す」の3つです。期間の絞り方は第20ステップと同じです。
+      - filter(lfs_yoy, date >= ymd("2019-01-01")) で絞り、ggplot(lfs_recent, aes(x = date, y = yoy_diff)) + geom_line() に + geom_hline(yintercept = 0) を足します。
+      - |
+        lfs_recent <- filter(lfs_yoy, date >= ymd("2019-01-01"))
+        ggplot(lfs_recent, aes(x = date, y = yoy_diff)) +
+          geom_line() +
+          geom_hline(yintercept = 0)
+    tests:
+      fail:
+        - |
+          lfs_recent <- filter(lfs_yoy, date >= ymd("2019-01-01"))
+          ggplot(lfs_recent, aes(x = date, y = yoy_diff)) +
+            geom_line()
+        - |
+          lfs_recent <- filter(lfs_yoy, date >= ymd("2019-01-01"))
+          ggplot(lfs_recent, aes(x = date, y = unemp_rate_nsa)) +
+            geom_line() +
+            geom_hline(yintercept = 0)
+        - |
+          lfs_recent <- filter(lfs_yoy, date >= ymd("2020-01-01"))
+          ggplot(lfs_recent, aes(x = date, y = yoy_diff)) +
+            geom_line() +
+            geom_hline(yintercept = 0)
+  - id: d
+    type: write
+    review: true
+    prompt: |
+      【第72ステップの復習】最低賃金のパネル mw を2014年以降（year >= 2014）に絞り、若年就業率 youth_emp_rate を treated:post で説明する二元固定効果（県 pref_code と年 year）の差の差の回帰を、県でクラスタした標準誤差で推定して m_2014 に代入してください。
+      続けて confint(m_2014) を表示し、第72ステップの全期間の結果（約 −1.20〜−0.75）と比べましょう。
+    starter: |
+      m_2014 <-
+      confint(m_2014)
+    solution: |
+      m_2014 <- feols(youth_emp_rate ~ treated:post | pref_code + year,
+                      data = filter(mw, year >= 2014), cluster = ~pref_code)
+      confint(m_2014)
+    check: |
+      expect_object("m_2014", class = "fixest")
+      check_that(nobs(m_2014) == nobs(.sol$m_2014),
+                 "観測数が違います。filter(mw, year >= 2014) で2014年以降に絞りましょう。")
+      expect_model(m_2014, like = .sol$m_2014)
+      check_that(isTRUE(all.equal(as.numeric(se(m_2014)), as.numeric(se(.sol$m_2014)), tolerance = 1e-6)),
+                 "標準誤差が違います。cluster = ~pref_code で県ごとにクラスタしましょう。")
+      expect_value(.value, .sol_value, label = "表示した confint(m_2014)")
+    hints:
+      - 第72ステップ d と同じく、式はそのままで data に渡す mw を filter() で絞ります。
+      - feols(youth_emp_rate ~ treated:post | pref_code + year, data = filter(mw, year >= 2014), cluster = ~pref_code) です。
+      - |
+        m_2014 <- feols(youth_emp_rate ~ treated:post | pref_code + year,
+                        data = filter(mw, year >= 2014), cluster = ~pref_code)
+        confint(m_2014)
+    tests:
+      fail:
+        - |
+          m_2014 <- feols(youth_emp_rate ~ treated:post | pref_code + year,
+                          data = filter(mw, year >= 2014))
+          confint(m_2014)
+        - |
+          m_2014 <- feols(youth_emp_rate ~ treated:post | pref_code + year,
+                          data = mw, cluster = ~pref_code)
+          confint(m_2014)

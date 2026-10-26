@@ -1,0 +1,177 @@
+id: "036"
+part: 4
+title: 総合演習：男女間賃金格差はどれくらいか
+question: 男女の時給の差はどれくらいで、偶然では説明できないか
+minutes: 45
+mode: browser
+packages: [readr, dplyr, ggplot2]
+data: [wage_survey.csv]
+learn: []
+setup: |
+  library(readr); library(dplyr); library(ggplot2)
+  # 架空の賃金調査の個票（3,000人）
+  wage <- read_csv("data/wage_survey.csv", show_col_types = FALSE)
+  # 図で使うため、性別のラベルの列を足しておく
+  wage <- mutate(wage, sex = if_else(female == 1, "女性", "男性"))
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      男女別に、時給 hourly_wage の平均 mean_wage と中央値 median_wage、人数 n を求めます。wage を sex でグループに分けて summarise() で集計した表を gap に代入し、gap を表示してください。
+      続けて、女性の平均時給が男性の何%かを、gap の値を使って計算して表示してください（mean_wage の1行目が女性、2行目が男性です）。
+    starter: |
+      gap <- wage |>
+
+      gap
+    solution: |
+      gap <- wage |>
+        group_by(sex) |>
+        summarise(mean_wage = mean(hourly_wage), median_wage = median(hourly_wage), n = n())
+      gap
+      gap$mean_wage[1] / gap$mean_wage[2] * 100
+    check: |
+      expect_object("gap", class = "data.frame")
+      expect_cols(gap, c("sex", "mean_wage", "median_wage", "n"))
+      expect_df_equal(gap, .sol$gap, ignore_row_order = TRUE)
+      expect_value(.value, .sol_value, label = "女性の平均時給が男性の何%か")
+    hints:
+      - 「group_by(sex) → summarise() で3つの列を作る」で表ができます。割合は「女性の平均 ÷ 男性の平均 × 100」です。
+      - summarise(mean_wage = mean(hourly_wage), median_wage = median(hourly_wage), n = n()) とします。列の1つの値は gap$mean_wage[1] のように [ ] で取り出せます。
+      - |
+        gap <- wage |> group_by(sex) |> summarise(mean_wage = mean(hourly_wage), median_wage = median(hourly_wage), n = n())
+        gap
+        gap$mean_wage[1] / gap$mean_wage[2] * 100
+    tests:
+      fail:
+        - |
+          gap <- wage |>
+            group_by(sex) |>
+            summarise(mean_wage = mean(hourly_wage), median_wage = mean(hourly_wage), n = n())
+          gap
+          gap$mean_wage[1] / gap$mean_wage[2] * 100
+        - |
+          gap <- wage |>
+            group_by(sex) |>
+            summarise(mean_wage = mean(hourly_wage), median_wage = median(hourly_wage), n = n())
+          gap
+          gap$mean_wage[2] / gap$mean_wage[1] * 100
+  - id: b
+    type: write
+    prompt: |
+      平均の差の95%信頼区間を求めます。t.test(hourly_wage ~ female, data = wage) の結果を tt に代入し、tt$conf.int で信頼区間を表示してください。
+      female は 0=男性、1=女性なので、この区間は「男性の平均 − 女性の平均」の差についてのものです。
+    starter: |
+      tt <-
+      tt$conf.int
+    solution: |
+      tt <- t.test(hourly_wage ~ female, data = wage)
+      tt$conf.int
+    check: |
+      expect_object("tt", class = "htest")
+      expect_uses("t.test")
+      expect_value(tt$estimate, .sol$tt$estimate, label = "男女それぞれの平均")
+      expect_value(as.numeric(tt$conf.int), as.numeric(.sol$tt$conf.int), label = "信頼区間")
+      expect_value(as.numeric(.value), as.numeric(.sol_value), label = "最後に表示した信頼区間")
+    hints:
+      - t.test(数値の列 ~ グループの列, data = データ) で2群の平均を比べると、差の信頼区間も計算されます。
+      - 数値の列は hourly_wage、グループは female です。結果の $conf.int が95%信頼区間です。
+      - |
+        tt <- t.test(hourly_wage ~ female, data = wage)
+        tt$conf.int
+    tests:
+      fail:
+        - |
+          tt <- t.test(hourly_wage ~ female, data = wage, conf.level = 0.9)
+          tt$conf.int
+        - |
+          tt <- t.test(log_wage ~ female, data = wage)
+          tt$conf.int
+  - id: c
+    type: write
+    prompt: |
+      時給は右に裾が長い分布なので、対数時給 log_wage でも検定します。t.test(log_wage ~ female, data = wage) の結果を tt_log に代入し、tt_log$p.value でp値を表示してください。
+      続けて、対数時給の平均の差（男性 − 女性）を tt_log$estimate[1] - tt_log$estimate[2] で表示してください。この差は、男女の時給の比率のおおよその目安（0.1 ならおよそ10%）になります。
+    starter: |
+      tt_log <-
+      tt_log$p.value
+
+    solution: |
+      tt_log <- t.test(log_wage ~ female, data = wage)
+      tt_log$p.value
+      tt_log$estimate[1] - tt_log$estimate[2]
+    check: |
+      expect_object("tt_log", class = "htest")
+      expect_uses("t.test")
+      expect_value(tt_log$statistic, .sol$tt_log$statistic, label = "t値")
+      expect_value(as.numeric(.value), as.numeric(.sol_value), label = "最後に表示した対数時給の平均の差")
+    hints:
+      - b と同じ t.test() を、hourly_wage の代わりに log_wage で行います。
+      - 結果の $p.value がp値、$estimate が2群の平均（1つ目が female = 0 の男性、2つ目が female = 1 の女性）です。
+      - |
+        tt_log <- t.test(log_wage ~ female, data = wage)
+        tt_log$p.value
+        tt_log$estimate[1] - tt_log$estimate[2]
+    tests:
+      fail:
+        - |
+          tt_log <- t.test(log_wage ~ female, data = wage)
+          tt_log$p.value
+          tt_log$estimate[2] - tt_log$estimate[1]
+        - |
+          tt_log <- t.test(hourly_wage ~ female, data = wage)
+          tt_log$p.value
+          tt_log$estimate[1] - tt_log$estimate[2]
+  - id: d
+    type: write
+    prompt: |
+      男女の時給の分布を1枚の図で比べます。wage で、横軸を hourly_wage、塗り（fill）を sex にして、geom_density(alpha = 0.4) で2つの密度曲線を重ねて描いてください。alpha = 0.4 は塗りを半透明にして、重なった部分も見えるようにする指定です。
+    starter: |
+      ggplot(wage, aes()) +
+    solution: |
+      ggplot(wage, aes(x = hourly_wage, fill = sex)) +
+        geom_density(alpha = 0.4)
+    check: |
+      expect_ggplot(geom = "density", x = "hourly_wage", fill = "sex")
+      check_that(nrow(.plot$data) == nrow(.sol_plot$data),
+                 "図のデータの行数が違います。ggplot() には wage をそのまま渡しましょう。")
+    hints:
+      - 2つのグループの分布を重ねるには、aes() の fill にグループの列を対応づけます。
+      - aes(x = hourly_wage, fill = sex) とし、+ geom_density(alpha = 0.4) をつなぎます。
+      - |
+        ggplot(wage, aes(x = hourly_wage, fill = sex)) +
+          geom_density(alpha = 0.4)
+    tests:
+      fail:
+        - |
+          ggplot(wage, aes(x = hourly_wage)) +
+            geom_density(alpha = 0.4)
+        - |
+          ggplot(wage, aes(x = hourly_wage, fill = sex)) +
+            geom_histogram()
+        - |
+          ggplot(filter(wage, female == 1), aes(x = hourly_wage, fill = sex)) +
+            geom_density(alpha = 0.4)
+  - id: e
+    type: interpret
+    free: true
+    prompt: |
+      a〜d の結果をもとに、男女間の賃金格差についての結論を3行（3文）で書いてください。
+      1文目に格差の大きさ（平均か中央値の差、または女性が男性の何%か）を数字で、2文目に信頼区間か検定の結果（偶然で説明できるか）を、3文目にこの差の読み方の注意（どんな違いを含んだ差か、同じ条件での差は何で調べるか）を書くと書きやすいでしょう。
+    solution: |
+      この架空の調査では、女性の平均時給は約1,906円で男性の約2,248円より約342円低く、男性の約85%であり、中央値でも約299円の差がある。
+      平均の差の95%信頼区間は約281〜403円で0を含まず、t検定のp値もきわめて小さいので、この差は標本の偶然だけでは説明しにくい。
+      ただしこれは学歴・経験年数・雇用形態（第34ステップで見たとおり女性は非正規が多い）などの違いを含んだ生の差であり、同じ条件の男女での差は第5部の回帰分析で調べる必要がある。
+    check: |
+      expect_min_chars(100)
+      expect_text("[0-9０-９]+(円|%|％|割)", "格差の大きさを、数字（何円、何%）で入れて書きましょう。")
+      expect_text("差|格差|低|高", "男女の時給の差（格差）について書きましょう。")
+      expect_text("信頼区間|p値|p 値|有意|偶然|検定", "信頼区間か検定の結果（偶然で説明できるか）を書きましょう。")
+      expect_text("学歴|教育|経験|勤続|雇用形態|正規|企業規模|産業|条件|回帰", "この差がどんな違いを含んだ差か（学歴・経験・雇用形態など）、同じ条件での差を何で調べるかを書きましょう。")
+    hints:
+      - a の gap（平均・中央値と、女性が男性の何%か）、b の信頼区間、c のp値、d の図の重なり方を見直しましょう。
+      - 「差はどれくらいか」「偶然で説明できるか」「この差をどう読むべきか」の3点を1文ずつ書きます。3文目では、男女で学歴・経験・雇用形態などが違うことに触れます。
+      - 例「女性の平均時給は男性より約〇円低く、男性の約〇%だった。差の95%信頼区間は〇〜〇円で、偶然だけでは説明しにくい。ただしこれは学歴・経験・雇用形態などの違いを含んだ生の差で、同じ条件での差は第5部の回帰で調べる。」
+    tests:
+      fail:
+        - 男性のほうが時給が高い。
+        - 女性の平均時給は男性より約342円低く、男性の約85%だった。信頼区間は0を含まず、t検定でも有意だったので、偶然ではない。女性の賃金を上げるべきである。

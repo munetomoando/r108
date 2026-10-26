@@ -1,0 +1,20 @@
+id: "100"
+part: 12
+title: Quartoで業務レポート
+question: 結論が先に来る報告書を、対象の月を変えるだけで作り直せる形で作る
+minutes: 60
+mode: local
+packages: [tidyverse, knitr, rmarkdown]
+data: [ec_orders.csv, ec_products.csv]
+learn: []
+local:
+  script: check_100.R
+  code_sha256: "2454e34ddaff5bc7fdb6d539a12e8e8183154406670fbdb07495409e14880821"
+  instructions: |
+    プロジェクトのフォルダに `report.qmd` と `data/ec_orders.csv`・`data/ec_products.csv` があり、Render で HTML（report.html）が出力できる状態にしてから、`check_100.R` を同じフォルダに保存し、コンソールで次を実行します。
+
+    ```r
+    source("check_100.R", encoding = "UTF-8")
+    ```
+
+    確認スクリプトは report.qmd の YAML ヘッダと見出しを調べ、HTML にレンダリングして、コードが表示されていないこと、冒頭が要約の節であることを確かめます。

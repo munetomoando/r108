@@ -1,0 +1,1 @@
+user.name と user.email が設定されている

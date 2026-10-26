@@ -1,0 +1,270 @@
+id: "079"
+part: 9
+title: 説明変数つき予測
+question: 月の効果と前年の値で物価を予測する
+minutes: 45
+mode: browser
+packages: [readr, dplyr, lubridate, ggplot2]
+data: [cpi_monthly.csv, iip_monthly.csv]
+learn: []
+review_of: "078"
+setup: |
+  library(readr); library(dplyr); library(lubridate); library(ggplot2)
+  # 総務省統計局「消費者物価指数」2025年基準（2026-10-23 取得）。2000年1月〜2026年9月の月次
+  cpi <- read_csv("data/cpi_monthly.csv", show_col_types = FALSE)
+  # 第78ステップの復習用：経済産業省「鉱工業生産指数」2020年基準。2018年1月〜2026年8月の月次
+  iip <- read_csv("data/iip_monthly.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      消費者物価指数の総合 cpi_all（原数値）を予測します。
+      1. cpi に2つの列を加えて cpi_m に代入する
+         - mon … 月を表す因子 factor(month(date))（回帰に入れると月ダミーになる）
+         - cpi_lag12 … 12か月前（前年同月）の値 lag(cpi_all, 12)
+      2. cpi_m を2025年9月まで（date < ymd("2025-10-01")）の訓練期間 train と、2025年10月から2026年9月までの12か月のテスト期間 test に分ける
+      3. 訓練期間で cpi_all を月ダミー mon だけで説明する回帰を推定して m_mon に代入し、coef(m_mon) を表示する
+    starter: |
+      cpi_m <- cpi |>
+        mutate()
+      train <-
+      test <-
+      m_mon <-
+      coef(m_mon)
+    solution: |
+      cpi_m <- cpi |>
+        mutate(mon = factor(month(date)),
+               cpi_lag12 = lag(cpi_all, 12))
+      train <- filter(cpi_m, date < ymd("2025-10-01"))
+      test <- filter(cpi_m, date >= ymd("2025-10-01"))
+      m_mon <- lm(cpi_all ~ mon, data = train)
+      coef(m_mon)
+    check: |
+      expect_object("cpi_m", class = "data.frame")
+      expect_cols(cpi_m, c("mon", "cpi_lag12"))
+      check_that(is.factor(cpi_m$mon),
+                 "mon が因子になっていません。factor(month(date)) とすると、回帰で1月を基準にした11個の月ダミーになります。")
+      check_that(isTRUE(all.equal(cpi_m$cpi_lag12, .sol$cpi_m$cpi_lag12)),
+                 "cpi_lag12 が違います。前年同月の値は lag(cpi_all, 12) です。")
+      expect_df_equal(cpi_m, .sol$cpi_m)
+      check_that(nrow(test) == 12 && nrow(train) == nrow(.sol$train),
+                 "期間の分け方が違います。2025年9月までを train（309か月）、2025年10月以降を test（12か月）にしましょう。")
+      expect_df_equal(train, .sol$train)
+      expect_df_equal(test, .sol$test)
+      expect_object("m_mon", class = "lm")
+      expect_model(m_mon, like = .sol$m_mon)
+      expect_value(.value, .sol_value, tol = 1e-6, label = "表示した係数")
+    hints:
+      - 月を数のまま回帰に入れると「月が1増えると物価が○上がる」という直線になってしまいます。factor() で因子にすると、月ごとに別の定数（ダミー）が入ります（第40ステップ）。
+      - mutate(mon = factor(month(date)), cpi_lag12 = lag(cpi_all, 12)) のあと、filter(cpi_m, date < ymd("2025-10-01")) で分け、lm(cpi_all ~ mon, data = train) です。
+      - |
+        cpi_m <- cpi |>
+          mutate(mon = factor(month(date)),
+                 cpi_lag12 = lag(cpi_all, 12))
+        train <- filter(cpi_m, date < ymd("2025-10-01"))
+        test <- filter(cpi_m, date >= ymd("2025-10-01"))
+        m_mon <- lm(cpi_all ~ mon, data = train)
+        coef(m_mon)
+    tests:
+      fail:
+        - |
+          cpi_m <- cpi |>
+            mutate(mon = month(date),
+                   cpi_lag12 = lag(cpi_all, 12))
+          train <- filter(cpi_m, date < ymd("2025-10-01"))
+          test <- filter(cpi_m, date >= ymd("2025-10-01"))
+          m_mon <- lm(cpi_all ~ mon, data = train)
+          coef(m_mon)
+        - |
+          cpi_m <- cpi |>
+            mutate(mon = factor(month(date)),
+                   cpi_lag12 = lag(cpi_all))
+          train <- filter(cpi_m, date < ymd("2025-10-01"))
+          test <- filter(cpi_m, date >= ymd("2025-10-01"))
+          m_mon <- lm(cpi_all ~ mon, data = train)
+          coef(m_mon)
+        - |
+          cpi_m <- cpi |>
+            mutate(mon = factor(month(date)),
+                   cpi_lag12 = lag(cpi_all, 12))
+          train <- filter(cpi_m, date < ymd("2025-10-01"))
+          test <- filter(cpi_m, date >= ymd("2025-10-01"))
+          m_mon <- lm(cpi_all ~ mon, data = cpi_m)
+          coef(m_mon)
+  - id: b
+    type: write
+    prompt: |
+      a の月ダミーに、前年同月の値 cpi_lag12 を説明変数として加えた回帰を訓練期間で推定し、m_lag に代入して coef(m_lag) を表示してください。
+    starter: |
+      m_lag <-
+      coef(m_lag)
+    solution: |
+      m_lag <- lm(cpi_all ~ mon + cpi_lag12, data = train)
+      coef(m_lag)
+    check: |
+      expect_object("m_lag", class = "lm")
+      check_that("cpi_lag12" %in% names(coef(m_lag)),
+                 "m_lag に cpi_lag12 が入っていません。lm(cpi_all ~ mon + cpi_lag12, data = train) です。")
+      check_that(nobs(m_lag) == nobs(.sol$m_lag),
+                 "観測数が違います。訓練期間 train で推定しましょう（2000年の12か月は cpi_lag12 が NA なので、lm() が自動で除きます）。")
+      expect_model(m_lag, like = .sol$m_lag)
+      expect_value(.value, .sol_value, tol = 1e-6, label = "表示した係数")
+    hints:
+      - 説明変数は + でつなげて加えます。月ダミー mon はそのまま残します。
+      - lm(cpi_all ~ mon + cpi_lag12, data = train) です。
+      - |
+        m_lag <- lm(cpi_all ~ mon + cpi_lag12, data = train)
+        coef(m_lag)
+    tests:
+      fail:
+        - |
+          m_lag <- lm(cpi_all ~ cpi_lag12, data = train)
+          coef(m_lag)
+        - |
+          m_lag <- lm(cpi_all ~ mon + cpi_lag12, data = cpi_m)
+          coef(m_lag)
+  - id: c
+    type: write
+    prompt: |
+      テスト期間の12か月で、3つの予測の RMSE を比べます。
+      1. m_mon と m_lag で test の cpi_all を予測し（predict(モデル, newdata = test)）、pred_mon、pred_lag に代入する
+      2. ナイーブ予測として、訓練期間の最後の月（2025年9月）の値 tail(train$cpi_all, 1) を12個並べ、pred_naive に代入する
+      3. model（"月ダミー"、"月ダミー＋前年の値"、"ナイーブ" の順）と rmse の2列の表を tibble() で作り、acc に代入して表示する
+    starter: |
+      pred_mon <-
+      pred_lag <-
+      pred_naive <-
+      acc <- tibble(model = c("月ダミー", "月ダミー＋前年の値", "ナイーブ"),
+                    rmse = )
+      acc
+    solution: |
+      pred_mon <- predict(m_mon, newdata = test)
+      pred_lag <- predict(m_lag, newdata = test)
+      pred_naive <- rep(tail(train$cpi_all, 1), 12)
+      acc <- tibble(model = c("月ダミー", "月ダミー＋前年の値", "ナイーブ"),
+                    rmse = c(sqrt(mean((test$cpi_all - pred_mon)^2)),
+                             sqrt(mean((test$cpi_all - pred_lag)^2)),
+                             sqrt(mean((test$cpi_all - pred_naive)^2))))
+      acc
+    check: |
+      check_that(exists("pred_mon") && length(pred_mon) == 12 &&
+                   isTRUE(all.equal(as.numeric(pred_mon), as.numeric(.sol$pred_mon))),
+                 "pred_mon が違います。predict(m_mon, newdata = test) でテスト期間の12か月を予測しましょう。")
+      check_that(exists("pred_lag") && length(pred_lag) == 12 &&
+                   isTRUE(all.equal(as.numeric(pred_lag), as.numeric(.sol$pred_lag))),
+                 "pred_lag が違います。predict(m_lag, newdata = test) でテスト期間の12か月を予測しましょう。")
+      check_that(exists("pred_naive") && length(pred_naive) == 12 &&
+                   isTRUE(all.equal(as.numeric(pred_naive), .sol$pred_naive)),
+                 "pred_naive が違います。訓練期間の最後の値 tail(train$cpi_all, 1) を rep() で12個並べましょう。")
+      expect_object("acc", class = "data.frame")
+      expect_cols(acc, c("model", "rmse"))
+      expect_nrow(acc, 3)
+      check_that(isTRUE(all.equal(acc$rmse, .sol$acc$rmse, tolerance = 1e-6)),
+                 "rmse が違います。sqrt(mean((test$cpi_all - 予測値)^2)) で、モデルの順番も確かめましょう。")
+      expect_df_equal(acc, .sol$acc, tol = 1e-6)
+      expect_value(.value, .sol_value, tol = 1e-6, label = "表示した acc")
+    hints:
+      - 回帰の予測は第37ステップの predict(モデル, newdata = ...) です。test には mon と cpi_lag12 の列があるので、そのまま newdata に渡せます。ナイーブ予測と RMSE は第78ステップと同じです。
+      - predict(m_lag, newdata = test)、rep(tail(train$cpi_all, 1), 12)、sqrt(mean((test$cpi_all - pred_lag)^2)) です。
+      - |
+        pred_mon <- predict(m_mon, newdata = test)
+        pred_lag <- predict(m_lag, newdata = test)
+        pred_naive <- rep(tail(train$cpi_all, 1), 12)
+        acc <- tibble(model = c("月ダミー", "月ダミー＋前年の値", "ナイーブ"),
+                      rmse = c(sqrt(mean((test$cpi_all - pred_mon)^2)),
+                               sqrt(mean((test$cpi_all - pred_lag)^2)),
+                               sqrt(mean((test$cpi_all - pred_naive)^2))))
+        acc
+    tests:
+      fail:
+        - |
+          pred_mon <- predict(m_mon, newdata = test)
+          pred_lag <- predict(m_mon, newdata = test)
+          pred_naive <- rep(tail(train$cpi_all, 1), 12)
+          acc <- tibble(model = c("月ダミー", "月ダミー＋前年の値", "ナイーブ"),
+                        rmse = c(sqrt(mean((test$cpi_all - pred_mon)^2)),
+                                 sqrt(mean((test$cpi_all - pred_lag)^2)),
+                                 sqrt(mean((test$cpi_all - pred_naive)^2))))
+          acc
+        - |
+          pred_mon <- predict(m_mon, newdata = test)
+          pred_lag <- predict(m_lag, newdata = test)
+          pred_naive <- test$cpi_lag12
+          acc <- tibble(model = c("月ダミー", "月ダミー＋前年の値", "ナイーブ"),
+                        rmse = c(sqrt(mean((test$cpi_all - pred_mon)^2)),
+                                 sqrt(mean((test$cpi_all - pred_lag)^2)),
+                                 sqrt(mean((test$cpi_all - pred_naive)^2))))
+          acc
+        - |
+          pred_mon <- predict(m_mon, newdata = test)
+          pred_lag <- predict(m_lag, newdata = test)
+          pred_naive <- rep(tail(train$cpi_all, 1), 12)
+          acc <- tibble(model = c("月ダミー", "月ダミー＋前年の値", "ナイーブ"),
+                        rmse = c(mean(abs(test$cpi_all - pred_mon)),
+                                 mean(abs(test$cpi_all - pred_lag)),
+                                 mean(abs(test$cpi_all - pred_naive))))
+          acc
+  - id: d
+    type: write
+    review: true
+    prompt: |
+      【第78ステップの復習】鉱工業生産指数 iip で、ARIMA(1,1,0) の予測精度を測ります。
+      1. iip を2024年8月までの iip_train と、2024年9月以降の24か月の iip_test に分ける
+      2. iip_train$iip_sa を2018年1月始まりの月次の時系列にして、order = c(1, 1, 0) の arima() を当てはめ、m_ari に代入する
+      3. 24か月先までを一度に予測して数のベクトルにし、pred_ari に代入する
+      4. c(rmse = RMSE, mae = MAE) の形で、テスト期間の RMSE と MAE を表示する
+    starter: |
+      iip_train <-
+      iip_test <-
+      m_ari <-
+      pred_ari <-
+      c(rmse = , mae = )
+    solution: |
+      iip_train <- filter(iip, date < ymd("2024-09-01"))
+      iip_test <- filter(iip, date >= ymd("2024-09-01"))
+      m_ari <- arima(ts(iip_train$iip_sa, start = c(2018, 1), frequency = 12),
+                     order = c(1, 1, 0))
+      pred_ari <- as.numeric(predict(m_ari, n.ahead = 24)$pred)
+      c(rmse = sqrt(mean((iip_test$iip_sa - pred_ari)^2)),
+        mae = mean(abs(iip_test$iip_sa - pred_ari)))
+    check: |
+      expect_object("iip_train", class = "data.frame")
+      expect_object("iip_test", class = "data.frame")
+      check_that(nrow(iip_test) == 24 && nrow(iip_train) == 80,
+                 "期間の分け方が違います。2024年8月までの80か月と、2024年9月以降の24か月に分けましょう。")
+      expect_object("m_ari", class = "Arima")
+      check_that(identical(m_ari$arma, .sol$m_ari$arma) && m_ari$nobs == .sol$m_ari$nobs,
+                 "m_ari が違います。訓練期間の iip_sa に order = c(1, 1, 0) を当てはめましょう。")
+      check_that(exists("pred_ari") && length(pred_ari) == 24 &&
+                   isTRUE(all.equal(as.numeric(pred_ari), .sol$pred_ari, tolerance = 1e-4)),
+                 "pred_ari が違います。as.numeric(predict(m_ari, n.ahead = 24)$pred) です。")
+      expect_value(.value, .sol_value, tol = 1e-4, label = "表示した rmse と mae")
+    hints:
+      - 第78ステップ a・b と同じ手順で、モデルの次数を c(1, 1, 0) に替えます。
+      - filter(iip, date < ymd("2024-09-01"))、arima(ts(iip_train$iip_sa, start = c(2018, 1), frequency = 12), order = c(1, 1, 0))、predict(m_ari, n.ahead = 24)$pred です。
+      - |
+        iip_train <- filter(iip, date < ymd("2024-09-01"))
+        iip_test <- filter(iip, date >= ymd("2024-09-01"))
+        m_ari <- arima(ts(iip_train$iip_sa, start = c(2018, 1), frequency = 12),
+                       order = c(1, 1, 0))
+        pred_ari <- as.numeric(predict(m_ari, n.ahead = 24)$pred)
+        c(rmse = sqrt(mean((iip_test$iip_sa - pred_ari)^2)),
+          mae = mean(abs(iip_test$iip_sa - pred_ari)))
+    tests:
+      fail:
+        - |
+          iip_train <- filter(iip, date < ymd("2024-09-01"))
+          iip_test <- filter(iip, date >= ymd("2024-09-01"))
+          m_ari <- arima(ts(iip_train$iip_sa, start = c(2018, 1), frequency = 12),
+                         order = c(1, 0, 0))
+          pred_ari <- as.numeric(predict(m_ari, n.ahead = 24)$pred)
+          c(rmse = sqrt(mean((iip_test$iip_sa - pred_ari)^2)),
+            mae = mean(abs(iip_test$iip_sa - pred_ari)))
+        - |
+          iip_train <- filter(iip, date < ymd("2024-09-01"))
+          iip_test <- filter(iip, date >= ymd("2024-09-01"))
+          m_ari <- arima(ts(iip_train$iip_sa, start = c(2018, 1), frequency = 12),
+                         order = c(1, 1, 0))
+          pred_ari <- as.numeric(predict(m_ari, n.ahead = 24)$pred)
+          c(rmse = mean((iip_test$iip_sa - pred_ari)^2),
+            mae = mean(abs(iip_test$iip_sa - pred_ari)))

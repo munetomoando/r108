@@ -1,0 +1,190 @@
+id: "009"
+part: 1
+title: 総合演習：テコ入れすべき店舗を選ぶ
+question: 経営会議に何を提案するか
+minutes: 45
+mode: browser
+packages: [readr, dplyr]
+data: [sora_stores.csv]
+learn: []
+setup: |
+  library(readr); library(dplyr)
+  stores <- read_csv("data/sora_stores.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      stores を地域（region）ごとに集計し、次の3列をもつ表を region_table に代入してください。
+      - total_sales … 地域の売上合計（万円）。sum(sales)
+      - growth … 地域の前年比（%）。地域の売上合計で計算する：(sum(sales) - sum(sales_last)) / sum(sales_last) * 100
+      - spend … 地域の客単価（円）。全社方式で計算する：sum(sales) * 10000 / sum(customers)
+      最後に growth の低い順（前年比が悪い地域が上）に並べ替えてください。
+    starter: |
+      region_table <- stores |>
+    solution: |
+      region_table <- stores |>
+        group_by(region) |>
+        summarise(total_sales = sum(sales),
+                  growth = (sum(sales) - sum(sales_last)) / sum(sales_last) * 100,
+                  spend = sum(sales) * 10000 / sum(customers)) |>
+        arrange(growth)
+    check: |
+      expect_object("region_table", class = "data.frame")
+      expect_cols(region_table, c("region", "total_sales", "growth", "spend"))
+      expect_df_equal(region_table, .sol$region_table)
+    hints:
+      - group_by(region) で地域に分け、summarise で3つの列を一度に作り、最後に arrange で並べ替えます。
+      - summarise の中に total_sales = sum(sales)、growth = (sum(sales) - sum(sales_last)) / sum(sales_last) * 100、spend = sum(sales) * 10000 / sum(customers) をカンマで区切って書きます。低い順は arrange(growth) です。
+      - "region_table <- stores |> group_by(region) |> summarise(total_sales = sum(sales), growth = (sum(sales) - sum(sales_last)) / sum(sales_last) * 100, spend = sum(sales) * 10000 / sum(customers)) |> arrange(growth)"
+    tests:
+      fail:
+        - |
+          region_table <- stores |>
+            group_by(region) |>
+            summarise(total_sales = sum(sales),
+                      growth = (sum(sales) - sum(sales_last)) / sum(sales_last) * 100,
+                      spend = mean(sales * 10000 / customers)) |>
+            arrange(growth)
+        - |
+          region_table <- stores |>
+            group_by(region) |>
+            summarise(total_sales = sum(sales),
+                      growth = (sum(sales) - sum(sales_last)) / sum(sales_last) * 100,
+                      spend = sum(sales) * 10000 / sum(customers)) |>
+            arrange(desc(growth))
+        - |
+          region_table <- stores |>
+            group_by(region) |>
+            summarise(total_sales = sum(sales),
+                      growth = mean((sales - sales_last) / sales_last * 100),
+                      spend = sum(sales) * 10000 / sum(customers)) |>
+            arrange(growth)
+  - id: b
+    type: write
+    prompt: |
+      前年割れ（前年比 growth がマイナス）で、しかも売場効率 sales_per_m2 が全店平均（50店舗すべての sales_per_m2 の平均）より低い店舗を取り出し、store_name, region, location, growth, sales_per_m2 の5列を weak に代入してください。
+      店舗ごとの前年比は growth = (sales - sales_last) / sales_last * 100、売場効率（万円/m²）は sales_per_m2 = sales / floor_m2 です。並び順は問いません。
+    starter: |
+      weak <- stores |>
+    solution: |
+      weak <- stores |>
+        mutate(growth = (sales - sales_last) / sales_last * 100,
+               sales_per_m2 = sales / floor_m2) |>
+        filter(growth < 0 & sales_per_m2 < mean(sales_per_m2)) |>
+        select(store_name, region, location, growth, sales_per_m2)
+    check: |
+      expect_object("weak", class = "data.frame")
+      expect_df_equal(weak, .sol$weak, ignore_row_order = TRUE)
+    hints:
+      - mutate で2つの列を作り、filter で2つの条件を同時に満たす店舗に絞り、select で列を選ぶ、の3段のパイプです。
+      - 2つの条件は & でつなぎ、1つの filter() の中に書きます。全店平均は mean(sales_per_m2) です。filter を2回に分けると、2回目の mean() が前年割れの店舗だけの平均になってしまいます。
+      - "weak <- stores |> mutate(growth = (sales - sales_last) / sales_last * 100, sales_per_m2 = sales / floor_m2) |> filter(growth < 0 & sales_per_m2 < mean(sales_per_m2)) |> select(store_name, region, location, growth, sales_per_m2)"
+    tests:
+      fail:
+        - |
+          weak <- stores |>
+            mutate(growth = (sales - sales_last) / sales_last * 100,
+                   sales_per_m2 = sales / floor_m2) |>
+            filter(growth < 0) |>
+            select(store_name, region, location, growth, sales_per_m2)
+        - |
+          weak <- stores |>
+            mutate(growth = (sales - sales_last) / sales_last * 100,
+                   sales_per_m2 = sales / floor_m2) |>
+            filter(growth < 0 | sales_per_m2 < mean(sales_per_m2)) |>
+            select(store_name, region, location, growth, sales_per_m2)
+  - id: c
+    type: write
+    prompt: |
+      売場効率 sales_per_m2（sales / floor_m2）が高い上位5店を top5 に、低い下位5店を bottom5 に代入してください。
+      どちらも store_name, region, location, sales_per_m2 の4列とし、top5 は高い順、bottom5 は低い順に並べてください。
+    starter: |
+      top5 <- stores |>
+
+      bottom5 <- stores |>
+    solution: |
+      top5 <- stores |>
+        mutate(sales_per_m2 = sales / floor_m2) |>
+        slice_max(sales_per_m2, n = 5) |>
+        select(store_name, region, location, sales_per_m2)
+      bottom5 <- stores |>
+        mutate(sales_per_m2 = sales / floor_m2) |>
+        slice_min(sales_per_m2, n = 5) |>
+        select(store_name, region, location, sales_per_m2)
+    check: |
+      expect_object("top5", class = "data.frame")
+      expect_object("bottom5", class = "data.frame")
+      expect_df_equal(top5, .sol$top5)
+      expect_df_equal(bottom5, .sol$bottom5)
+    hints:
+      - どちらも「列を作る → 5店に絞る → 列を選ぶ」の3段のパイプです。2つの違いは2段目だけです。
+      - 値が大きい順は slice_max(sales_per_m2, n = 5)、小さい順は slice_min(sales_per_m2, n = 5) です。
+      - |
+        top5 <- stores |> mutate(sales_per_m2 = sales / floor_m2) |> slice_max(sales_per_m2, n = 5) |> select(store_name, region, location, sales_per_m2)
+        bottom5 <- stores |> mutate(sales_per_m2 = sales / floor_m2) |> slice_min(sales_per_m2, n = 5) |> select(store_name, region, location, sales_per_m2)
+    tests:
+      fail:
+        - |
+          top5 <- stores |>
+            mutate(sales_per_m2 = sales / floor_m2) |>
+            slice_max(sales_per_m2, n = 5) |>
+            select(store_name, region, location, sales_per_m2)
+          bottom5 <- stores |>
+            mutate(sales_per_m2 = sales / floor_m2) |>
+            slice_max(sales_per_m2, n = 5) |>
+            select(store_name, region, location, sales_per_m2)
+        - |
+          top5 <- stores |>
+            mutate(sales_per_m2 = sales / floor_m2) |>
+            slice_max(sales, n = 5) |>
+            select(store_name, region, location, sales_per_m2)
+          bottom5 <- stores |>
+            mutate(sales_per_m2 = sales / floor_m2) |>
+            slice_min(sales, n = 5) |>
+            select(store_name, region, location, sales_per_m2)
+  - id: d
+    type: interpret
+    prompt: |
+      立地ごとの特徴を見るため、次のコードを実行しました。この結果と c の top5・bottom5 を見て、読み取れることとして最も適切なものを選んでください。
+
+      ```r
+      stores |>
+        mutate(spend = sales * 10000 / customers,
+               sales_per_m2 = sales / floor_m2) |>
+        group_by(location) |>
+        summarise(n_store = n(),
+                  mean_spend = mean(spend),
+                  mean_eff = mean(sales_per_m2))
+      ```
+    choices:
+      - "郊外店は客単価が高いが売場効率は低く、駅前店は客単価は低いが売場効率が高い。売場効率の下位5店には郊外店が多い"
+      - "駅前店は客単価も売場効率も3つの立地の中で最も高い"
+      - "立地によって客単価や売場効率に違いはほとんど見られない"
+      - "郊外店は売場効率が最も高いので、郊外店を増やせば必ず全社の売上が伸びる"
+    answer: 0
+    explain: |
+      郊外店は1人あたりの買い物額（客単価）が大きい一方、広い売場の割に売上が伸びず、売場効率は低くなっています。駅前店は少しずつ買う客が多い代わりに、狭い売場で効率よく売っています。
+      どちらが「良い店」かは目的によって変わります。また、表から分かるのは傾向だけで、立地を変えれば数字が変わるという因果関係までは言えません。
+  - id: e
+    type: interpret
+    free: true
+    prompt: |
+      a〜d の結果をもとに、経営会議で示す提言を3行（3文）で書いてください。
+      1文目に売上の落ち込みが目立つ地域、2文目にテコ入れすべき店舗の特徴（前年割れ・売場効率・立地など）、3文目に具体的な打ち手や注意点を書くと書きやすいでしょう。具体的な地域名か店舗名を必ず入れてください。
+    solution: |
+      地域別では中国・四国だけが前年割れとなっており、全社の中で最も前年比が低い。
+      前年割れかつ売場効率が全店平均未満の店舗は郊外店に多く、中国・四国の岡山店などがテコ入れの第一候補である。
+      郊外店は客単価が高いので、広い売場の使い方を見直して効率を上げる案を検討したいが、この表だけでは落ち込みの原因までは分からないため、現場の聞き取りもあわせて行うべきである。
+    check: |
+      expect_min_chars(60)
+      expect_text("中国|四国|岡山|広島|下関|北海道|東北|関東|中部|近畿|九州|沖縄|店", "具体的な地域名か店舗名を入れて書きましょう。")
+      expect_text("前年割れ|前年比|前年|落ち|減|マイナス|低下", "売上の落ち込み（前年割れ・前年比）について書きましょう。")
+      expect_text("売場効率|効率|面積|売場|郊外|駅前|立地", "売場効率や立地について書きましょう。")
+    hints:
+      - region_table の一番上の地域、weak に並んだ店舗の地域と立地、bottom5 と d の表を見比べて、共通点を探しましょう。
+      - 「どこが落ちているか」「どんな店をテコ入れするか」「何をするか（ただし原因は表だけでは言い切れない）」の3点を1文ずつ書きます。
+      - 例「前年比が最も低いのは〇〇地域だった。前年割れかつ売場効率の低い店舗には△△の店が多い。□□を見直す案を検討するが、原因は現場でも確かめる。」
+    tests:
+      fail:
+        - 売上を伸ばすべきである。
+        - 全体として売上を伸ばす努力が必要であり、社員一丸となって取り組むことが大切だと考えられる。来年も頑張りたい。

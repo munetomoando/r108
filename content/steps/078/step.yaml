@@ -1,0 +1,263 @@
+id: "078"
+part: 9
+title: 予測精度の評価
+question: そのモデルは素朴な予測に勝てるか
+minutes: 45
+mode: browser
+packages: [readr, dplyr, lubridate, ggplot2]
+data: [iip_monthly.csv]
+learn: [rep]
+review_of: "077"
+setup: |
+  library(readr); library(dplyr); library(lubridate); library(ggplot2)
+  # 経済産業省「鉱工業生産指数」2020年基準（2026-10-24 取得）。2018年1月〜2026年8月の月次
+  iip <- read_csv("data/iip_monthly.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      鉱工業生産指数の季節調整済指数 iip_sa を使います。
+      1. iip を2024年8月まで（date < ymd("2024-09-01")）の訓練期間 train と、2024年9月から2026年8月までの24か月のテスト期間 test に分ける
+      2. train$iip_sa を、2018年1月始まりの月次の時系列（ts()、frequency = 12）にして y_train に代入する
+      3. y_train に AR(1) モデル（arima() の order = c(1, 0, 0)）を当てはめて m_ar に代入する
+      4. m_ar でテスト期間の24か月を一度に予測し（predict(m_ar, n.ahead = 24)$pred）、as.numeric() で数のベクトルにして pred_ar に代入して表示する
+    starter: |
+      train <-
+      test <-
+      y_train <-
+      m_ar <-
+      pred_ar <-
+      pred_ar
+    solution: |
+      train <- filter(iip, date < ymd("2024-09-01"))
+      test <- filter(iip, date >= ymd("2024-09-01"))
+      y_train <- ts(train$iip_sa, start = c(2018, 1), frequency = 12)
+      m_ar <- arima(y_train, order = c(1, 0, 0))
+      pred_ar <- as.numeric(predict(m_ar, n.ahead = 24)$pred)
+      pred_ar
+    check: |
+      expect_object("train", class = "data.frame")
+      expect_object("test", class = "data.frame")
+      check_that(nrow(test) == 24 && nrow(train) == nrow(.sol$train),
+                 "期間の分け方が違います。2024年8月までを train（80か月）、2024年9月以降を test（24か月）にしましょう。")
+      expect_df_equal(train, .sol$train)
+      expect_df_equal(test, .sol$test)
+      expect_object("y_train", class = "ts")
+      check_that(frequency(y_train) == 12 && identical(start(y_train), start(.sol$y_train)),
+                 "y_train は start = c(2018, 1)、frequency = 12 の時系列にしましょう。")
+      check_that(isTRUE(all.equal(as.numeric(y_train), as.numeric(.sol$y_train))),
+                 "y_train の中身が違います。訓練期間の季節調整済指数 train$iip_sa を使いましょう。")
+      expect_object("m_ar", class = "Arima")
+      check_that(identical(m_ar$arma, .sol$m_ar$arma),
+                 "m_ar の次数が違います。AR(1) は order = c(1, 0, 0) です。")
+      expect_value(coef(m_ar), coef(.sol$m_ar), tol = 1e-4, label = "m_ar の係数")
+      check_that(exists("pred_ar") && length(pred_ar) == 24,
+                 "pred_ar は24か月分の予測値にしましょう。predict(m_ar, n.ahead = 24)$pred です。")
+      expect_value(as.numeric(pred_ar), .sol$pred_ar, tol = 1e-4, label = "pred_ar")
+    hints:
+      - 期間は filter() と ymd() で分けます。モデルは訓練期間だけで推定し、テスト期間は予測の答え合わせにだけ使います。
+      - filter(iip, date < ymd("2024-09-01"))、ts(train$iip_sa, start = c(2018, 1), frequency = 12)、arima(y_train, order = c(1, 0, 0)) です。
+      - |
+        train <- filter(iip, date < ymd("2024-09-01"))
+        test <- filter(iip, date >= ymd("2024-09-01"))
+        y_train <- ts(train$iip_sa, start = c(2018, 1), frequency = 12)
+        m_ar <- arima(y_train, order = c(1, 0, 0))
+        pred_ar <- as.numeric(predict(m_ar, n.ahead = 24)$pred)
+        pred_ar
+    tests:
+      fail:
+        - |
+          train <- filter(iip, date < ymd("2024-09-01"))
+          test <- filter(iip, date >= ymd("2024-09-01"))
+          y_train <- ts(iip$iip_sa, start = c(2018, 1), frequency = 12)
+          m_ar <- arima(y_train, order = c(1, 0, 0))
+          pred_ar <- as.numeric(predict(m_ar, n.ahead = 24)$pred)
+          pred_ar
+        - |
+          train <- filter(iip, date < ymd("2025-09-01"))
+          test <- filter(iip, date >= ymd("2025-09-01"))
+          y_train <- ts(train$iip_sa, start = c(2018, 1), frequency = 12)
+          m_ar <- arima(y_train, order = c(1, 0, 0))
+          pred_ar <- as.numeric(predict(m_ar, n.ahead = 24)$pred)
+          pred_ar
+        - |
+          train <- filter(iip, date < ymd("2024-09-01"))
+          test <- filter(iip, date >= ymd("2024-09-01"))
+          y_train <- ts(train$iip_nsa, start = c(2018, 1), frequency = 12)
+          m_ar <- arima(y_train, order = c(1, 0, 0))
+          pred_ar <- as.numeric(predict(m_ar, n.ahead = 24)$pred)
+          pred_ar
+  - id: b
+    type: write
+    prompt: |
+      a の予測をテスト期間の実際の値と比べ、ナイーブ予測とも比べます。
+      1. ナイーブ予測として、訓練期間の最後の月（2024年8月）の値 tail(train$iip_sa, 1) を24個並べ（rep()）、pred_naive に代入する
+      2. model（"AR(1)"、"ナイーブ" の順）、rmse、mae の3列の表を tibble() で作り、acc に代入して表示する。誤差は test$iip_sa − 予測値 です
+         - RMSE … sqrt(mean((実際の値 - 予測値)^2))
+         - MAE … mean(abs(実際の値 - 予測値))
+    starter: |
+      pred_naive <-
+      acc <- tibble(model = c("AR(1)", "ナイーブ"),
+                    rmse = ,
+                    mae = )
+      acc
+    solution: |
+      pred_naive <- rep(tail(train$iip_sa, 1), 24)
+      acc <- tibble(model = c("AR(1)", "ナイーブ"),
+                    rmse = c(sqrt(mean((test$iip_sa - pred_ar)^2)),
+                             sqrt(mean((test$iip_sa - pred_naive)^2))),
+                    mae = c(mean(abs(test$iip_sa - pred_ar)),
+                            mean(abs(test$iip_sa - pred_naive))))
+      acc
+    check: |
+      check_that(exists("pred_naive") && length(pred_naive) == 24 &&
+                   isTRUE(all.equal(as.numeric(pred_naive), .sol$pred_naive)),
+                 "pred_naive が違います。訓練期間の最後の値 tail(train$iip_sa, 1) を rep() で24個並べましょう。")
+      expect_object("acc", class = "data.frame")
+      expect_cols(acc, c("model", "rmse", "mae"))
+      expect_nrow(acc, 2)
+      check_that(isTRUE(all.equal(acc$rmse, .sol$acc$rmse, tolerance = 1e-5)),
+                 "rmse が違います。RMSE は誤差を2乗して平均し、最後に平方根 sqrt() をとります。モデルの順番も確かめましょう。")
+      check_that(isTRUE(all.equal(acc$mae, .sol$acc$mae, tolerance = 1e-5)),
+                 "mae が違います。MAE は誤差の絶対値 abs() の平均です。モデルの順番も確かめましょう。")
+      expect_df_equal(acc, .sol$acc, tol = 1e-5)
+      expect_value(.value, .sol_value, tol = 1e-5, label = "表示した acc")
+    hints:
+      - 誤差は「実際の値 − 予測値」です。RMSE は大きな外れを重く数え、MAE は外れの大きさをそのまま平均します。
+      - tail(train$iip_sa, 1) は train$iip_sa の最後の1個です。rep(値, 24) で24個並べます。rmse = c(sqrt(mean((test$iip_sa - pred_ar)^2)), ...) のように c() で2つ並べます。
+      - |
+        pred_naive <- rep(tail(train$iip_sa, 1), 24)
+        acc <- tibble(model = c("AR(1)", "ナイーブ"),
+                      rmse = c(sqrt(mean((test$iip_sa - pred_ar)^2)),
+                               sqrt(mean((test$iip_sa - pred_naive)^2))),
+                      mae = c(mean(abs(test$iip_sa - pred_ar)),
+                              mean(abs(test$iip_sa - pred_naive))))
+        acc
+    tests:
+      fail:
+        - |
+          pred_naive <- rep(tail(train$iip_sa, 1), 24)
+          acc <- tibble(model = c("AR(1)", "ナイーブ"),
+                        rmse = c(mean((test$iip_sa - pred_ar)^2),
+                                 mean((test$iip_sa - pred_naive)^2)),
+                        mae = c(mean(abs(test$iip_sa - pred_ar)),
+                                mean(abs(test$iip_sa - pred_naive))))
+          acc
+        - |
+          pred_naive <- rep(mean(train$iip_sa), 24)
+          acc <- tibble(model = c("AR(1)", "ナイーブ"),
+                        rmse = c(sqrt(mean((test$iip_sa - pred_ar)^2)),
+                                 sqrt(mean((test$iip_sa - pred_naive)^2))),
+                        mae = c(mean(abs(test$iip_sa - pred_ar)),
+                                mean(abs(test$iip_sa - pred_naive))))
+          acc
+        - |
+          pred_naive <- rep(tail(train$iip_sa, 1), 24)
+          acc <- tibble(model = c("AR(1)", "ナイーブ"),
+                        rmse = c(sqrt(mean((test$iip_sa - pred_ar)^2)),
+                                 sqrt(mean((test$iip_sa - pred_naive)^2))),
+                        mae = c(mean(test$iip_sa - pred_ar),
+                                mean(test$iip_sa - pred_naive)))
+          acc
+  - id: c
+    type: write
+    prompt: |
+      もう1つの素朴な予測、**前月値予測**（「今月の値は先月の実績と同じ」と毎月予測し直す方法）の精度を測ります。
+      1. iip に、1か月前の実績 lag(iip_sa) を予測値とする列 pred_prev を加え、そのあとで2024年9月以降の行に絞って test_prev に代入する
+      2. test_prev から rmse と mae を summarise() で求めて表示する（誤差は iip_sa − pred_prev）
+    starter: |
+      test_prev <- iip |>
+        mutate() |>
+        filter()
+      summarise(test_prev, )
+    solution: |
+      test_prev <- iip |>
+        mutate(pred_prev = lag(iip_sa)) |>
+        filter(date >= ymd("2024-09-01"))
+      summarise(test_prev,
+                rmse = sqrt(mean((iip_sa - pred_prev)^2)),
+                mae = mean(abs(iip_sa - pred_prev)))
+    check: |
+      expect_object("test_prev", class = "data.frame")
+      expect_cols(test_prev, "pred_prev")
+      expect_nrow(test_prev, 24)
+      check_that(!any(is.na(test_prev$pred_prev)),
+                 "pred_prev に NA があります。lag() は filter() より先に、全期間の iip で使いましょう。先に絞ると、2024年9月の「前月（2024年8月）」が消えてしまいます。")
+      expect_df_equal(test_prev, .sol$test_prev)
+      expect_cols(.value, c("rmse", "mae"))
+      expect_value(.value, .sol_value, tol = 1e-6, label = "表示した rmse と mae")
+    hints:
+      - 前月値予測は、第73ステップの lag() で作れます。テスト期間の最初の月（2024年9月）の予測値は、訓練期間の最後の月（2024年8月）の実績です。
+      - mutate(pred_prev = lag(iip_sa)) のあとに filter(date >= ymd("2024-09-01")) を続けます。順番を逆にすると最初の月が NA になります。
+      - |
+        test_prev <- iip |>
+          mutate(pred_prev = lag(iip_sa)) |>
+          filter(date >= ymd("2024-09-01"))
+        summarise(test_prev,
+                  rmse = sqrt(mean((iip_sa - pred_prev)^2)),
+                  mae = mean(abs(iip_sa - pred_prev)))
+    tests:
+      fail:
+        - |
+          test_prev <- iip |>
+            filter(date >= ymd("2024-09-01")) |>
+            mutate(pred_prev = lag(iip_sa))
+          summarise(test_prev,
+                    rmse = sqrt(mean((iip_sa - pred_prev)^2)),
+                    mae = mean(abs(iip_sa - pred_prev)))
+        - |
+          test_prev <- iip |>
+            mutate(pred_prev = lag(iip_sa, 12)) |>
+            filter(date >= ymd("2024-09-01"))
+          summarise(test_prev,
+                    rmse = sqrt(mean((iip_sa - pred_prev)^2)),
+                    mae = mean(abs(iip_sa - pred_prev)))
+  - id: d
+    type: interpret
+    prompt: |
+      b と c の結果は、テスト期間（2024年9月〜2026年8月）の RMSE が AR(1) 約3.16、ナイーブ予測（最後の値を24か月並べる）約1.87、前月値予測 約1.51でした。この結果の読み方として最も適切なものはどれですか。
+    choices:
+      - "前月値予測の RMSE が最も小さいので、3つの中で最も優れた予測方法は前月値予測であり、2年先の計画にもこれを使うべきである"
+      - "AR(1) は訓練期間で推定した統計モデルなので、テスト期間の誤差が大きくても、素朴な予測より信頼できる"
+      - "AR(1) は24か月先まででナイーブ予測に負けた。訓練期間の平均（約106）へ戻ると予測したが、2018〜19年の高い水準が平均を押し上げていたためである。前月値予測は毎月の最新の実績を使う1か月先の予測なので、24か月先を一度に予測した2つとは同じ条件で比べられない"
+      - "RMSE と MAE の順位が同じなので、どの予測方法を使っても将来の誤差はこの表のとおりになる"
+    answer: 2
+    explain: AR(1) の予測は2024年9月の約101.1から2026年8月の約105.9まで上がり続けましたが、実際の値は99〜105の間で横ばいでした。訓練期間（2018年1月〜2024年8月）の平均は約106.2で、2018〜19年の110を超える月が平均を押し上げています。前月値予測は毎月の実績を見て予測し直すので、1か月先しか予測していません。24か月先を一度に予測した AR(1) やナイーブ予測と比べるのは不公平です。本文のように AR(1) でも1か月ずつ予測し直すと、RMSE は約1.50で、前月値予測とほぼ同じになります。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第77ステップの復習】a の y_train に AR(1)（order = c(1, 0, 0)）と AR(2)（order = c(2, 0, 0)）を当てはめ、2つのモデルの AIC を c(AIC(AR(1)のモデル), AIC(AR(2)のモデル)) の順で表示してください。モデルはそれぞれ m1、m2 に代入します。
+    starter: |
+      m1 <-
+      m2 <-
+      c(AIC(m1), AIC(m2))
+    solution: |
+      m1 <- arima(y_train, order = c(1, 0, 0))
+      m2 <- arima(y_train, order = c(2, 0, 0))
+      c(AIC(m1), AIC(m2))
+    check: |
+      expect_object("m1", class = "Arima")
+      expect_object("m2", class = "Arima")
+      check_that(identical(m1$arma, .sol$m1$arma) && identical(m2$arma, .sol$m2$arma),
+                 "次数が違います。m1 は order = c(1, 0, 0)、m2 は order = c(2, 0, 0) です。")
+      check_that(m1$nobs == .sol$m1$nobs,
+                 "データが違います。a の訓練期間の時系列 y_train に当てはめましょう。")
+      expect_value(.value, .sol_value, tol = 1e-4, label = "表示した2つの AIC")
+    hints:
+      - 第77ステップと同じく、次数だけを変えて arima() を2回当てはめ、AIC() で比べます。AIC は小さいほど良いモデルです。
+      - arima(y_train, order = c(1, 0, 0)) と arima(y_train, order = c(2, 0, 0)) です。
+      - |
+        m1 <- arima(y_train, order = c(1, 0, 0))
+        m2 <- arima(y_train, order = c(2, 0, 0))
+        c(AIC(m1), AIC(m2))
+    tests:
+      fail:
+        - |
+          m1 <- arima(y_train, order = c(1, 0, 0))
+          m2 <- arima(y_train, order = c(0, 0, 2))
+          c(AIC(m1), AIC(m2))
+        - |
+          m1 <- arima(ts(iip$iip_sa, start = c(2018, 1), frequency = 12), order = c(1, 0, 0))
+          m2 <- arima(ts(iip$iip_sa, start = c(2018, 1), frequency = 12), order = c(2, 0, 0))
+          c(AIC(m1), AIC(m2))

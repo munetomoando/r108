@@ -1,0 +1,210 @@
+id: "017"
+part: 2
+title: e-Statから自分でデータを取る
+question: 出店候補の県で人を集めやすいか：都道府県の失業率をAPIの応答から表にする
+minutes: 45
+mode: browser
+packages: [jsonlite, readr, dplyr, stringr]
+data: [estat_sample.json, pref_basic.csv]
+learn: [fromJSON, as.numeric, str_sub, write_csv]
+review_of: "016"
+setup: |
+  library(jsonlite); library(readr); library(dplyr); library(stringr)
+  pref_basic <- read_csv("data/pref_basic.csv", show_col_types = FALSE)
+  # 保存先（このアプリの作業用フォルダにある unemp_pref.csv）
+  out_file <- file.path(tempdir(), "unemp_pref.csv")
+exercises:
+  - id: a
+    type: interpret
+    prompt: |
+      このステップの応答 estat_sample.json は、次の URL で e-Stat API に問い合わせて得たものです（読みやすいように改行しています）。
+
+      ```
+      https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData
+        ?appId=YOUR_APP_ID
+        &statsDataId=0000010206
+        &cdCat01=%23F01301,%23F0130101,%23F0130102
+        &cdTime=2010100000,2015100000,2020100000
+      ```
+
+      URL の各部分の説明として、正しいものはどれですか。
+    choices:
+      - "appId は、取り出す統計表の番号である"
+      - "statsDataId は取り出す統計表の番号で、cdCat01 と cdTime はその表の中から取り出す項目と年を絞り込む条件である"
+      - "cdTime は、データを取得した日時を記録するための欄である"
+      - "json/getStatsData の部分を変えても、返ってくる内容は変わらない"
+    answer: 1
+    explain: "statsDataId（統計表ID）で「どの表か」を決め、cdCat01（分類事項）や cdTime（時間）で「その表のどの項目・どの年か」を絞ります。ここでは完全失業率の総数・男・女の3項目と、2010・2015・2020年の3時点を指定しています。appId は利用者ごとに発行されるアプリケーションIDで、表の番号ではありません。自分のIDは他人に見せないものなので、教材のファイルでは YOUR_APP_ID に置き換えてあります。json/getStatsData は「統計データをJSONで返す」という機能の名前で、getStatsList（表を探す）や getMetaInfo（コード表を取る）に変えると別の内容が返ります。URL の中の %23 は記号 # を URL で表した書き方です。"
+  - id: b
+    type: write
+    prompt: |
+      estat_sample.json を fromJSON() で読み込んで res に代入し、値の表を取り出してください。
+      1. res <- fromJSON("data/estat_sample.json")
+      2. 値の表は res$GET_STATS_DATA$STATISTICAL_DATA$DATA_INF$VALUE にあります。これを values に代入する
+      3. values の列 `@cat01`, `@area`, `@time`, `$` を、それぞれ cat01, area, time, rate という名前で選び、rate を as.numeric() で数値にした表を est に代入する（4列・432行）
+    starter: |
+      res <- fromJSON("data/estat_sample.json")
+      values <-
+      est <- values |>
+    solution: |
+      res <- fromJSON("data/estat_sample.json")
+      values <- res$GET_STATS_DATA$STATISTICAL_DATA$DATA_INF$VALUE
+      est <- values |>
+        select(cat01 = `@cat01`, area = `@area`, time = `@time`, rate = `$`) |>
+        mutate(rate = as.numeric(rate))
+    check: |
+      expect_object("res", class = "list")
+      expect_object("values", class = "data.frame")
+      expect_nrow(values, 432)
+      expect_object("est", class = "data.frame")
+      expect_cols(est, c("cat01", "area", "time", "rate"))
+      check_that(is.numeric(est$rate),
+                 "est の rate がまだ文字列です。JSON の値は文字で届くので、as.numeric() で数値に直しましょう。")
+      expect_df_equal(est, .sol$est)
+    hints:
+      - JSON は入れ子になったリストとして読み込まれます。$ を順につないで、外側から GET_STATS_DATA → STATISTICAL_DATA → DATA_INF → VALUE とたどります。
+      - "@ や $ で始まる列名は、そのままでは書けないので `@area` のようにバッククォート（`）で囲みます。select() の中で 新しい名前 = `古い名前` と書くと、選びながら名前を変えられます。"
+      - "est <- values |> select(cat01 = `@cat01`, area = `@area`, time = `@time`, rate = `$`) |> mutate(rate = as.numeric(rate))"
+    tests:
+      fail:
+        - |
+          res <- fromJSON("data/estat_sample.json")
+          values <- res$GET_STATS_DATA$STATISTICAL_DATA$DATA_INF$VALUE
+          est <- values |>
+            select(cat01 = `@cat01`, area = `@area`, time = `@time`, rate = `$`)
+        - |
+          res <- fromJSON("data/estat_sample.json")
+          values <- res$GET_STATS_DATA$STATISTICAL_DATA$DATA_INF$VALUE
+          est <- values |>
+            select(cat01 = `@cat01`, area = `@area`, time = `@unit`, rate = `$`) |>
+            mutate(rate = as.numeric(rate))
+  - id: c
+    type: write
+    prompt: |
+      est の area は "13000" のような地域コードです。応答には、コードと名前の対応表（コード表）も入っています。
+      地域のコード表は classes$CLASS[[3]] にあります（classes は下の1行目で作ります）。次の2つを作ってください。
+      - areas … 地域のコード表から `@code` と `@name` を、それぞれ area, area_name という名前で選んだ表（48行）
+      - est2 … est に areas を area で左結合し、さらに time の先頭4文字を整数にした列 year を加えた表
+    starter: |
+      classes <- res$GET_STATS_DATA$STATISTICAL_DATA$CLASS_INF$CLASS_OBJ
+      areas <-
+      est2 <- est |>
+    solution: |
+      classes <- res$GET_STATS_DATA$STATISTICAL_DATA$CLASS_INF$CLASS_OBJ
+      areas <- select(classes$CLASS[[3]], area = `@code`, area_name = `@name`)
+      est2 <- est |>
+        left_join(areas, by = "area") |>
+        mutate(year = as.integer(str_sub(time, 1, 4)))
+    check: |
+      expect_object("areas", class = "data.frame")
+      expect_nrow(areas, 48)
+      expect_df_equal(areas, .sol$areas)
+      expect_object("est2", class = "data.frame")
+      expect_cols(est2, c("area_name", "year"))
+      check_that(is.numeric(est2$year),
+                 "est2 の year が数値になっていません。str_sub() で取り出した文字を as.integer() で整数に直しましょう。")
+      check_that(!anyNA(est2$area_name),
+                 "est2 に地域名のない行があります。結合のキー（area）と、コード表の選び方を見直しましょう。")
+      expect_df_equal(est2, .sol$est2, ignore_row_order = TRUE)
+    hints:
+      - classes は4行の表で、@id の列が tab, cat01, area, time です。3行目が地域（area）なので、そのコード表は classes$CLASS[[3]] です。
+      - "コード表は select(classes$CLASS[[3]], area = `@code`, area_name = `@name`) で作れます。年は str_sub(time, 1, 4) で \"2020\" を取り出し、as.integer() で 2020 にします。"
+      - "est2 <- est |> left_join(areas, by = \"area\") |> mutate(year = as.integer(str_sub(time, 1, 4)))"
+    tests:
+      fail:
+        - |
+          classes <- res$GET_STATS_DATA$STATISTICAL_DATA$CLASS_INF$CLASS_OBJ
+          areas <- select(classes$CLASS[[3]], area = `@code`, area_name = `@name`)
+          est2 <- est |>
+            left_join(areas, by = "area") |>
+            mutate(year = str_sub(time, 1, 4))
+        - |
+          classes <- res$GET_STATS_DATA$STATISTICAL_DATA$CLASS_INF$CLASS_OBJ
+          areas <- select(classes$CLASS[[3]], area = `@code`, area_name = `@name`)
+          est2 <- est |>
+            left_join(areas, by = "area") |>
+            mutate(year = as.integer(str_sub(time, 7, 10)))
+  - id: d
+    type: write
+    prompt: |
+      est2 から完全失業率の総数（cat01 == "#F01301"）の行だけを残し、area_name, year, rate の3列にした表を unemp に代入してください（48地域×3年＝144行）。
+      そのあと write_csv() で unemp を out_file に書き出し、out_file を read_csv() で読み込んで saved に代入してください。out_file は、このアプリの作業用フォルダにある unemp_pref.csv というファイルの場所です（setup で用意してあります）。
+    starter: |
+      unemp <- est2 |>
+
+      write_csv(unemp, )
+      saved <-
+    solution: |
+      unemp <- est2 |>
+        filter(cat01 == "#F01301") |>
+        select(area_name, year, rate)
+      write_csv(unemp, out_file)
+      saved <- read_csv(out_file, show_col_types = FALSE)
+    check: |
+      expect_object("unemp", class = "data.frame")
+      expect_cols(unemp, c("area_name", "year", "rate"))
+      expect_nrow(unemp, 144)
+      expect_df_equal(unemp, .sol$unemp, ignore_row_order = TRUE)
+      expect_uses("write_csv")
+      expect_object("saved", class = "data.frame")
+      expect_df_equal(saved, .sol$saved, ignore_row_order = TRUE)
+    hints:
+      - "cat01 の3つのコードは、#F01301 が総数、#F0130101 が男、#F0130102 が女です。filter() で総数に絞り、select() で3列を選びます。"
+      - write_csv(表, 保存先) で書き出し、read_csv(保存先) で読み込みます。保存先には、引用符を付けずに out_file と書きます。
+      - |
+        unemp <- est2 |> filter(cat01 == "#F01301") |> select(area_name, year, rate)
+        write_csv(unemp, out_file)
+        saved <- read_csv(out_file, show_col_types = FALSE)
+    tests:
+      fail:
+        - |
+          unemp <- est2 |>
+            select(area_name, year, rate)
+          write_csv(unemp, out_file)
+          saved <- read_csv(out_file, show_col_types = FALSE)
+        - |
+          unemp <- est2 |>
+            filter(cat01 == "#F0130101") |>
+            select(area_name, year, rate)
+          write_csv(unemp, out_file)
+          saved <- read_csv(out_file, show_col_types = FALSE)
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第16ステップの復習】地域コード area の先頭2桁は県コードです（"13000" なら東京都の 13）。est2 を2020年の総数（year == 2020 かつ cat01 == "#F01301"）で、全国（area == "00000"）を除いた47行に絞り、県コード pref_code = as.integer(str_sub(area, 1, 2)) を作ってください。そのうえで pref_basic の pref_code と region の2列を pref_code で左結合し、地方 region ごとの失業率の平均 mean_rate を求めた表を by_region に代入してください。
+    starter: |
+      by_region <- est2 |>
+    solution: |
+      by_region <- est2 |>
+        filter(year == 2020, cat01 == "#F01301", area != "00000") |>
+        mutate(pref_code = as.integer(str_sub(area, 1, 2))) |>
+        left_join(select(pref_basic, pref_code, region), by = "pref_code") |>
+        group_by(region) |>
+        summarise(mean_rate = mean(rate))
+    check: |
+      expect_object("by_region", class = "data.frame")
+      expect_cols(by_region, c("region", "mean_rate"))
+      check_that(!anyNA(by_region$region),
+                 "地方 region が NA の行があります。pref_code を整数にしてから結合したか、全国の行を除いたかを確かめましょう。")
+      expect_df_equal(by_region, .sol$by_region, ignore_row_order = TRUE)
+    hints:
+      - 「絞る → 県コードを作る → 地方を結合する → 地方ごとに平均する」の4段のパイプです。
+      - 結合のキーは両方の表で同じ型にします。pref_basic の pref_code は数値なので、str_sub() で取り出した "13" を as.integer() で 13 にします。
+      - "by_region <- est2 |> filter(year == 2020, cat01 == \"#F01301\", area != \"00000\") |> mutate(pref_code = as.integer(str_sub(area, 1, 2))) |> left_join(select(pref_basic, pref_code, region), by = \"pref_code\") |> group_by(region) |> summarise(mean_rate = mean(rate))"
+    tests:
+      fail:
+        - |
+          by_region <- est2 |>
+            filter(year == 2020, cat01 == "#F01301") |>
+            mutate(pref_code = as.integer(str_sub(area, 1, 2))) |>
+            left_join(select(pref_basic, pref_code, region), by = "pref_code") |>
+            group_by(region) |>
+            summarise(mean_rate = mean(rate))
+        - |
+          by_region <- est2 |>
+            filter(year == 2020, area != "00000") |>
+            mutate(pref_code = as.integer(str_sub(area, 1, 2))) |>
+            left_join(select(pref_basic, pref_code, region), by = "pref_code") |>
+            group_by(region) |>
+            summarise(mean_rate = mean(rate))

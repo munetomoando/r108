@@ -1,0 +1,164 @@
+id: "024"
+part: 3
+title: 散布図と回帰直線
+question: 最低賃金の高い県ほど平均賃金も高いか
+minutes: 40
+mode: browser
+packages: [readr, dplyr, ggplot2]
+data: [pref_panel.csv]
+learn: [geom_smooth, geom_text, cor]
+review_of: "023"
+setup: |
+  library(readr); library(dplyr); library(ggplot2)
+  panel <- read_csv("data/pref_panel.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      panel（47県×2019〜2025年）から2025年の行だけを取り出して p2025 に代入してください。
+      続けて、p2025 で横軸を最低賃金 min_wage、縦軸を平均時給 avg_wage とした散布図を描いてください。
+    starter: |
+      p2025 <-
+
+    solution: |
+      p2025 <- filter(panel, year == 2025)
+      ggplot(p2025, aes(x = min_wage, y = avg_wage)) +
+        geom_point()
+    check: |
+      expect_object("p2025", class = "data.frame")
+      expect_df_equal(p2025, .sol$p2025, ignore_row_order = TRUE)
+      expect_ggplot(geom = "point", x = "min_wage", y = "avg_wage")
+      expect_df_equal(.plot$data, .sol_plot$data, ignore_row_order = TRUE)
+    hints:
+      - 「filter() で2025年に絞って代入する → ggplot() で散布図を描く」の2つに分けて書きます。
+      - 絞り込みは filter(panel, year == 2025)、散布図は ggplot(p2025, aes(x = min_wage, y = avg_wage)) + geom_point() です。
+      - "p2025 <- filter(panel, year == 2025) の次の行に ggplot(p2025, aes(x = min_wage, y = avg_wage)) + geom_point()"
+    tests:
+      fail:
+        - |
+          p2025 <- filter(panel, year == 2025)
+          ggplot(panel, aes(x = min_wage, y = avg_wage)) +
+            geom_point()
+        - |
+          p2025 <- filter(panel, year == 2025)
+          ggplot(p2025, aes(x = avg_wage, y = min_wage)) +
+            geom_point()
+  - id: b
+    type: write
+    prompt: |
+      まず、2025年の最低賃金と平均時給の相関係数を cor(p2025$min_wage, p2025$avg_wage) で求めて r に代入し、r を表示してください。
+      続けて、a の散布図に geom_smooth(method = "lm") を足して、回帰直線（点の並びに最もよく当てはまる直線）を引いてください。
+    starter: |
+      r <-
+
+    solution: |
+      r <- cor(p2025$min_wage, p2025$avg_wage)
+      r
+      ggplot(p2025, aes(x = min_wage, y = avg_wage)) +
+        geom_point() +
+        geom_smooth(method = "lm")
+    check: |
+      expect_object("r", class = "numeric")
+      expect_value(r, .sol$r)
+      expect_ggplot(geom = c("point", "smooth"), x = "min_wage", y = "avg_wage")
+      methods <- unname(unlist(lapply(.plot$layers, function(l) {
+        if (inherits(l$geom, "GeomSmooth")) as.character(l$stat_params$method)[1] else NULL
+      })))
+      check_that(identical(methods, "lm"),
+                 "回帰直線になっていません。geom_smooth() の中に method = \"lm\" を書きましょう（書かないと曲線になります）。")
+      expect_df_equal(.plot$data, .sol_plot$data, ignore_row_order = TRUE)
+    hints:
+      - 相関係数は2つの列を cor() に渡して求めます。図は a の散布図に + で層を1つ足すだけです。
+      - 列は p2025$min_wage のように $ で取り出します。直線にするには geom_smooth(method = "lm") と書きます。
+      - "r <- cor(p2025$min_wage, p2025$avg_wage) の後に ggplot(p2025, aes(x = min_wage, y = avg_wage)) + geom_point() + geom_smooth(method = \"lm\")"
+    tests:
+      fail:
+        - |
+          r <- cor(p2025$min_wage, p2025$avg_wage)
+          ggplot(p2025, aes(x = min_wage, y = avg_wage)) +
+            geom_point() +
+            geom_smooth()
+        - |
+          r <- cor(panel$min_wage, panel$avg_wage)
+          ggplot(p2025, aes(x = min_wage, y = avg_wage)) +
+            geom_point() +
+            geom_smooth(method = "lm")
+  - id: c
+    type: write
+    prompt: |
+      どの点がどの県かを分かるようにします。a の散布図に geom_text(aes(label = pref)) を足して、点の近くに県名 pref を書いてください。
+      そのままでは文字が点に重なって大きすぎるので、geom_text() の中に size = 3（文字を小さく）と vjust = -0.6（文字を点の少し上にずらす）も書きます。
+    starter: |
+      ggplot(p2025, aes(x = min_wage, y = avg_wage)) +
+        geom_point() +
+    solution: |
+      ggplot(p2025, aes(x = min_wage, y = avg_wage)) +
+        geom_point() +
+        geom_text(aes(label = pref), size = 3, vjust = -0.6)
+    check: |
+      expect_ggplot(geom = c("point", "text"), x = "min_wage", y = "avg_wage")
+      lab_of <- function(m) if (is.null(m$label)) NULL else rlang::as_label(m$label)
+      labels <- c(lab_of(.plot$mapping), unlist(lapply(.plot$layers, function(l) lab_of(l$mapping))))
+      check_that("pref" %in% labels,
+                 "県名が文字として対応づけられていません。geom_text(aes(label = pref)) と書きましょう。")
+      expect_df_equal(.plot$data, .sol_plot$data, ignore_row_order = TRUE)
+    hints:
+      - 点の層 geom_point() の後に、文字の層 geom_text() を + で足します。どの列を文字にするかは aes() の label で指定します。
+      - geom_text(aes(label = pref), size = 3, vjust = -0.6) と書きます。size と vjust は aes() の外に書きます。
+      - "ggplot(p2025, aes(x = min_wage, y = avg_wage)) + geom_point() + geom_text(aes(label = pref), size = 3, vjust = -0.6)"
+    tests:
+      fail:
+        - |
+          ggplot(p2025, aes(x = min_wage, y = avg_wage)) +
+            geom_point() +
+            geom_text(aes(label = region), size = 3, vjust = -0.6)
+        - |
+          ggplot(p2025, aes(x = min_wage, y = avg_wage)) +
+            geom_point()
+  - id: d
+    type: interpret
+    prompt: |
+      b で見たとおり、最低賃金の高い県ほど平均時給も高く、相関係数は1に近い値でした。
+      この図から「最低賃金を引き上げれば、その県の平均賃金が上がる」とは言い切れません。その理由として最も適切なものはどれですか。
+    choices:
+      - "相関係数が1ちょうどではないので、関係があるとは言えないから"
+      - "賃金の高い県ほど最低賃金が高く決められる（逆の因果）ことや、地域の生産性や物価といった第3の要因が両方を高めていることでも、同じ右上がりの図になるから"
+      - "47県しかなく、散布図の点の数が少なすぎるから"
+      - "平均時給は一般労働者のもので、最低賃金で働く人の時給とは単位が違うから"
+    answer: 1
+    explain: 相関は「一緒に動く」ことしか示しません。最低賃金は、各県の賃金の水準や経済の実情も考えて審議会で決められるので、「賃金が高い県だから最低賃金も高い」という逆向きの関係があります。さらに、東京都や神奈川県のように企業の生産性が高く物価も高い地域では、賃金も最低賃金もともに高くなります（第3の要因）。どちらの場合も、最低賃金を上げたときに平均賃金が上がるかどうかとは関係なく、同じ右上がりの散布図になります。因果を調べるには、第7・8部（因果推論）で学ぶように「最低賃金だけが変わった比較」を工夫する必要があります。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第23ステップの復習】a の散布図を資料に載せられる形に整えます。labs() で横軸の名前を「最低賃金（円/時）」、縦軸の名前を「平均時給（円/時）」、見出し（title）を「最低賃金と平均時給（2025年）」とし、theme_minimal() で背景を白い簡素なテーマにしてください。
+    starter: |
+      ggplot(p2025, aes(x = min_wage, y = avg_wage)) +
+        geom_point() +
+    solution: |
+      ggplot(p2025, aes(x = min_wage, y = avg_wage)) +
+        geom_point() +
+        labs(x = "最低賃金（円/時）", y = "平均時給（円/時）", title = "最低賃金と平均時給（2025年）") +
+        theme_minimal()
+    check: |
+      expect_ggplot(geom = "point", x = "min_wage", y = "avg_wage")
+      expect_uses("labs")
+      expect_uses("theme_minimal")
+      for (k in c("x", "y", "title")) {
+        check_that(identical(.plot$labels[[k]], .sol_plot$labels[[k]]),
+                   paste0("labs() の ", k, " が指示の文字と違います。問題文の文字をそのまま書きましょう。"))
+      }
+    hints:
+      - 散布図に、見出しの層 labs() とテーマ theme_minimal() を + で足します。
+      - labs(x = "…", y = "…", title = "…") のように、軸と見出しの文字を1つの labs() にまとめて書けます。
+      - "ggplot(p2025, aes(x = min_wage, y = avg_wage)) + geom_point() + labs(x = \"最低賃金（円/時）\", y = \"平均時給（円/時）\", title = \"最低賃金と平均時給（2025年）\") + theme_minimal()"
+    tests:
+      fail:
+        - |
+          ggplot(p2025, aes(x = min_wage, y = avg_wage)) +
+            geom_point() +
+            labs(x = "最低賃金（円/時）", y = "平均時給（円/時）", title = "最低賃金と平均時給（2025年）")
+        - |
+          ggplot(p2025, aes(x = min_wage, y = avg_wage)) +
+            geom_point() +
+            theme_minimal()

@@ -1,0 +1,181 @@
+id: "042"
+part: 5
+title: 非線形の関係
+question: 賃金は何年目にピークを迎えるか
+minutes: 50
+mode: browser
+packages: [readr, dplyr, ggplot2]
+data: [wage_survey.csv]
+learn: [I, seq]
+review_of: "041"
+setup: |
+  library(readr); library(dplyr); library(ggplot2)
+  # 架空の賃金調査の個票（3,000人）
+  wage <- read_csv("data/wage_survey.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      経験年数 exper とともに時給が上がり、やがて伸びが鈍る形をとらえるため、経験年数の**二次項**（2乗）を加えます。log_wage を educ_years・exper・exper の2乗・female で説明する回帰を推定して m_q に代入し、coef(m_q) を表示してください。
+      式の中で2乗を書くときは I(exper^2) と、I() で囲みます。
+    starter: |
+      m_q <- lm(log_wage ~ , data = wage)
+      coef(m_q)
+    solution: |
+      m_q <- lm(log_wage ~ educ_years + exper + I(exper^2) + female, data = wage)
+      coef(m_q)
+    check: |
+      expect_object("m_q", class = "lm")
+      check_that("I(exper^2)" %in% names(coef(m_q)),
+                 "係数に I(exper^2) がありません。式の中の exper^2 は I(exper^2) と I() で囲まないと、2乗として計算されません。")
+      expect_model(m_q, like = .sol$m_q)
+    hints:
+      - 第39ステップの重回帰に、経験年数の2乗の項を1つ足します。
+      - 式の中では ^ が別の意味になるので、2乗は I(exper^2) と書きます。式は log_wage ~ educ_years + exper + I(exper^2) + female です。
+      - |
+        m_q <- lm(log_wage ~ educ_years + exper + I(exper^2) + female, data = wage)
+        coef(m_q)
+    tests:
+      fail:
+        - |
+          m_q <- lm(log_wage ~ educ_years + exper + exper^2 + female, data = wage)
+          coef(m_q)
+        - |
+          m_q <- lm(log_wage ~ educ_years + I(exper^2) + female, data = wage)
+          coef(m_q)
+  - id: b
+    type: write
+    prompt: |
+      二次関数 $b_1 x + b_2 x^2$ は、$b_2$ が負なら $x = -b_1/(2b_2)$ で最大になります。exper の係数を b1、I(exper^2) の係数を b2 に代入し、対数時給が最も高くなる経験年数を peak に代入して表示してください。
+      係数は coef(m_q)[["exper"]]、coef(m_q)[["I(exper^2)"]] で取り出せます。
+    starter: |
+      b1 <-
+      b2 <-
+      peak <-
+      peak
+    solution: |
+      b1 <- coef(m_q)[["exper"]]
+      b2 <- coef(m_q)[["I(exper^2)"]]
+      peak <- -b1 / (2 * b2)
+      peak
+    check: |
+      expect_object("b1", class = "numeric")
+      expect_object("b2", class = "numeric")
+      expect_value(b1, .sol$b1, label = "b1（exper の係数）")
+      expect_value(b2, .sol$b2, label = "b2（I(exper^2) の係数）")
+      expect_object("peak", class = "numeric")
+      expect_value(peak, .sol$peak, label = "ピークの経験年数 peak")
+    hints:
+      - ピークは「−b1 ÷ (2 × b2)」です。b2 が負なので、答えは正の値になります。
+      - 割り算の分母はかっこで囲み、-b1 / (2 * b2) と書きます。かっこがないと b1 / 2 * b2 の順に計算されてしまいます。
+      - |
+        b1 <- coef(m_q)[["exper"]]
+        b2 <- coef(m_q)[["I(exper^2)"]]
+        peak <- -b1 / (2 * b2)
+        peak
+    tests:
+      fail:
+        - |
+          b1 <- coef(m_q)[["exper"]]
+          b2 <- coef(m_q)[["I(exper^2)"]]
+          peak <- -b1 / 2 * b2
+          peak
+        - |
+          b1 <- coef(m_q)[["exper"]]
+          b2 <- coef(m_q)[["I(exper^2)"]]
+          peak <- b1 / (2 * b2)
+          peak
+  - id: c
+    type: write
+    prompt: |
+      大卒（educ_years = 16）の男性（female = 0）について、経験年数0〜45年の予測時給の曲線を描きます。
+      seq(0, 45, by = 1) で経験年数を0から45まで1年刻みに並べ、tibble() で exper・educ_years・female の3列の表を作って new に代入します。続けて mutate() で予測時給の列 pred_wage = exp(predict(m_q, newdata = new)) を加えて new に代入し直してください（予測値は対数なので、exp() で円に戻します）。
+      最後に、new で横軸を exper、縦軸を pred_wage とした折れ線を geom_line() で描いてください。
+    starter: |
+      new <- tibble(exper = , educ_years = 16, female = 0)
+      new <- mutate(new, pred_wage = )
+      ggplot(new, aes(x = exper, y = pred_wage)) +
+    solution: |
+      new <- tibble(exper = seq(0, 45, by = 1), educ_years = 16, female = 0)
+      new <- mutate(new, pred_wage = exp(predict(m_q, newdata = new)))
+      ggplot(new, aes(x = exper, y = pred_wage)) +
+        geom_line()
+    check: |
+      expect_object("new", class = "data.frame")
+      expect_cols(new, c("exper", "educ_years", "female", "pred_wage"))
+      check_that(nrow(new) == nrow(.sol$new),
+                 "new の行数が違います。seq(0, 45, by = 1) で経験年数を0から45まで1年刻みに並べましょう（46行になります）。")
+      expect_df_equal(new, .sol$new, ignore_row_order = TRUE)
+      expect_ggplot(geom = "line", x = "exper", y = "pred_wage")
+      expect_df_equal(.plot$data, .sol_plot$data, ignore_row_order = TRUE)
+    hints:
+      - 「予測したい人の条件を表にする → predict() で予測値を加える → 折れ線を描く」の3段階です。表の列名は、モデルの説明変数の名前とそろえます。
+      - exper = seq(0, 45, by = 1) で0, 1, …, 45 の数列ができます。予測は predict(m_q, newdata = new)、円に戻すのは exp() です。
+      - |
+        new <- tibble(exper = seq(0, 45, by = 1), educ_years = 16, female = 0)
+        new <- mutate(new, pred_wage = exp(predict(m_q, newdata = new)))
+        ggplot(new, aes(x = exper, y = pred_wage)) +
+          geom_line()
+    tests:
+      fail:
+        - |
+          new <- tibble(exper = seq(0, 45, by = 1), educ_years = 16, female = 0)
+          new <- mutate(new, pred_wage = predict(m_q, newdata = new))
+          ggplot(new, aes(x = exper, y = pred_wage)) +
+            geom_line()
+        - |
+          new <- tibble(exper = seq(0, 45, by = 5), educ_years = 16, female = 0)
+          new <- mutate(new, pred_wage = exp(predict(m_q, newdata = new)))
+          ggplot(new, aes(x = exper, y = pred_wage)) +
+            geom_line()
+        - |
+          new <- tibble(exper = seq(0, 45, by = 1), educ_years = 12, female = 0)
+          new <- mutate(new, pred_wage = exp(predict(m_q, newdata = new)))
+          ggplot(new, aes(x = exper, y = pred_wage)) +
+            geom_line()
+  - id: d
+    type: interpret
+    prompt: |
+      m_q では、exper の係数が約0.0415、I(exper^2) の係数が約 −0.00064 でした。経験年数が1年増えたときの対数時給の変化は、およそ $b_1 + 2b_2 \times \text{exper}$ です。経験年数20年の人が、ほかの条件を同じにしてもう1年経験を積んだとき、時給はおよそ何%高いと読めますか。
+    choices:
+      - "約4.2%（exper の係数 × 100）"
+      - "約1.6%"
+      - "約 −0.06%（I(exper^2) の係数 × 100）"
+      - "約0.4%"
+    answer: 1
+    explain: 二次項があると、経験年数1年の効果は経験年数によって変わります。20年の時点では 0.0415 + 2 × (−0.00064) × 20 ≈ 0.0158 で、被説明変数が対数なので、およそ1.6%高いと読みます（この大きさなら (exp(b) − 1) × 100 との違いはごくわずかです）。exper の係数0.0415は経験0年の時点の傾きで、経験を積むほど傾きは小さくなり、b で求めたピーク（約32年）で0になり、その後は負になります。二次項の係数だけを%で読むことはできません。なお、これは同じ時点の若い人と年配の人を比べた差（横断面の比較）であり、1人の人が年をとったときの変化をそのまま示すとは限りません。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第41ステップの復習】経験年数の効果が男女で違うかを調べます。log_wage を female * exper で説明する回帰を推定して m41 に代入し、女性の経験年数の傾き（exper の係数 + 交差項 female:exper の係数）を slope_f41 に代入して表示してください。
+    starter: |
+      m41 <-
+      slope_f41 <-
+      slope_f41
+    solution: |
+      m41 <- lm(log_wage ~ female * exper, data = wage)
+      slope_f41 <- coef(m41)[["exper"]] + coef(m41)[["female:exper"]]
+      slope_f41
+    check: |
+      expect_object("m41", class = "lm")
+      expect_model(m41, like = .sol$m41)
+      expect_object("slope_f41", class = "numeric")
+      expect_value(slope_f41, .sol$slope_f41, label = "女性の傾き slope_f41")
+    hints:
+      - 交差項つきの回帰は * で書きます。女性の傾きは、男性の傾き（exper の係数）に交差項の係数を足したものです。
+      - 式は log_wage ~ female * exper です。交差項の係数の名前は female:exper です。
+      - |
+        m41 <- lm(log_wage ~ female * exper, data = wage)
+        slope_f41 <- coef(m41)[["exper"]] + coef(m41)[["female:exper"]]
+        slope_f41
+    tests:
+      fail:
+        - |
+          m41 <- lm(log_wage ~ female * exper, data = wage)
+          slope_f41 <- coef(m41)[["exper"]]
+          slope_f41
+        - |
+          m41 <- lm(log_wage ~ female + exper, data = wage)
+          slope_f41 <- coef(m41)[["exper"]]
+          slope_f41

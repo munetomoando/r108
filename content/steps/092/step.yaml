@@ -1,0 +1,256 @@
+id: "092"
+part: 11
+title: 訓練データとテストデータ
+question: 複雑なモデルほど良いのか
+minutes: 45
+mode: browser
+packages: [readr, dplyr, lubridate, ggplot2, rsample]
+data: [store_sales_daily.csv]
+learn: [initial_split, training, testing, poly]
+review_of: "091"
+setup: |
+  library(readr); library(dplyr); library(lubridate); library(ggplot2); library(rsample)
+  # そらまめマーケット（架空の会社）の30店舗×2023〜2025年の日次売上（教材用の合成データ）
+  ssd <- read_csv("data/store_sales_daily.csv", show_col_types = FALSE)
+  # 藤沢店（S14）の2025年の土曜日（52日）。売上の対数 log_sales を加えておく
+  sat <- ssd |>
+    filter(store_id == "S14", year(date) == 2025, wday(date) == 7) |>
+    mutate(log_sales = log(sales))
+  # 復習用：第91ステップのシミュレーション（見込み客数 demand、チラシ flyer、売上 sales）
+  set.seed(108)
+  demand <- rnorm(1000)
+  flyer <- 10 + 2 * demand + rnorm(1000)
+  sim <- tibble(demand, flyer, sales = 100 + 1 * flyer + 10 * demand + rnorm(1000, 0, 5))
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      藤沢店の2025年の土曜日52日分 sat を、訓練データとテストデータに分けます。
+      1. 最初の行で set.seed(108) とする
+      2. initial_split() で sat の75%を訓練用に分け（prop = 0.75）、sat_split に代入する
+      3. training() で訓練データを train に、testing() でテストデータを test に代入する
+      4. 最後の行で c(nrow(train), nrow(test)) を表示する
+    starter: |
+      set.seed(108)
+      sat_split <-
+      train <-
+      test <-
+      c(nrow(train), nrow(test))
+    solution: |
+      set.seed(108)
+      sat_split <- initial_split(sat, prop = 0.75)
+      train <- training(sat_split)
+      test <- testing(sat_split)
+      c(nrow(train), nrow(test))
+    check: |
+      expect_object("sat_split", class = "rsplit")
+      expect_object("train", class = "data.frame")
+      expect_object("test", class = "data.frame")
+      check_that(nrow(train) == nrow(.sol$train),
+                 "train の行数が違います。prop = 0.75 で75%を訓練用にしましょう。")
+      check_that(identical(sort(train$date), sort(.sol$train$date)),
+                 "訓練データに選ばれた日が違います。最初の行で set.seed(108) とし、そのすぐ後で initial_split() を実行しましょう。")
+      expect_df_equal(train, .sol$train)
+      expect_df_equal(test, .sol$test)
+      expect_value(.value, .sol_value, label = "表示した行数")
+    hints:
+      - initial_split() はデータを無作為に2つに分ける「分け方」を作ります。中身は training() と testing() で取り出します。
+      - initial_split(sat, prop = 0.75)、training(sat_split)、testing(sat_split) です。
+      - |
+        set.seed(108)
+        sat_split <- initial_split(sat, prop = 0.75)
+        train <- training(sat_split)
+        test <- testing(sat_split)
+        c(nrow(train), nrow(test))
+    tests:
+      fail:
+        - |
+          set.seed(108)
+          sat_split <- initial_split(sat, prop = 0.8)
+          train <- training(sat_split)
+          test <- testing(sat_split)
+          c(nrow(train), nrow(test))
+        - |
+          sat_split <- initial_split(sat, prop = 0.75)
+          train <- training(sat_split)
+          test <- testing(sat_split)
+          c(nrow(train), nrow(test))
+        - |
+          set.seed(108)
+          sat_split <- initial_split(sat, prop = 0.75)
+          train <- testing(sat_split)
+          test <- training(sat_split)
+          c(nrow(train), nrow(test))
+  - id: b
+    type: write
+    prompt: |
+      売上の対数 log_sales を、気温 temp の多項式で説明するモデルを、**訓練データだけで**推定します。次数は1（直線）、3、10の3つです。
+      1. lm(log_sales ~ poly(temp, 次数), data = train) で m1、m3、m10 を作る
+      2. degree（1, 3, 10）、訓練データでの RMSE train_rmse、テストデータでの RMSE test_rmse の3列の表を tibble() で作り、err に代入して表示する
+         - 訓練データでの RMSE … sqrt(mean((train$log_sales - predict(モデル, train))^2))
+         - テストデータでの RMSE … train を test に変える
+    starter: |
+      m1 <- lm(log_sales ~ poly(temp, 1), data = train)
+      m3 <-
+      m10 <-
+      err <- tibble(degree = c(1, 3, 10),
+                    train_rmse = c(sqrt(mean((train$log_sales - predict(m1, train))^2)),
+                                   ,
+                                   ),
+                    test_rmse = c(,
+                                  ,
+                                  ))
+      err
+    solution: |
+      m1 <- lm(log_sales ~ poly(temp, 1), data = train)
+      m3 <- lm(log_sales ~ poly(temp, 3), data = train)
+      m10 <- lm(log_sales ~ poly(temp, 10), data = train)
+      err <- tibble(degree = c(1, 3, 10),
+                    train_rmse = c(sqrt(mean((train$log_sales - predict(m1, train))^2)),
+                                   sqrt(mean((train$log_sales - predict(m3, train))^2)),
+                                   sqrt(mean((train$log_sales - predict(m10, train))^2))),
+                    test_rmse = c(sqrt(mean((test$log_sales - predict(m1, test))^2)),
+                                  sqrt(mean((test$log_sales - predict(m3, test))^2)),
+                                  sqrt(mean((test$log_sales - predict(m10, test))^2))))
+      err
+    check: |
+      for (nm in c("m1", "m3", "m10")) expect_object(nm, class = "lm")
+      check_that(nobs(m10) == nrow(.sol$train),
+                 "モデルは訓練データ train だけで推定しましょう（data = train）。")
+      expect_model(m3, like = .sol$m3)
+      expect_model(m10, like = .sol$m10)
+      expect_object("err", class = "data.frame")
+      expect_cols(err, c("degree", "train_rmse", "test_rmse"))
+      expect_nrow(err, 3)
+      check_that(isTRUE(all.equal(err$train_rmse, .sol$err$train_rmse, tolerance = 1e-6)),
+                 "train_rmse が違います。訓練データ train の実際の値と予測値 predict(モデル, train) で計算し、次数1・3・10の順に並べましょう。")
+      check_that(isTRUE(all.equal(err$test_rmse, .sol$err$test_rmse, tolerance = 1e-6)),
+                 "test_rmse が違います。テストデータ test の実際の値 test$log_sales と予測値 predict(モデル, test) で計算しましょう。")
+      expect_df_equal(err, .sol$err, tol = 1e-6)
+    hints:
+      - poly(temp, 3) は temp、temp²、temp³ を説明変数に入れるのと同じで、次数が大きいほど曲がりくねった曲線になります。誤差は「実際の値 − 予測値」で、RMSE は第78ステップと同じ式です。
+      - m3 <- lm(log_sales ~ poly(temp, 3), data = train)。テストデータでの予測は predict(m3, test) です。
+      - |
+        m1 <- lm(log_sales ~ poly(temp, 1), data = train)
+        m3 <- lm(log_sales ~ poly(temp, 3), data = train)
+        m10 <- lm(log_sales ~ poly(temp, 10), data = train)
+        err <- tibble(degree = c(1, 3, 10),
+                      train_rmse = c(sqrt(mean((train$log_sales - predict(m1, train))^2)),
+                                     sqrt(mean((train$log_sales - predict(m3, train))^2)),
+                                     sqrt(mean((train$log_sales - predict(m10, train))^2))),
+                      test_rmse = c(sqrt(mean((test$log_sales - predict(m1, test))^2)),
+                                    sqrt(mean((test$log_sales - predict(m3, test))^2)),
+                                    sqrt(mean((test$log_sales - predict(m10, test))^2))))
+        err
+    tests:
+      fail:
+        - |
+          m1 <- lm(log_sales ~ poly(temp, 1), data = train)
+          m3 <- lm(log_sales ~ poly(temp, 3), data = train)
+          m10 <- lm(log_sales ~ poly(temp, 10), data = train)
+          err <- tibble(degree = c(1, 3, 10),
+                        train_rmse = c(sqrt(mean((train$log_sales - predict(m1, train))^2)),
+                                       sqrt(mean((train$log_sales - predict(m3, train))^2)),
+                                       sqrt(mean((train$log_sales - predict(m10, train))^2))),
+                        test_rmse = c(sqrt(mean((test$log_sales - predict(m1))^2)),
+                                      sqrt(mean((test$log_sales - predict(m3))^2)),
+                                      sqrt(mean((test$log_sales - predict(m10))^2))))
+          err
+        - |
+          m1 <- lm(log_sales ~ poly(temp, 1), data = sat)
+          m3 <- lm(log_sales ~ poly(temp, 3), data = sat)
+          m10 <- lm(log_sales ~ poly(temp, 10), data = sat)
+          err <- tibble(degree = c(1, 3, 10),
+                        train_rmse = c(sqrt(mean((train$log_sales - predict(m1, train))^2)),
+                                       sqrt(mean((train$log_sales - predict(m3, train))^2)),
+                                       sqrt(mean((train$log_sales - predict(m10, train))^2))),
+                        test_rmse = c(sqrt(mean((test$log_sales - predict(m1, test))^2)),
+                                      sqrt(mean((test$log_sales - predict(m3, test))^2)),
+                                      sqrt(mean((test$log_sales - predict(m10, test))^2))))
+          err
+  - id: c
+    type: write
+    prompt: |
+      次数10の曲線がどんな形かを図で確かめます。train で、横軸 temp・縦軸 log_sales の散布図を描き、geom_smooth(method = "lm", formula = y ~ poly(x, 10), se = FALSE) で次数10の曲線を重ねてください。
+      さらに geom_point(data = test, colour = "red") で、テストデータの点を赤で加えます。
+    starter: |
+      ggplot(train, aes(x = temp, y = log_sales)) +
+
+    solution: |
+      ggplot(train, aes(x = temp, y = log_sales)) +
+        geom_point() +
+        geom_smooth(method = "lm", formula = y ~ poly(x, 10), se = FALSE) +
+        geom_point(data = test, colour = "red")
+    check: |
+      expect_ggplot(geom = c("point", "smooth"), x = "temp", y = "log_sales")
+      expect_df_equal(.plot$data, .sol_plot$data)
+      sm <- Filter(function(l) inherits(l$stat, "StatSmooth"), .plot$layers)
+      check_that(length(sm) >= 1 && identical(deparse(sm[[1]]$stat_params$formula), "y ~ poly(x, 10)"),
+                 "曲線の式が違います。geom_smooth() に formula = y ~ poly(x, 10) を指定しましょう。")
+      check_that(identical(sm[[1]]$stat_params$method, "lm"),
+                 "geom_smooth() に method = \"lm\" を指定しましょう。")
+      pts <- Filter(function(l) inherits(l$geom, "GeomPoint") && is.data.frame(l$data), .plot$layers)
+      check_that(length(pts) >= 1 && nrow(pts[[1]]$data) == nrow(test),
+                 "テストデータの点がありません。geom_point(data = test, colour = \"red\") を加えましょう。")
+    hints:
+      - 散布図 geom_point() に、第24ステップの geom_smooth() で回帰の曲線を重ねます。formula の x と y は、aes() で指定した横軸と縦軸を指します。
+      - geom_smooth(method = "lm", formula = y ~ poly(x, 10), se = FALSE) と geom_point(data = test, colour = "red") を + でつなぎます。
+      - |
+        ggplot(train, aes(x = temp, y = log_sales)) +
+          geom_point() +
+          geom_smooth(method = "lm", formula = y ~ poly(x, 10), se = FALSE) +
+          geom_point(data = test, colour = "red")
+    tests:
+      fail:
+        - |
+          ggplot(train, aes(x = temp, y = log_sales)) +
+            geom_point() +
+            geom_smooth(method = "lm", formula = y ~ poly(x, 3), se = FALSE) +
+            geom_point(data = test, colour = "red")
+        - |
+          ggplot(train, aes(x = temp, y = log_sales)) +
+            geom_point() +
+            geom_smooth(method = "lm", formula = y ~ poly(x, 10), se = FALSE)
+        - |
+          ggplot(sat, aes(x = temp, y = log_sales)) +
+            geom_point() +
+            geom_smooth(method = "lm", formula = y ~ poly(x, 10), se = FALSE) +
+            geom_point(data = test, colour = "red")
+  - id: d
+    type: interpret
+    prompt: |
+      b の結果は、訓練データでの RMSE が次数1・3・10で約0.105、0.103、0.092、テストデータでの RMSE が約0.128、0.125、0.752でした。この結果の読み方として最も適切なものはどれですか。
+    choices:
+      - "次数10は訓練データでの RMSE が最も小さいので、最も良いモデルである"
+      - "次数10は訓練データの偶然の揺れまで曲線で追いかけた（過学習）ため、まだ見ていないデータでは大きく外れた。モデルはテストデータでの誤差で選ぶので、次数1か3を選ぶ。ただしテストデータは13日しかないので、1と3の差（約0.003）ははっきりした差とは言えない"
+      - "テストデータでの RMSE は偶然で決まるので、モデルを選ぶときには使わない"
+      - "次数を上げるほどテストデータでの誤差は必ず大きくなるので、いつも直線を選べばよい"
+    answer: 1
+    explain: 次数を上げると、訓練データへの当てはまりは必ず良くなります（RMSE は 0.105 → 0.092）。しかし次数10の曲線は、点の少ない寒い日のあたりで大きく曲がり、テストデータの −1.9℃ の日の対数売上を約17.4（実際は約15.0）と予測しました。訓練データの揺れを追いかけすぎて、新しいデータで外れることを**過学習**といいます。モデルの良さは、推定に使わなかったテストデータで測ります。次数3は次数1よりわずかに良く、次数を上げることが常に悪いわけではありません。ただ、13日分のテストデータでの小さな差は、分け方が変われば逆転しうる差です。その問題を減らす方法が第94ステップの交差検証です。
+
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第91ステップの復習】setup の sim は、第91ステップと同じシミュレーションのデータです。今回は、記録に残らないはずの見込み客数 demand も測れたとします。sales を flyer と demand で説明する回帰を m_both に代入し、flyer の係数 coef(m_both)[["flyer"]] を表示してください。
+    starter: |
+      m_both <-
+      coef(m_both)[["flyer"]]
+    solution: |
+      m_both <- lm(sales ~ flyer + demand, data = sim)
+      coef(m_both)[["flyer"]]
+    check: |
+      expect_object("m_both", class = "lm")
+      expect_model(m_both, like = .sol$m_both)
+      expect_value(.value, .sol_value, tol = 1e-6, label = "表示した flyer の係数")
+    hints:
+      - 交絡するもの（見込み客数）を説明変数に加えると、flyer の係数は「見込み客数が同じ日どうしで比べたチラシの効果」になります。
+      - lm(sales ~ flyer + demand, data = sim) です。
+      - |
+        m_both <- lm(sales ~ flyer + demand, data = sim)
+        coef(m_both)[["flyer"]]
+    tests:
+      fail:
+        - |
+          m_both <- lm(sales ~ flyer, data = sim)
+          coef(m_both)[["flyer"]]

@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://r108/schema/step.schema.json",
+  "title": "r108 step.yaml",
+  "type": "object",
+  "required": ["id", "part", "title", "question", "minutes", "mode", "learn"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "pattern": "^[0-9]{3}$" },
+    "part": { "type": "integer", "minimum": 1, "maximum": 12 },
+    "title": { "type": "string", "minLength": 1 },
+    "question": { "type": "string", "minLength": 1 },
+    "minutes": { "type": "integer", "minimum": 5, "maximum": 120 },
+    "mode": { "enum": ["browser", "local"] },
+    "packages": { "type": "array", "items": { "type": "string" } },
+    "data": { "type": "array", "items": { "type": "string" } },
+    "learn": { "type": "array", "items": { "type": "string" } },
+    "allow": {
+      "description": "learn 以外に使ってよい関数（基本の演算子など）",
+      "type": "array", "items": { "type": "string" }
+    },
+    "setup": { "type": "string" },
+    "review_of": { "type": "string", "pattern": "^[0-9]{3}$" },
+    "local": {
+      "type": "object",
+      "required": ["script", "code_sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "script": { "type": "string" },
+        "code_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "instructions": { "type": "string" }
+      }
+    },
+    "exercises": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/exercise" }
+    }
+  },
+  "definitions": {
+    "exercise": {
+      "type": "object",
+      "required": ["id", "type", "prompt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-e]$" },
+        "type": { "enum": ["write", "fill", "predict", "fix", "interpret"] },
+        "review": { "type": "boolean", "description": "前ステップの復習問題" },
+        "prompt": { "type": "string", "minLength": 1 },
+        "starter": { "type": "string" },
+        "solution": { "type": "string" },
+        "check": { "type": "string" },
+        "hints": { "type": "array", "items": { "type": "string" }, "minItems": 3, "maxItems": 3 },
+        "choices": { "type": "array", "items": { "type": "string" }, "minItems": 2 },
+        "answer": { "type": "integer", "minimum": 0 },
+        "explain": { "type": "string" },
+        "free": { "type": "boolean", "description": "記述式。回答文を .output として check に渡す" },
+        "tests": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "fail": {
+              "description": "判定で不正解になるべきコード（テスト用）",
+              "type": "array", "items": { "type": "string" }
+            }
+          }
+        }
+      },
+      "oneOf": [
+        { "required": ["choices", "answer", "explain"] },
+        { "required": ["solution", "check", "hints"] }
+      ]
+    }
+  }
+}

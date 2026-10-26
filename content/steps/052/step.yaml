@@ -1,0 +1,20 @@
+id: "052"
+part: 6
+title: 参考文献と相互参照
+question: 先行研究の引用と「図1」「表1」の番号を、手で書かずに自動でそろえるにはどうするか
+minutes: 50
+mode: local
+packages: [tidyverse, knitr, rmarkdown]
+data: [pref_panel.csv]
+learn: []
+local:
+  script: check_052.R
+  code_sha256: 4059d7acee390a1b6222447915e0b4dc551b7f406932711611adcedb7d15a4ea
+  instructions: |
+    paper.qmd に参考文献と相互参照を加え、`references.bib` を同じフォルダに置いてから、`check_052.R` を保存し、コンソールで次を実行します。
+
+    ```r
+    source("check_052.R", encoding = "UTF-8")
+    ```
+
+    paper.docx を Word で開いたままだと上書きできないので、閉じてから実行してください。

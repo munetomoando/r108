@@ -1,0 +1,2 @@
+data/ フォルダと .Renviron が .gitignore で除外されている
+コミットしていない変更がない

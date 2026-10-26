@@ -1,0 +1,240 @@
+id: "106"
+part: 12
+title: 生成AIと協働する
+question: AIが書いたコードをどう検証するか
+minutes: 45
+mode: browser
+packages: [readr, testthat, dplyr, lubridate]
+data: [ec_orders.csv, ec_products.csv]
+learn: [expect_equal]
+setup: |
+  library(readr); library(testthat); library(dplyr); library(lubridate)
+  # そらまめマーケット（架空の会社）のネット通販の注文明細
+  orders <- read_csv("data/ec_orders.csv", show_col_types = FALSE)
+  # 商品マスタの履歴。原価を改定した41商品は、改定前（is_current = 0）と今（is_current = 1）の2行を持つ
+  products <- read_csv("data/ec_products.csv", show_col_types = FALSE)
+  products_hist <- bind_rows(
+    products |> mutate(is_current = 1),
+    products |>
+      filter(as.integer(product_id) %% 4 == 0) |>
+      mutate(unit_cost = round(unit_cost * 0.95), is_current = 0)
+  )
+exercises:
+  - id: a
+    type: fix
+    prompt: |
+      上司から「2025年のカテゴリ別の売上と粗利を出して」と頼まれ、生成AIに書かせたのが starter のコードです。動きますが、結果が誤っています。
+      starter を実行し、結合の前（o25）と後（joined）の行数と、表示される警告を確かめてください。products_hist には、原価を改定した商品について改定前と今の2行があります（is_current が1の行が今の原価）。
+      結合する前に products_hist を今の行（is_current == 1）だけに絞って誤りを直し、joined と cat_sales を作り直してください。
+    starter: |
+      # 生成AIが書いたコード：2025年のカテゴリ別の売上と粗利
+      o25 <- orders |>
+        filter(order_date >= ymd("2025-01-01"))
+      joined <- o25 |>
+        left_join(products_hist, by = "product_id")
+      nrow(o25)
+      nrow(joined)
+      cat_sales <- joined |>
+        group_by(category) |>
+        summarise(sales = sum(qty * unit_price),
+                  profit = sum(qty * (unit_price - unit_cost))) |>
+        arrange(desc(sales))
+      cat_sales
+    solution: |
+      o25 <- orders |>
+        filter(order_date >= ymd("2025-01-01"))
+      joined <- o25 |>
+        left_join(filter(products_hist, is_current == 1), by = "product_id")
+      nrow(o25)
+      nrow(joined)
+      cat_sales <- joined |>
+        group_by(category) |>
+        summarise(sales = sum(qty * unit_price),
+                  profit = sum(qty * (unit_price - unit_cost))) |>
+        arrange(desc(sales))
+      cat_sales
+    check: |
+      expect_object("o25", class = "data.frame")
+      expect_nrow(o25, nrow(.sol$o25))
+      expect_object("joined", class = "data.frame")
+      check_that(nrow(joined) == nrow(o25),
+                 "結合の後で行数が増えています。products_hist には同じ product_id の行が2つある商品があり、明細が2回数えられています。filter(products_hist, is_current == 1) と絞ってから結合しましょう。")
+      expect_df_equal(joined, .sol$joined, ignore_row_order = TRUE)
+      expect_object("cat_sales", class = "data.frame")
+      expect_cols(cat_sales, c("category", "sales", "profit"))
+      expect_df_equal(cat_sales, .sol$cat_sales)
+      expect_value(.value, .sol_value, label = "表示した cat_sales")
+    hints:
+      - 結合の前後で行数を比べるのが、最初に確かめることです。明細に商品の情報を「付け足す」だけなら、行数は変わらないはずです。left_join() が出す many-to-many の警告も、同じ誤りを知らせています。
+      - left_join() の相手を filter(products_hist, is_current == 1) にします。商品1つにつき1行になるので、行数が増えません。
+      - |
+        o25 <- orders |>
+          filter(order_date >= ymd("2025-01-01"))
+        joined <- o25 |>
+          left_join(filter(products_hist, is_current == 1), by = "product_id")
+        nrow(o25)
+        nrow(joined)
+        cat_sales <- joined |>
+          group_by(category) |>
+          summarise(sales = sum(qty * unit_price),
+                    profit = sum(qty * (unit_price - unit_cost))) |>
+          arrange(desc(sales))
+        cat_sales
+    tests:
+      fail:
+        - |
+          o25 <- orders |>
+            filter(order_date >= ymd("2025-01-01"))
+          joined <- o25 |>
+            left_join(filter(products_hist, is_current == 0), by = "product_id")
+          cat_sales <- joined |>
+            group_by(category) |>
+            summarise(sales = sum(qty * unit_price),
+                      profit = sum(qty * (unit_price - unit_cost))) |>
+            arrange(desc(sales))
+          cat_sales
+        - |
+          o25 <- orders |>
+            filter(order_date >= ymd("2025-01-01"))
+          joined <- o25 |>
+            left_join(products_hist, by = "product_id")
+          cat_sales <- joined |>
+            group_by(category) |>
+            summarise(sales = sum(qty * unit_price) / 2,
+                      profit = sum(qty * (unit_price - unit_cost)) / 2) |>
+            arrange(desc(sales))
+          cat_sales
+  - id: b
+    type: fix
+    prompt: |
+      続けて「2025年の月別の売上（万円）と、クーポン利用率（%）の表」を生成AIに書かせたのが starter のコードです。
+      経理の資料では、ネット通販の2025年の売上は約9,446万円です。また、クーポンは明細の約2割で使われています。starter を実行して最後に表示される年間合計と、coupon_pct の値をこの2つと比べ、単位の誤りを2か所直してください（1万円＝10,000円、割合を % にするには100を掛けます）。
+    starter: |
+      # 生成AIが書いたコード：2025年の月別の売上（万円）とクーポン利用率（%）
+      monthly <- o25 |>
+        mutate(month = month(order_date)) |>
+        group_by(month) |>
+        summarise(sales_man = sum(qty * unit_price) / 1000,
+                  coupon_pct = mean(coupon))
+      monthly
+      sum(monthly$sales_man)
+    solution: |
+      monthly <- o25 |>
+        mutate(month = month(order_date)) |>
+        group_by(month) |>
+        summarise(sales_man = sum(qty * unit_price) / 10000,
+                  coupon_pct = 100 * mean(coupon))
+      monthly
+      sum(monthly$sales_man)
+    check: |
+      expect_object("monthly", class = "data.frame")
+      expect_cols(monthly, c("month", "sales_man", "coupon_pct"))
+      expect_nrow(monthly, 12)
+      check_that(isTRUE(all.equal(sum(monthly$sales_man), sum(.sol$monthly$sales_man))),
+                 "sales_man の単位が違います。年間の合計が経理の約9,446万円と合うか比べましょう。円を万円にするには 10000 で割ります。")
+      check_that(isTRUE(all.equal(sort(monthly$coupon_pct), sort(.sol$monthly$coupon_pct))),
+                 "coupon_pct の単位が違います。mean(coupon) は 0〜1 の割合です。% にするには 100 を掛けます。")
+      expect_df_equal(monthly, .sol$monthly, ignore_row_order = TRUE)
+      expect_value(.value, .sol_value, label = "表示した年間合計")
+    hints:
+      - 単位の誤りは、結果を「答えの見当が付いている数字」と比べると見つかります。年間合計が経理の数字の何倍になっているか、coupon_pct が「約2割」を % で書いた値になっているかを確かめましょう。
+      - sum(qty * unit_price) / 1000 は千円です。万円は / 10000 です。coupon_pct は 100 * mean(coupon) にします。
+      - |
+        monthly <- o25 |>
+          mutate(month = month(order_date)) |>
+          group_by(month) |>
+          summarise(sales_man = sum(qty * unit_price) / 10000,
+                    coupon_pct = 100 * mean(coupon))
+        monthly
+        sum(monthly$sales_man)
+    tests:
+      fail:
+        - |
+          monthly <- o25 |>
+            mutate(month = month(order_date)) |>
+            group_by(month) |>
+            summarise(sales_man = sum(qty * unit_price) / 10000,
+                      coupon_pct = mean(coupon))
+          monthly
+          sum(monthly$sales_man)
+        - |
+          monthly <- o25 |>
+            mutate(month = month(order_date)) |>
+            group_by(month) |>
+            summarise(sales_man = sum(qty * unit_price) / 1000,
+                      coupon_pct = 100 * mean(coupon))
+          monthly
+          sum(monthly$sales_man)
+  - id: c
+    type: write
+    prompt: |
+      a と b の誤りを、次からは人が目で探さなくても見つけられるように、testthat の expect_equal() で検証用のテストを書きます。
+      1. 結合の前後で行数が変わらないこと：expect_equal(nrow(joined), nrow(o25))
+      2. 月別の売上（万円）の合計が、明細から直接求めた2025年の売上の1万分の1と等しいこと：expect_equal(sum(monthly$sales_man), sum(o25$qty * o25$unit_price) / 10000)
+      の2つを書いてください（joined や monthly を作り直すコードは書かず、テストだけを書きます）。
+      判定では、あなたのテストを a・b の正しい結果と、生成AIの誤った結果の両方に当てて、正しい結果では通り、誤った結果では失敗する（エラーになる）ことを確かめます。
+    starter: |
+      # 1. 結合の前後で行数が変わらない
+
+      # 2. 月別の売上（万円）の合計が、年間の売上の1万分の1と等しい
+
+    solution: |
+      expect_equal(nrow(joined), nrow(o25))
+      expect_equal(sum(monthly$sales_man), sum(o25$qty * o25$unit_price) / 10000)
+    check: |
+      expect_uses("expect_equal", "testthat の expect_equal(実際の値, 期待する値) でテストを書きましょう。")
+      run_tests <- function(vals) {
+        env <- new.env(parent = environment())
+        for (nm in names(vals)) assign(nm, vals[[nm]], envir = env)
+        tryCatch({ eval(parse(text = .code, keep.source = FALSE), env); TRUE },
+                 error = function(e) FALSE)
+      }
+      good <- list(o25 = .sol$o25, joined = .sol$joined, cat_sales = .sol$cat_sales, monthly = .sol$monthly)
+      check_that(run_tests(good),
+                 "正しい結果に当てたテストが失敗しました。期待する値の書き方を見直しましょう（万円なら 10000 で割ります）。")
+      bad_joined <- .sol$o25 |> left_join(products_hist, by = "product_id", relationship = "many-to-many")
+      bad_a <- good
+      bad_a$joined <- bad_joined
+      bad_a$cat_sales <- bad_joined |>
+        group_by(category) |>
+        summarise(sales = sum(qty * unit_price), profit = sum(qty * (unit_price - unit_cost))) |>
+        arrange(desc(sales))
+      check_that(!run_tests(bad_a),
+                 "a の誤り（結合で行が増える）を、テストが見つけられません。nrow(joined) と nrow(o25) が等しいことを確かめるテストを書きましょう。")
+      bad_b <- good
+      bad_b$monthly <- .sol$o25 |>
+        mutate(month = month(order_date)) |>
+        group_by(month) |>
+        summarise(sales_man = sum(qty * unit_price) / 1000, coupon_pct = mean(coupon))
+      check_that(!run_tests(bad_b),
+                 "b の誤り（万円と千円の取り違え）を、テストが見つけられません。sum(monthly$sales_man) が sum(o25$qty * o25$unit_price) / 10000 と等しいことを確かめるテストを書きましょう。")
+    hints:
+      - expect_equal(実際の値, 期待する値) は、2つが等しければ何も表示せず、違えばエラーで止まります。「結合で行が増えていない」「単位が合っている」を、それぞれ2つの数が等しいという形で書きます。
+      - 1つ目は nrow(joined) と nrow(o25)、2つ目は sum(monthly$sales_man) と sum(o25$qty * o25$unit_price) / 10000 を比べます。
+      - |
+        expect_equal(nrow(joined), nrow(o25))
+        expect_equal(sum(monthly$sales_man), sum(o25$qty * o25$unit_price) / 10000)
+    tests:
+      fail:
+        - |
+          expect_equal(nrow(joined), nrow(o25))
+        - |
+          expect_equal(sum(monthly$sales_man), sum(o25$qty * o25$unit_price) / 10000)
+        - |
+          expect_equal(nrow(monthly), 12)
+          expect_equal(nrow(cat_sales), 8)
+        - |
+          joined <- o25
+          expect_equal(nrow(joined), nrow(o25))
+          expect_equal(sum(monthly$sales_man), sum(o25$qty * o25$unit_price) / 10000)
+  - id: d
+    type: interpret
+    prompt: |
+      分析のコードでエラーが出たので、社外の生成AIサービスに質問しようと思います。そらまめマーケットの情報の扱いとして、AIの入力欄に貼り付けてよいものはどれですか。
+    choices:
+      - "顧客マスタの先頭100行。氏名・住所・メールアドレスが入っているが、エラーの原因を正確に調べてもらうには実物が一番よい"
+      - "データベースに接続するコード。パスワードが書かれた行もそのまま貼れば、接続のエラーも一緒に直してもらえる"
+      - "列名と型の一覧（glimpse() の出力のうち値の部分を除いたもの）と、同じ形で値を作り替えた架空の数行、エラーメッセージ、自分の書いたコード"
+      - "まだ公表していない来期の出店計画と月別売上の表。分析の目的を詳しく伝えるほど、よいコードが返ってくる"
+    answer: 2
+    explain: 生成AIに入力した内容は、サービスの提供者に送られ、設定や契約によっては保存されたり、学習に使われたりします。個人情報（氏名・住所・メールアドレス）、パスワードなどの認証情報、未公表の経営情報は、社外のサービスに渡してはいけません（選択肢1・2・4は誤り）。会社が契約した、入力を学習に使わないサービスであっても、社内の規程で決められた範囲でしか使えません。エラーの原因を調べるのに実物のデータは要りません。列名と型、同じ形の架空のデータ、エラーメッセージ、コードがあれば、多くの場合は十分です。パスワードはコードに直接書かず、環境変数などに分けておくと、うっかり貼り付ける事故も防げます。

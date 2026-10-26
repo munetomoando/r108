@@ -1,0 +1,193 @@
+id: "035"
+part: 4
+title: p値の誤用と検出力
+question: 効果のないチラシを20種類試すと何が起きるか
+minutes: 45
+mode: browser
+packages: [readr, dplyr]
+data: [wage_survey.csv]
+learn: [power.t.test, any]
+review_of: "034"
+setup: |
+  library(readr); library(dplyr)
+  # 小課題 a〜d はシミュレーションなのでデータは使いません。
+  # 小課題 e（第34ステップの復習）で使う架空の賃金調査の個票（3,000人）
+  wage <- read_csv("data/wage_survey.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      そらまめマーケットで、販促チラシを20種類試すとします。どのチラシも本当は効果がなく、チラシを配った客100人も配らなかった客100人も、1回の購入額は平均3,000円・標準偏差1,000円の正規分布に従うとします。
+      1. 最初の行で set.seed(108) とする
+      2. replicate(20, { ... }) の中で、配った客の購入額 flyer <- rnorm(100, mean = 3000, sd = 1000) と、配らなかった客の購入額 none（同じ形）を作り、t.test(flyer, none)$p.value でp値を返す。20個のp値を pvals に代入する
+      3. pvals を表示し、続けて sum(pvals < 0.05)（5%で「有意」になった数）と any(pvals < 0.05)（1つでも「有意」があるか）を表示する
+    starter: |
+      set.seed(108)
+      pvals <- replicate(20, {
+
+      })
+      pvals
+    solution: |
+      set.seed(108)
+      pvals <- replicate(20, {
+        flyer <- rnorm(100, mean = 3000, sd = 1000)
+        none <- rnorm(100, mean = 3000, sd = 1000)
+        t.test(flyer, none)$p.value
+      })
+      pvals
+      sum(pvals < 0.05)
+      any(pvals < 0.05)
+    check: |
+      expect_object("pvals", class = "numeric")
+      expect_uses("set.seed", "最初の行で set.seed(108) として、乱数の出方を固定しましょう。")
+      expect_uses("replicate")
+      expect_uses("rnorm")
+      expect_uses("t.test")
+      check_that(length(pvals) == 20, "pvals が20個になっていません。replicate() の1つ目の引数を 20 にしましょう。")
+      check_that(all(pvals >= 0 & pvals <= 1), "pvals がp値（0〜1の値）になっていません。{ } の最後の行を t.test(flyer, none)$p.value にしましょう。")
+      expect_value(pvals, .sol$pvals, label = "20個のp値")
+      expect_uses("any")
+      expect_value(.value, .sol_value, label = "最後に表示した any(pvals < 0.05)")
+    hints:
+      - replicate(回数, { ... }) は、{ } の中を指定した回数くり返し、最後の行の値を集めます。{ } の中で2群の購入額を作り、最後の行でp値を返します。
+      - 2群は rnorm(100, mean = 3000, sd = 1000) で作ります。チラシに効果がないので、2群とも同じ平均です。p値は t.test(flyer, none)$p.value で取り出します。set.seed(108) を忘れると値が一致しません。
+      - |
+        set.seed(108)
+        pvals <- replicate(20, {
+          flyer <- rnorm(100, mean = 3000, sd = 1000)
+          none <- rnorm(100, mean = 3000, sd = 1000)
+          t.test(flyer, none)$p.value
+        })
+        pvals
+        sum(pvals < 0.05)
+        any(pvals < 0.05)
+    tests:
+      fail:
+        - |
+          pvals <- replicate(20, {
+            flyer <- rnorm(100, mean = 3000, sd = 1000)
+            none <- rnorm(100, mean = 3000, sd = 1000)
+            t.test(flyer, none)$p.value
+          })
+          pvals
+          sum(pvals < 0.05)
+          any(pvals < 0.05)
+        - |
+          set.seed(108)
+          pvals <- replicate(20, {
+            flyer <- rnorm(100, mean = 3300, sd = 1000)
+            none <- rnorm(100, mean = 3000, sd = 1000)
+            t.test(flyer, none)$p.value
+          })
+          pvals
+          sum(pvals < 0.05)
+          any(pvals < 0.05)
+        - |
+          set.seed(108)
+          pvals <- replicate(20, {
+            flyer <- rnorm(100, mean = 3000, sd = 1000)
+            none <- rnorm(100, mean = 3000, sd = 1000)
+            t.test(flyer, none)$p.value
+          })
+          pvals
+          sum(pvals < 0.05)
+  - id: b
+    type: interpret
+    prompt: |
+      a では、本当はどのチラシにも効果がないのに、20種類のうち2種類（12番目と19番目）が5%水準で「有意」になりました。担当者は「12番と19番のチラシには効果があった」と報告しようとしています。この「有意」が出た理由として最も適切なものはどれですか。
+    choices:
+      - "12番と19番のチラシには、実は少しだけ効果があったから"
+      - "効果がなくても、1回の検定で「有意」が出る確率は5%ある。20回検定すれば平均して1回ほどは偶然「有意」になり、少なくとも1回は「有意」が出る確率は約64%にもなるから"
+      - "標本が100人ずつと少なすぎて、t検定の計算が正しくできなかったから"
+      - "p値が0.05より小さいので、12番と19番は95%の確率で効果があると言えるから"
+    answer: 1
+    explain: |
+      a のデータは、どのチラシも効果がない（2群の平均が同じ）ように作ったものです。それでも、有意水準5%の検定は、効果がないときにも5%の確率で「有意」と判定します。20回くり返せば、偶然の「有意」は平均 20 × 0.05 = 1回出ます。1回も出ない確率は 0.95²⁰ ≈ 0.36 なので、少なくとも1回出る確率は約64%です。このように、検定を何度もくり返して「有意」なものだけを報告すると、効果がないものを効果ありと見誤りやすくなります。これを**多重比較**の問題といいます。対策は、試す前に比べる組み合わせを決めておくこと、検定の回数で有意水準を厳しくすること（例：0.05 ÷ 20 = 0.0025 を基準にするボンフェローニ補正）、そして別のデータでもう一度確かめることです。
+  - id: c
+    type: write
+    prompt: |
+      次は、本当に効果のあるチラシを見逃さないための準備です。チラシで1回の購入額が平均200円上がるなら見つけたいとします。購入額の標準偏差は1,000円、有意水準は5%です。
+      power.t.test() に delta = 200（見つけたい差）、sd = 1000、sig.level = 0.05、power = 0.8（本当に差があるとき80%の確率で「有意」と判定できる）を渡した結果を pw に代入して pw を表示し、続けて pw$n（1群あたりに必要な人数）を表示してください。
+    starter: |
+      pw <- power.t.test()
+      pw
+      pw$n
+    solution: |
+      pw <- power.t.test(delta = 200, sd = 1000, sig.level = 0.05, power = 0.8)
+      pw
+      pw$n
+    check: |
+      expect_object("pw", class = "power.htest")
+      expect_uses("power.t.test")
+      check_that(isTRUE(all.equal(pw$sd, .sol$pw$sd)), "標準偏差が違います。sd = 1000 を指定しましょう（書かないと sd = 1 として計算されます）。")
+      check_that(isTRUE(all.equal(pw$delta, .sol$pw$delta)), "見つけたい差が違います。delta = 200 を指定しましょう。")
+      check_that(isTRUE(all.equal(pw$power, .sol$pw$power)), "検出力が違います。power = 0.8 を指定しましょう。")
+      expect_value(pw$n, .sol$pw$n, label = "必要な人数")
+      expect_value(.value, .sol_value, label = "最後に表示した pw$n")
+    hints:
+      - power.t.test() は、delta（差）・sd（標準偏差）・sig.level（有意水準）・power（検出力）・n（1群の人数）のうち、n 以外の4つを渡すと、残りの n を計算します。
+      - power.t.test(delta = 200, sd = 1000, sig.level = 0.05, power = 0.8) と書きます。結果の $n が1群あたりの人数です（小数で出るので、実際には切り上げます）。
+      - |
+        pw <- power.t.test(delta = 200, sd = 1000, sig.level = 0.05, power = 0.8)
+        pw
+        pw$n
+    tests:
+      fail:
+        - |
+          pw <- power.t.test(delta = 200, sig.level = 0.05, power = 0.8)
+          pw
+          pw$n
+        - |
+          pw <- power.t.test(delta = 100, sd = 1000, sig.level = 0.05, power = 0.8)
+          pw
+          pw$n
+        - |
+          pw <- power.t.test(delta = 200, sd = 1000, sig.level = 0.05, power = 0.9)
+          pw
+          pw$n
+  - id: d
+    type: interpret
+    prompt: |
+      ネット通販で、新しいチラシのメールを10万人に送り、送らなかった10万人と比べました。1回の購入額の平均の差は10円（送った方が高い）で、t検定のp値は約0.025でした。購入額の標準偏差は約1,000円、メール1通の費用は20円です。この結果の読み方として最も適切なものはどれですか。
+    choices:
+      - "p値が0.05より小さく有意なので、このチラシは売上を大きく伸ばす重要な施策である。"
+      - "p値が小さいほど効果が大きいので、p値0.025は効果がかなり大きいことを示している。"
+      - "標本が大きいので小さな差でも「有意」になった。差は1回あたり10円で、メール1通20円の費用を考えると、統計的に有意でも実務上は重要とは言えない可能性が高い。"
+      - "10万人もいれば必ず有意になるので、この検定には意味がない。"
+    answer: 2
+    explain: |
+      「統計的に有意」は「差が0だとすると、これほどの差が偶然に出ることはまれ」という意味で、差が大きい・重要だという意味ではありません。p値は差の大きさだけでなく人数でも決まり、人数が多いほど小さな差でも有意になります。判断に使うべきは**効果の大きさ**（ここでは1回あたり10円、標準偏差の100分の1）と、その費用・便益です。1通20円かけて購入額が平均10円しか増えないなら、利益の面では見合わないでしょう。逆に、人数が少ないと重要な差があっても有意にならないことがあります（c の検出力）。報告では、p値だけでなく差の大きさと信頼区間を必ず示します。なお「10万人いれば必ず有意になる」わけではなく、差が本当に0なら有意になる確率は5%のままです。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第34ステップの復習】wage（架空の賃金調査）で、企業規模 firm_size を行、正社員ダミー regular（1=正規、0=非正規）を列にしたクロス表を table() で作って tab2 に代入し、prop.table() で行ごとの割合（margin = 1）を表示してください。
+    starter: |
+      tab2 <-
+      prop.table(tab2, margin = 1)
+    solution: |
+      tab2 <- table(wage$firm_size, wage$regular)
+      prop.table(tab2, margin = 1)
+    check: |
+      expect_object("tab2", class = "table")
+      expect_uses("table")
+      expect_uses("prop.table")
+      check_that(identical(unname(dimnames(tab2)), unname(dimnames(.sol$tab2))),
+                 "行と列が違います。table() の1つ目に wage$firm_size、2つ目に wage$regular を書きましょう。")
+      expect_value(as.vector(tab2), as.vector(.sol$tab2), label = "表の人数")
+      check_that(inherits(.value, "table"), "最後に prop.table(tab2, margin = 1) を表示しましょう。")
+      expect_value(as.vector(.value), as.vector(.sol_value), label = "行の割合")
+    hints:
+      - 第34ステップと同じく、table(行の列, 列の列) でクロス表を作り、prop.table(表, margin = 1) で行ごとの割合にします。
+      - 行は wage$firm_size、列は wage$regular です。margin = 1 で企業規模ごとに合計が1になります。
+      - |
+        tab2 <- table(wage$firm_size, wage$regular)
+        prop.table(tab2, margin = 1)
+    tests:
+      fail:
+        - |
+          tab2 <- table(wage$firm_size, wage$regular)
+          prop.table(tab2)
+        - |
+          tab2 <- table(wage$regular, wage$firm_size)
+          prop.table(tab2, margin = 1)

@@ -1,0 +1,176 @@
+id: "041"
+part: 5
+title: 交差項
+question: 学歴の効果は男女で違うか
+minutes: 50
+mode: browser
+packages: [readr, dplyr, ggplot2]
+data: [wage_survey.csv]
+learn: []
+review_of: "040"
+setup: |
+  library(readr); library(dplyr); library(ggplot2)
+  # 架空の賃金調査の個票（3,000人）
+  wage <- read_csv("data/wage_survey.csv", show_col_types = FALSE)
+  # 図で使うため、性別のラベルの列を足しておく
+  wage <- mutate(wage, sex = if_else(female == 1, "女性", "男性"))
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      対数時給 log_wage を、female・educ_years と、その**交差項**（2つの変数の積）で説明する回帰を推定します。式の右辺を female * educ_years と書くと、female、educ_years、female:educ_years（交差項）の3つがまとめて入ります。
+      結果を m_i に代入し、coef(m_i) で係数を表示してください。
+    starter: |
+      m_i <- lm(log_wage ~ , data = wage)
+      coef(m_i)
+    solution: |
+      m_i <- lm(log_wage ~ female * educ_years, data = wage)
+      coef(m_i)
+    check: |
+      expect_object("m_i", class = "lm")
+      check_that("female:educ_years" %in% names(coef(m_i)),
+                 "交差項 female:educ_years がモデルに入っていません。+ ではなく * でつなぎましょう。")
+      expect_model(m_i, like = .sol$m_i)
+    hints:
+      - 交差項つきの回帰は、2つの説明変数を + ではなく * でつなぐだけで書けます。
+      - 式は log_wage ~ female * educ_years です。これは log_wage ~ female + educ_years + female:educ_years と同じ意味です。
+      - |
+        m_i <- lm(log_wage ~ female * educ_years, data = wage)
+        coef(m_i)
+    tests:
+      fail:
+        - |
+          m_i <- lm(log_wage ~ female + educ_years, data = wage)
+          coef(m_i)
+        - |
+          m_i <- lm(log_wage ~ female:educ_years, data = wage)
+          coef(m_i)
+  - id: b
+    type: write
+    prompt: |
+      m_i の係数から、教育年数1年あたりの対数時給の差（傾き）を男女別に計算します。男性（female = 0）の傾きは educ_years の係数そのもの、女性（female = 1）の傾きは educ_years の係数に交差項 female:educ_years の係数を足したものです。
+      男性の傾きを slope_m、女性の傾きを slope_f に代入し、c(slope_m, slope_f) を表示してください。係数は coef(m_i)[["educ_years"]] のように取り出します。
+    starter: |
+      slope_m <-
+      slope_f <-
+      c(slope_m, slope_f)
+    solution: |
+      slope_m <- coef(m_i)[["educ_years"]]
+      slope_f <- coef(m_i)[["educ_years"]] + coef(m_i)[["female:educ_years"]]
+      c(slope_m, slope_f)
+    check: |
+      expect_object("slope_m", class = "numeric")
+      expect_object("slope_f", class = "numeric")
+      expect_value(slope_m, .sol$slope_m, label = "男性の傾き slope_m")
+      expect_value(slope_f, .sol$slope_f, label = "女性の傾き slope_f")
+    hints:
+      - female = 0 を式に入れると交差項が消え、female = 1 を入れると交差項の係数が傾きに加わります。
+      - 交差項の係数は coef(m_i)[["female:educ_years"]] で取り出せます。女性の傾きは「educ_years の係数 + 交差項の係数」です。
+      - |
+        slope_m <- coef(m_i)[["educ_years"]]
+        slope_f <- coef(m_i)[["educ_years"]] + coef(m_i)[["female:educ_years"]]
+        c(slope_m, slope_f)
+    tests:
+      fail:
+        - |
+          slope_m <- coef(m_i)[["educ_years"]]
+          slope_f <- coef(m_i)[["female:educ_years"]]
+          c(slope_m, slope_f)
+        - |
+          slope_m <- coef(m_i)[["educ_years"]]
+          slope_f <- coef(m_i)[["educ_years"]] + coef(m_i)[["female"]]
+          c(slope_m, slope_f)
+  - id: c
+    type: write
+    prompt: |
+      男女別の回帰直線を1枚の図に描きます。wage で、横軸を educ_years、縦軸を log_wage、色（colour）を sex にした散布図を geom_point(alpha = 0.1) で描き、geom_smooth(method = "lm") で回帰直線を重ねてください。
+      色を sex に対応づけると、男女それぞれに別の直線が引かれます（教育年数は12・14・16・18年の4つの値しかないので、点は縦に並びます）。
+    starter: |
+      ggplot(wage, aes()) +
+    solution: |
+      ggplot(wage, aes(x = educ_years, y = log_wage, colour = sex)) +
+        geom_point(alpha = 0.1) +
+        geom_smooth(method = "lm")
+    check: |
+      expect_ggplot(geom = c("point", "smooth"), x = "educ_years", y = "log_wage", colour = "sex")
+      methods <- unname(unlist(lapply(.plot$layers, function(l) {
+        if (inherits(l$geom, "GeomSmooth")) as.character(l$stat_params$method)[1] else NULL
+      })))
+      check_that(identical(methods, "lm"),
+                 "回帰直線になっていません。geom_smooth() の中に method = \"lm\" を書きましょう（書かないと曲線になります）。")
+      check_that(nrow(.plot$data) == nrow(.sol_plot$data),
+                 "図のデータの行数が違います。ggplot() には wage をそのまま渡しましょう。")
+    hints:
+      - aes() の colour に sex を対応づけると、点の色も回帰直線も男女で分かれます。
+      - aes(x = educ_years, y = log_wage, colour = sex) とし、+ geom_point(alpha = 0.1) + geom_smooth(method = "lm") をつなぎます。
+      - |
+        ggplot(wage, aes(x = educ_years, y = log_wage, colour = sex)) +
+          geom_point(alpha = 0.1) +
+          geom_smooth(method = "lm")
+    tests:
+      fail:
+        - |
+          ggplot(wage, aes(x = educ_years, y = log_wage)) +
+            geom_point(alpha = 0.1) +
+            geom_smooth(method = "lm")
+        - |
+          ggplot(wage, aes(x = educ_years, y = log_wage, colour = sex)) +
+            geom_point(alpha = 0.1) +
+            geom_smooth()
+  - id: d
+    type: interpret
+    prompt: |
+      m_i の交差項 female:educ_years の係数は約 −0.001 で、95%信頼区間（confint(m_i)）は約 −0.015〜0.013 でした。この結果の読み方として最も適切なものはどれですか。
+    choices:
+      - "女性は男性より、時給がおよそ0.1%低い"
+      - "教育年数1年あたりの時給の上がり方は、女性のほうが男性より約0.1%ポイント小さいと推定されたが、区間が0を大きくまたいでおり、このデータでは男女で学歴の効果に差があるとは言えない"
+      - "交差項が0に近いので、男女の時給の差はほとんどない"
+      - "交差項が0に近いので、教育年数は時給にほとんど影響しない"
+    answer: 1
+    explain: 交差項の係数は「傾きの差」です。女性の傾き（約0.049）から男性の傾き（約0.050）を引くと約 −0.001 になります。信頼区間が0を含み、−0.015〜0.013 と幅もあるので、傾きの差は0と区別できません。一方、男女の水準の差は別の話で、教育年数16年なら female の係数と交差項から −0.144 − 0.001×16 ≈ −0.16 と、女性の対数時給はかなり低くなっています。c の図で2本の直線がほぼ平行で、上下にずれていたのはこのためです。また、教育年数の傾き自体は約0.05と0から大きく離れているので、「教育年数は影響しない」とも読めません。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第40ステップの復習】企業規模の基準を「300〜999人」にした回帰を推定します。mutate() と factor() で firm_size を c("〜29人", "30〜299人", "300〜999人", "1000人以上") の順の因子に置き換え、さらに relevel() で基準を「300〜999人」に変えたものを wage40 に代入してください。
+      続けて、wage40 で log_wage を firm_size と female で説明する回帰を推定して m40 に代入し、coef(m40) を表示してください。
+    starter: |
+      wage40 <- wage |>
+        mutate(firm_size = factor(firm_size, levels = c("〜29人", "30〜299人", "300〜999人", "1000人以上"))) |>
+        mutate(firm_size = )
+      m40 <-
+
+    solution: |
+      wage40 <- wage |>
+        mutate(firm_size = factor(firm_size, levels = c("〜29人", "30〜299人", "300〜999人", "1000人以上"))) |>
+        mutate(firm_size = relevel(firm_size, ref = "300〜999人"))
+      m40 <- lm(log_wage ~ firm_size + female, data = wage40)
+      coef(m40)
+    check: |
+      expect_object("wage40", class = "data.frame")
+      check_that(is.factor(wage40$firm_size) && identical(levels(wage40$firm_size)[1], "300〜999人"),
+                 "wage40 の firm_size の基準（levels の1番目）が「300〜999人」になっていません。relevel(firm_size, ref = \"300〜999人\") を使いましょう。")
+      expect_object("m40", class = "lm")
+      expect_model(m40, like = .sol$m40)
+    hints:
+      - 「factor() で並び順を決める → relevel() で基準を変える → lm() で推定する」の順です。
+      - 2つ目の mutate() の中は firm_size = relevel(firm_size, ref = "300〜999人") です。式は log_wage ~ firm_size + female、データは wage40 です。
+      - |
+        wage40 <- wage |>
+          mutate(firm_size = factor(firm_size, levels = c("〜29人", "30〜299人", "300〜999人", "1000人以上"))) |>
+          mutate(firm_size = relevel(firm_size, ref = "300〜999人"))
+        m40 <- lm(log_wage ~ firm_size + female, data = wage40)
+        coef(m40)
+    tests:
+      fail:
+        - |
+          wage40 <- wage |>
+            mutate(firm_size = factor(firm_size, levels = c("〜29人", "30〜299人", "300〜999人", "1000人以上")))
+          m40 <- lm(log_wage ~ firm_size + female, data = wage40)
+          coef(m40)
+        - |
+          wage40 <- wage |>
+            mutate(firm_size = factor(firm_size, levels = c("〜29人", "30〜299人", "300〜999人", "1000人以上"))) |>
+            mutate(firm_size = relevel(firm_size, ref = "300〜999人"))
+          m40 <- lm(log_wage ~ firm_size, data = wage40)
+          coef(m40)

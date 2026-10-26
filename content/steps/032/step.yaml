@@ -1,0 +1,225 @@
+id: "032"
+part: 4
+title: 信頼区間
+question: 平均時給の95%信頼区間は
+minutes: 45
+mode: browser
+packages: [readr, dplyr, ggplot2]
+data: [wage_survey.csv]
+learn: [t.test, qt, between]
+review_of: "031"
+setup: |
+  library(readr); library(dplyr); library(ggplot2)
+  # 架空の賃金調査の個票（3,000人）。このステップでも、この3,000人を「母集団」とみなす
+  wage <- read_csv("data/wage_survey.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      母集団（wage の3,000人）から100人を選んで調査し、母平均の95%信頼区間を手で計算します。
+      1. set.seed(108) を書いてから、sample(wage$hourly_wage, 100) を x に代入する
+      2. 標本平均 mean(x) を xbar に、標準誤差 sd(x) / sqrt(100) を se に、t分布の値 qt(0.975, df = 99) を q に代入する
+      3. 下限 xbar - q * se と上限 xbar + q * se を c() でまとめて ci_hand に代入し、ci_hand を表示する
+    starter: |
+      set.seed(108)
+      x <-
+      xbar <-
+      se <-
+      q <-
+      ci_hand <- c(, )
+      ci_hand
+    solution: |
+      set.seed(108)
+      x <- sample(wage$hourly_wage, 100)
+      xbar <- mean(x)
+      se <- sd(x) / sqrt(100)
+      q <- qt(0.975, df = 99)
+      ci_hand <- c(xbar - q * se, xbar + q * se)
+      ci_hand
+    check: |
+      expect_uses("set.seed")
+      expect_uses("qt")
+      expect_value(x, .sol$x, label = "x")
+      expect_value(se, .sol$se, label = "se")
+      expect_value(q, .sol$q, label = "q")
+      expect_object("ci_hand", class = "numeric")
+      expect_value(ci_hand, .sol$ci_hand, label = "ci_hand")
+    hints:
+      - 信頼区間は「標本平均 ± t分布の値 × 標準誤差」です。標準誤差は、標本の標準偏差を人数の平方根で割ったものです。
+      - se <- sd(x) / sqrt(100)、q <- qt(0.975, df = 99) です。95%の区間では、両側に2.5%ずつ残すので 0.975 を使います。自由度 df は人数 − 1 です。
+      - |
+        set.seed(108)
+        x <- sample(wage$hourly_wage, 100)
+        xbar <- mean(x)
+        se <- sd(x) / sqrt(100)
+        q <- qt(0.975, df = 99)
+        ci_hand <- c(xbar - q * se, xbar + q * se)
+        ci_hand
+    tests:
+      fail:
+        - |
+          set.seed(108)
+          x <- sample(wage$hourly_wage, 100)
+          xbar <- mean(x)
+          se <- sd(x)
+          q <- qt(0.975, df = 99)
+          ci_hand <- c(xbar - q * se, xbar + q * se)
+          ci_hand
+        - |
+          set.seed(108)
+          x <- sample(wage$hourly_wage, 100)
+          xbar <- mean(x)
+          se <- sd(x) / sqrt(100)
+          q <- qt(0.95, df = 99)
+          ci_hand <- c(xbar - q * se, xbar + q * se)
+          ci_hand
+  - id: b
+    type: write
+    prompt: |
+      a の区間を t.test() で確かめます。t.test(x) の結果を tt に代入し、tt$conf.int を表示してください。
+      a の ci_hand と同じ値になることを確かめましょう（下に「attr(,"conf.level") 0.95」と、信頼水準が添えて表示されます）。
+    starter: |
+      tt <-
+      tt$conf.int
+    solution: |
+      tt <- t.test(x)
+      tt$conf.int
+    check: |
+      expect_uses("t.test")
+      expect_object("tt", class = "htest")
+      expect_value(tt$conf.int, .sol$tt$conf.int, label = "tt$conf.int")
+      expect_value(.value, .sol_value, label = "表示した区間")
+    hints:
+      - t.test() に標本 x を渡すと、平均の検定と信頼区間をまとめて計算します。結果の一部は $ で取り出せます。
+      - tt <- t.test(x) と代入してから、tt$conf.int を書きます。
+      - |
+        tt <- t.test(x)
+        tt$conf.int
+    tests:
+      fail:
+        - |
+          tt <- t.test(wage$hourly_wage)
+          tt$conf.int
+        - |
+          tt <- t.test(x, conf.level = 0.9)
+          tt$conf.int
+  - id: c
+    type: write
+    prompt: |
+      「95%」の意味を確かめます。母集団から100人を選んで95%信頼区間を作る調査を100回くり返し、区間が母平均を含んだ回数を数えます。
+      1. 母平均 mean(wage$hourly_wage) を mu に代入する（3,000人は架空の母集団なので、母平均を計算できます）
+      2. set.seed(108) を書いてから、replicate(100, { … }) の { } の中で、100人の標本 s を選び、t.test(s)$conf.int を ci に代入し、between(mu, ci[1], ci[2]) を最後に書く。結果を cover に代入する
+      3. sum(cover) を表示する（TRUE を1、FALSE を0として足すので、含んだ回数になります）
+    starter: |
+      mu <-
+      set.seed(108)
+      cover <- replicate(100, {
+        s <-
+        ci <-
+        between()
+      })
+      sum(cover)
+    solution: |
+      mu <- mean(wage$hourly_wage)
+      set.seed(108)
+      cover <- replicate(100, {
+        s <- sample(wage$hourly_wage, 100)
+        ci <- t.test(s)$conf.int
+        between(mu, ci[1], ci[2])
+      })
+      sum(cover)
+    check: |
+      expect_uses("set.seed")
+      expect_uses("between")
+      expect_value(mu, .sol$mu, label = "mu")
+      expect_object("cover", class = "logical")
+      check_that(length(cover) == 100, "cover の長さが100ではありません。replicate() の最初の引数を 100 にしましょう。")
+      expect_value(cover, .sol$cover, label = "cover")
+      expect_value(.value, .sol_value, label = "sum(cover)")
+    hints:
+      - "{ } の中には、1回の調査で行うこと（標本を選ぶ → 区間を作る → 母平均を含むか調べる）を順に書きます。最後の行の値が、その回の結果になります。"
+      - s <- sample(wage$hourly_wage, 100)、ci <- t.test(s)$conf.int と書きます。between(値, 下限, 上限) は、値が下限以上・上限以下なら TRUE を返します。下限は ci[1]、上限は ci[2] です。
+      - |
+        mu <- mean(wage$hourly_wage)
+        set.seed(108)
+        cover <- replicate(100, {
+          s <- sample(wage$hourly_wage, 100)
+          ci <- t.test(s)$conf.int
+          between(mu, ci[1], ci[2])
+        })
+        sum(cover)
+    tests:
+      fail:
+        - |
+          mu <- mean(wage$hourly_wage)
+          set.seed(108)
+          cover <- replicate(100, {
+            s <- sample(wage$hourly_wage, 10)
+            ci <- t.test(s)$conf.int
+            between(mu, ci[1], ci[2])
+          })
+          sum(cover)
+        - |
+          mu <- median(wage$hourly_wage)
+          set.seed(108)
+          cover <- replicate(100, {
+            s <- sample(wage$hourly_wage, 100)
+            ci <- t.test(s)$conf.int
+            between(mu, ci[1], ci[2])
+          })
+          sum(cover)
+  - id: d
+    type: interpret
+    prompt: |
+      a の調査（100人）では、平均時給の95%信頼区間が約1,979円〜約2,379円になりました。この区間の解釈として正しいものはどれですか。
+    choices:
+      - "母平均がこの区間（1,979円〜2,379円）に入っている確率が95%である"
+      - "3,000人のうち95%の人の時給が、この区間に入っている"
+      - "同じ作り方で区間を何度も作ると、そのうち約95%の区間が母平均を含む。この1つの区間が含むかどうかは分からない"
+      - "もう一度100人を調べると、その標本平均が95%の確率でこの区間に入る"
+    answer: 2
+    explain: 母平均は1つの決まった値で、揺れるのは標本から作る区間のほうです。「95%」は区間の作り方の確かさを表し、c のようにくり返すと約95%の区間が母平均を含みます（今回は100回中93回）。手元の1つの区間は、母平均を含むか含まないかのどちらかで、「この区間に母平均が入る確率が95%」とは言えません。また、信頼区間は母平均についての区間で、個人の時給の範囲（選択肢2）や、次の標本平均の範囲（選択肢4）ではありません。実際、母平均は約2,077円で、この区間は含んでいましたが、それは母集団が手元にある教材だから分かることです。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第31ステップの復習】25人の標本平均の揺れを確かめます。
+      set.seed(31) を書いてから、25人の標本平均を1000回求めて means25 に代入してください。
+      続けて、tibble() で列 sim（sd(means25)）と列 theory（sd(wage$hourly_wage) / sqrt(25)）をもつ1行の表を作って se25 に代入し、se25 を表示してください。
+    starter: |
+      set.seed(31)
+      means25 <-
+      se25 <- tibble(sim = , theory = )
+      se25
+    solution: |
+      set.seed(31)
+      means25 <- replicate(1000, mean(sample(wage$hourly_wage, 25)))
+      se25 <- tibble(sim = sd(means25), theory = sd(wage$hourly_wage) / sqrt(25))
+      se25
+    check: |
+      expect_uses("set.seed")
+      expect_uses("replicate")
+      expect_value(means25, .sol$means25, label = "means25")
+      expect_object("se25", class = "data.frame")
+      expect_cols(se25, c("sim", "theory"))
+      expect_df_equal(se25, .sol$se25)
+    hints:
+      - 第31ステップの a の式の人数を25に変えれば means25 が作れます。理論値は σ/√n です。
+      - means25 <- replicate(1000, mean(sample(wage$hourly_wage, 25))) です。表は tibble(sim = sd(means25), theory = sd(wage$hourly_wage) / sqrt(25)) です。
+      - |
+        set.seed(31)
+        means25 <- replicate(1000, mean(sample(wage$hourly_wage, 25)))
+        se25 <- tibble(sim = sd(means25), theory = sd(wage$hourly_wage) / sqrt(25))
+        se25
+    tests:
+      fail:
+        - |
+          set.seed(31)
+          means25 <- replicate(1000, mean(sample(wage$hourly_wage, 25)))
+          se25 <- tibble(sim = sd(means25), theory = sd(wage$hourly_wage) / 25)
+          se25
+        - |
+          set.seed(31)
+          means25 <- replicate(1000, mean(sample(wage$hourly_wage, 100)))
+          se25 <- tibble(sim = sd(means25), theory = sd(wage$hourly_wage) / sqrt(25))
+          se25

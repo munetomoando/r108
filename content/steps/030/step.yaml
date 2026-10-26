@@ -1,0 +1,200 @@
+id: "030"
+part: 4
+title: 乱数とシミュレーション
+question: サイコロを1万回振ると平均はどうなるか
+minutes: 40
+mode: browser
+packages: [readr, dplyr, ggplot2]
+data: [wage_survey.csv]
+learn: [set.seed, sample, rnorm, cumsum, tibble]
+review_of: "029"
+setup: |
+  library(readr); library(dplyr); library(ggplot2)
+  # 小課題 e で使う架空の賃金調査の個票（3,000人）
+  wage <- read_csv("data/wage_survey.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      サイコロを10回振ります。
+      1行目に set.seed(108) を書いて乱数の種（シード）を108に決め、続けて sample() で 1〜6 の目から10回、同じ目が何度出てもよい（replace = TRUE）として取り出した結果を rolls10 に代入し、表示してください。
+    starter: |
+      set.seed(108)
+      rolls10 <-
+      rolls10
+    solution: |
+      set.seed(108)
+      rolls10 <- sample(1:6, 10, replace = TRUE)
+      rolls10
+    check: |
+      expect_uses("set.seed")
+      expect_uses("sample")
+      expect_object("rolls10", class = "integer")
+      check_that(length(rolls10) == 10, "rolls10 が10個の目になっていません。sample() の2つ目の引数に回数 10 を書きましょう。")
+      check_that(all(rolls10 %in% 1:6), "rolls10 に1〜6以外の値が入っています。取り出す元を 1:6 にしましょう。")
+      expect_value(rolls10, .sol$rolls10)
+    hints:
+      - sample(取り出す元, 回数, replace = TRUE) の形で書きます。replace = TRUE は「取り出した目を戻してからまた振る」、つまり同じ目が何度でも出てよいという意味です。
+      - 取り出す元は 1:6（1から6までの整数）、回数は 10 です。set.seed(108) は sample() より前の行に書きます。
+      - |
+        set.seed(108)
+        rolls10 <- sample(1:6, 10, replace = TRUE)
+        rolls10
+    tests:
+      fail:
+        - |
+          set.seed(1)
+          rolls10 <- sample(1:6, 10, replace = TRUE)
+          rolls10
+        - |
+          rolls10 <- sample(1:6, 10, replace = TRUE)
+          rolls10
+        - |
+          set.seed(108)
+          rolls10 <- sample(1:6, 10)
+          rolls10
+  - id: b
+    type: write
+    prompt: |
+      サイコロを1万回振って、出た目の平均を求めます。
+      1行目に set.seed(108) を書き、sample() で 1〜6 の目から10000回（replace = TRUE）取り出した結果を rolls に代入してください。
+      続けて、rolls の平均を roll_mean に代入し、表示してください。
+    starter: |
+      set.seed(108)
+      rolls <-
+      roll_mean <-
+      roll_mean
+    solution: |
+      set.seed(108)
+      rolls <- sample(1:6, 10000, replace = TRUE)
+      roll_mean <- mean(rolls)
+      roll_mean
+    check: |
+      expect_uses("set.seed")
+      expect_object("rolls", class = "integer")
+      check_that(length(rolls) == 10000, "rolls が10000個の目になっていません。sample() の回数を 10000 にしましょう。")
+      expect_value(rolls, .sol$rolls)
+      expect_object("roll_mean", class = "numeric")
+      expect_value(roll_mean, .sol$roll_mean)
+    hints:
+      - a の回数を 10 から 10000 に変え、その結果を mean() に渡します。
+      - rolls <- sample(1:6, 10000, replace = TRUE) の次に roll_mean <- mean(rolls) と書きます。set.seed(108) を先頭に書くのを忘れずに。
+      - |
+        set.seed(108)
+        rolls <- sample(1:6, 10000, replace = TRUE)
+        roll_mean <- mean(rolls)
+        roll_mean
+    tests:
+      fail:
+        - |
+          set.seed(108)
+          rolls <- sample(1:6, 1000, replace = TRUE)
+          roll_mean <- mean(rolls)
+          roll_mean
+        - |
+          set.seed(108)
+          rolls <- sample(1:6, 10000, replace = TRUE)
+          roll_mean <- median(rolls)
+          roll_mean
+  - id: c
+    type: write
+    prompt: |
+      b の rolls を使って、振った回数ごとの平均（1回目までの平均、2回目までの平均、…、10000回目までの平均）を折れ線グラフにします。
+      1. tibble() で、列 n_roll（回数 1:10000）と列 running_mean（cumsum(rolls) / n_roll）の2列をもつ表を作り、running に代入する
+      2. running で、横軸 n_roll・縦軸 running_mean の折れ線グラフ（geom_line）を描く
+
+      cumsum() は「そこまでの合計」（累積和）を返す関数です。tibble(列名 = 値, 列名 = 値) は表を作る関数で、後ろの列の式の中で前に作った列（ここでは n_roll）を使えます。
+    starter: |
+      running <- tibble(n_roll = 1:10000,
+                        running_mean = )
+
+    solution: |
+      running <- tibble(n_roll = 1:10000,
+                        running_mean = cumsum(rolls) / n_roll)
+      ggplot(running, aes(x = n_roll, y = running_mean)) +
+        geom_line()
+    check: |
+      expect_object("running", class = "data.frame")
+      expect_cols(running, c("n_roll", "running_mean"))
+      expect_nrow(running, 10000)
+      expect_uses("cumsum")
+      expect_df_equal(running, .sol$running)
+      expect_ggplot(geom = "line", x = "n_roll", y = "running_mean")
+      expect_df_equal(.plot$data, .sol_plot$data)
+    hints:
+      - 「k 回目までの平均」は「k 回目までの合計 ÷ k」です。合計を順に並べたものは cumsum(rolls) で一度に求められます。
+      - running_mean = cumsum(rolls) / n_roll と書きます。図は ggplot(running, aes(x = n_roll, y = running_mean)) に + geom_line() をつなぎます。
+      - |
+        running <- tibble(n_roll = 1:10000, running_mean = cumsum(rolls) / n_roll)
+        ggplot(running, aes(x = n_roll, y = running_mean)) + geom_line()
+    tests:
+      fail:
+        - |
+          running <- tibble(n_roll = 1:10000,
+                            running_mean = cumsum(rolls))
+          ggplot(running, aes(x = n_roll, y = running_mean)) +
+            geom_line()
+        - |
+          running <- tibble(n_roll = 1:10000,
+                            running_mean = cumsum(rolls) / n_roll)
+          ggplot(running, aes(x = n_roll, y = running_mean)) +
+            geom_point()
+  - id: d
+    type: predict
+    prompt: |
+      b のコードの set.seed(108) を set.seed(1) に変えて、もう一度1万回振ります。結果はどうなるでしょうか。
+    choices:
+      - "まったく同じ1万個の目が出るので、平均も b と完全に一致する"
+      - "出る目の並びは変わり、平均の値も小数第2位あたりで少し変わるが、3.5に近いことは変わらない"
+      - "出る目の並びが変わるので、平均は1〜6のどこになるか予想できない"
+      - "シードの数が小さくなるので、小さい目が出やすくなり、平均は3.5より小さくなる"
+    answer: 1
+    explain: シードは乱数の「出発点」を決める番号です。同じシードなら何度実行しても同じ目の並びになり（再現性）、違うシードなら別の並びになります。シードの大きさと目の出やすさには関係がありません。set.seed(1)、set.seed(2)、set.seed(3) で1万回の平均を求めると、約3.514、3.547、3.483 となり、どれも b の3.5052と同じく理論上の平均3.5の近くです。回数を増やすほど標本の平均が理論上の平均に近づく（大数の法則）ので、シードを変えても「3.5に近い」という結論は変わりません。変わるのは小さな揺れの部分だけです。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第29ステップの復習】時給と何の関係もない乱数の列を作り、時給との相関係数を求めます。
+      1. 1行目に set.seed(108) を書く
+      2. mutate() で、wage に標準正規分布の乱数の列 noise（rnorm(n())）を加えた表を wage_n に代入する
+      3. noise と対数時給 log(hourly_wage) の相関係数を求めて r_noise に代入し、表示する
+
+      rnorm(k) は、平均0・標準偏差1の正規分布（左右対称の釣鐘型の分布）から k 個の乱数を作る関数です。n() は mutate() の中では表の行数（3000）になります。
+    starter: |
+      set.seed(108)
+      wage_n <-
+      r_noise <-
+      r_noise
+    solution: |
+      set.seed(108)
+      wage_n <- mutate(wage, noise = rnorm(n()))
+      r_noise <- cor(wage_n$noise, log(wage_n$hourly_wage))
+      r_noise
+    check: |
+      expect_uses("set.seed")
+      expect_uses("rnorm")
+      expect_object("wage_n", class = "data.frame")
+      expect_cols(wage_n, "noise")
+      expect_value(wage_n$noise, .sol$wage_n$noise)
+      expect_uses("log")
+      expect_object("r_noise", class = "numeric")
+      expect_value(r_noise, .sol$r_noise)
+    hints:
+      - 「シードを決める → 乱数の列を加える → 相関係数を求める」の3段です。相関は第29ステップの cor()、対数は log() です。
+      - mutate(wage, noise = rnorm(n())) で列を加え、cor(wage_n$noise, log(wage_n$hourly_wage)) で相関を求めます。
+      - |
+        set.seed(108)
+        wage_n <- mutate(wage, noise = rnorm(n()))
+        r_noise <- cor(wage_n$noise, log(wage_n$hourly_wage))
+        r_noise
+    tests:
+      fail:
+        - |
+          set.seed(108)
+          wage_n <- mutate(wage, noise = rnorm(n()))
+          r_noise <- cor(wage_n$noise, wage_n$hourly_wage)
+          r_noise
+        - |
+          wage_n <- mutate(wage, noise = rnorm(n()))
+          r_noise <- cor(wage_n$noise, log(wage_n$hourly_wage))
+          r_noise

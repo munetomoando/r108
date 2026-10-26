@@ -1,0 +1,20 @@
+id: "101"
+part: 12
+title: Quartoダッシュボード
+question: 毎月見る指標を、数値カードと図で1画面にまとめる
+minutes: 45
+mode: local
+packages: [tidyverse, knitr, rmarkdown]
+data: [ec_orders.csv, ec_products.csv]
+learn: []
+local:
+  script: check_101.R
+  code_sha256: "7fba72dde6ae341c5b8508b8cdd148f9882980a0c2f8ab03b92f851fd5672f1f"
+  instructions: |
+    プロジェクトのフォルダに `dashboard.qmd` と `data/ec_orders.csv`・`data/ec_products.csv` があり、Render でダッシュボード（dashboard.html）が出力できる状態にしてから、`check_101.R` を同じフォルダに保存し、コンソールで次を実行します。
+
+    ```r
+    source("check_101.R", encoding = "UTF-8")
+    ```
+
+    確認スクリプトは dashboard.qmd を調べ、ダッシュボードにレンダリングして、数値カードが3つ以上・図が2つ以上あることを確かめます。

@@ -1,0 +1,32 @@
+title: 都道府県の基本データ（2020年）
+file: pref_basic.csv
+source: 総務省統計局「令和2年国勢調査 人口等基本集計」第1-1表・第2-3表（e-Stat）、国土交通省国土地理院「全国都道府県市区町村別面積調」（令和2年10月1日時点）。2026-10-23取得の公表ファイルから data-raw/fetch_pref_basic.R で作成。元ファイルと出所は data-raw/raw/pref_basic/
+rows: 47
+unit_of_observation: 都道府県
+notes: >-
+  2020年10月1日現在。人口・世帯数の47都道府県の合計は全国（126,146,099人、55,830,154世帯）に一致する。
+  aged65_share は年齢「不詳」を除いて算出した公表値（全国28.7%）。
+  面積は境界未定部を含む21県（宮城・山形・埼玉・千葉・東京・新潟・富山・山梨・長野・岐阜・静岡・愛知・三重・滋賀・岡山・香川・福岡・熊本・大分・宮崎・鹿児島）で国土地理院の参考値（便宜上の概算）。
+  以前の暫定版（data-raw/pref_basic_interim.R、手入力）とは世帯数・65歳以上割合・面積の桁が異なる
+columns:
+  - name: pref_code
+    description: 都道府県コード（JIS X 0401。北海道=1〜沖縄県=47）
+    unit: なし（整数）
+  - name: pref
+    description: 都道府県名
+    unit: なし
+  - name: region
+    description: 8地方区分（北海道・東北・関東・中部・近畿・中国・四国・九州）
+    unit: なし
+  - name: population
+    description: 総人口（国勢調査 第1-1表「人口 総数」）
+    unit: 人
+  - name: area_km2
+    description: 面積（国土地理院 面積調、令和2年10月1日。公表どおり小数2桁）
+    unit: km²
+  - name: aged65_share
+    description: 65歳以上人口の割合（高齢化率）。65歳以上人口 ÷（総人口 − 年齢「不詳」）× 100、小数1桁（第2-3表の公表値を四捨五入）
+    unit: "%"
+  - name: households
+    description: 世帯数（一般世帯と施設等の世帯の合計。第1-1表「世帯数 総数」）
+    unit: 世帯

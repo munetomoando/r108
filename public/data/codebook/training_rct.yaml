@@ -1,0 +1,30 @@
+title: 職業訓練のランダム化比較試験（RCT）
+file: training_rct.csv
+source: 合成データ（data-raw/synth_training.R、乱数シード108）
+rows: 1000
+unit_of_observation: 参加希望者
+notes: >-
+  treat は500人ずつ無作為に割り当て。earn_post = 150 + 0.8×prior_earn + 5×educ_years − 0.5×(age − 35)²/10 + 30×treat + ε、
+  ε ~ N(0, 60²)。真の効果は +30万円/年
+columns:
+  - name: id
+    description: 個人ID
+    unit: なし
+  - name: treat
+    description: 訓練に参加（1=処置群、0=対照群）
+    unit: なし（0/1）
+  - name: age
+    description: 年齢
+    unit: 歳
+  - name: female
+    description: 女性ダミー
+    unit: なし（0/1）
+  - name: educ_years
+    description: 教育年数（12・14・16）
+    unit: 年
+  - name: prior_earn
+    description: 訓練前年の年収
+    unit: 万円
+  - name: earn_post
+    description: 訓練後の年収
+    unit: 万円

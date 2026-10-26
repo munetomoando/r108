@@ -1,0 +1,11 @@
+Package: r108check
+Title: Graders for the R 108 Steps Course
+Version: 0.1.0
+Authors@R: person("Munetomo", "Ando", role = c("aut", "cre"))
+Description: Japanese-language grading helpers used by the R 108 Steps
+    self-study app, both in webR and in regular R for testing.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Imports: rlang, utils, stats
+Suggests: testthat (>= 3.0.0), ggplot2, dplyr
+Config/testthat/edition: 3

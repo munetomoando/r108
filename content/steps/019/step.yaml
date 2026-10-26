@@ -1,0 +1,149 @@
+id: "019"
+part: 3
+title: ggplotの文法
+question: 豊かな国ほど長生きか
+minutes: 45
+mode: browser
+packages: [readr, dplyr, ggplot2, gapminder]
+data: [pref_panel.csv]
+learn: [ggplot, aes, geom_point, scale_x_log10]
+review_of: "018"
+setup: |
+  library(readr); library(dplyr); library(ggplot2); library(gapminder)
+  # 第18ステップで作った県×年の表（保存済みのもの）
+  pref_panel <- read_csv("data/pref_panel.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      gapminder を2007年の行（year == 2007）に絞って gap07 に代入し、横軸に1人当たりGDP gdpPercap、縦軸に平均寿命 lifeExp をとった散布図を描いてください。
+      図は ggplot(データ, aes(x = 横軸の列, y = 縦軸の列)) + geom_point() の形で作り、そのまま実行して表示します。
+    starter: |
+      gap07 <-
+
+    solution: |
+      gap07 <- filter(gapminder, year == 2007)
+      ggplot(gap07, aes(x = gdpPercap, y = lifeExp)) + geom_point()
+    check: |
+      expect_object("gap07", class = "data.frame")
+      expect_df_equal(gap07, .sol$gap07, ignore_row_order = TRUE)
+      expect_ggplot(geom = "point", x = "gdpPercap", y = "lifeExp")
+      check_that(nrow(.plot$data) == nrow(.sol_plot$data),
+                 "図のデータの行数が違います。ggplot() には2007年に絞った gap07 を渡しましょう。")
+      expect_df_equal(.plot$data, .sol_plot$data, ignore_row_order = TRUE)
+    hints:
+      - 「2007年に絞る」と「図を描く」の2行です。図は、データ・aes() による列と軸の対応づけ・点の層の3つを組み合わせます。
+      - 1行目は filter(gapminder, year == 2007)。2行目は ggplot(gap07, aes(x = gdpPercap, y = lifeExp)) に + geom_point() をつなぎます。
+      - |
+        gap07 <- filter(gapminder, year == 2007)
+        ggplot(gap07, aes(x = gdpPercap, y = lifeExp)) + geom_point()
+    tests:
+      fail:
+        - |
+          gap07 <- filter(gapminder, year == 2007)
+          ggplot(gapminder, aes(x = gdpPercap, y = lifeExp)) + geom_point()
+        - |
+          gap07 <- filter(gapminder, year == 2007)
+          ggplot(gap07, aes(x = lifeExp, y = gdpPercap)) + geom_point()
+  - id: b
+    type: write
+    prompt: |
+      a の図では、1人当たりGDPの低い国が左端に固まって見分けにくくなっています。a の図に scale_x_log10() を + で足し、横軸を対数目盛りにした図を描いてください。
+    starter: |
+      ggplot(gap07, aes(x = gdpPercap, y = lifeExp)) + geom_point()
+    solution: |
+      ggplot(gap07, aes(x = gdpPercap, y = lifeExp)) + geom_point() + scale_x_log10()
+    check: |
+      expect_ggplot(geom = "point", x = "gdpPercap", y = "lifeExp")
+      sx <- .plot$scales$get_scales("x")
+      check_that(!is.null(sx) &&
+                   identical(sx$get_transformation()$name,
+                             .sol_plot$scales$get_scales("x")$get_transformation()$name),
+                 "横軸が対数目盛りになっていません。+ scale_x_log10() を足しましょう。")
+      expect_df_equal(.plot$data, .sol_plot$data, ignore_row_order = TRUE)
+    hints:
+      - ggplot の図は、層や目盛りの指定を + でつないで足していきます。a の図の最後に1つ足すだけです。
+      - 横軸（x）を常用対数（10を底とする対数）の目盛りにするのは scale_x_log10() です。scale_y_log10() にすると縦軸が対数になってしまいます。
+      - ggplot(gap07, aes(x = gdpPercap, y = lifeExp)) + geom_point() + scale_x_log10()
+    tests:
+      fail:
+        - |
+          ggplot(gap07, aes(x = gdpPercap, y = lifeExp)) + geom_point() + scale_y_log10()
+        - |
+          ggplot(gap07, aes(x = gdpPercap, y = lifeExp)) + geom_point()
+  - id: c
+    type: write
+    prompt: |
+      b の図の点を、大陸 continent ごとに色分けしてください。aes() の中に colour = continent を加えます。横軸は b と同じく対数目盛りのままにします。
+    starter: |
+      ggplot(gap07, aes(x = gdpPercap, y = lifeExp)) + geom_point() + scale_x_log10()
+    solution: |
+      ggplot(gap07, aes(x = gdpPercap, y = lifeExp, colour = continent)) +
+        geom_point() +
+        scale_x_log10()
+    check: |
+      expect_ggplot(geom = "point", x = "gdpPercap", y = "lifeExp", colour = "continent")
+      sx <- .plot$scales$get_scales("x")
+      check_that(!is.null(sx) &&
+                   identical(sx$get_transformation()$name,
+                             .sol_plot$scales$get_scales("x")$get_transformation()$name),
+                 "横軸が対数目盛りになっていません。b と同じく + scale_x_log10() を残しましょう。")
+      expect_df_equal(.plot$data, .sol_plot$data, ignore_row_order = TRUE)
+    hints:
+      - 色も、横軸・縦軸と同じく「列と見た目の対応づけ」です。だから aes() の中に書きます。
+      - aes(x = gdpPercap, y = lifeExp, colour = continent) のように、aes() の中にカンマで1つ足します。
+      - ggplot(gap07, aes(x = gdpPercap, y = lifeExp, colour = continent)) + geom_point() + scale_x_log10()
+    tests:
+      fail:
+        - |
+          ggplot(gap07, aes(x = gdpPercap, y = lifeExp, colour = country)) + geom_point() + scale_x_log10()
+        - |
+          ggplot(gap07, aes(x = gdpPercap, y = lifeExp, colour = continent)) + geom_point()
+  - id: d
+    type: predict
+    prompt: |
+      gapminder は全部で1,704行あり、1952年から2007年まで5年おきの12回分の記録です。どの国も12回すべてに1行ずつあります。a〜c の図（2007年だけ）には、点がいくつ描かれているでしょうか。
+    choices:
+      - "5（大陸の数）"
+      - "12"
+      - "142"
+      - "1,704"
+    answer: 2
+    explain: 1,704行 ÷ 12回 ＝ 142 なので、2007年の行は142か国分です。散布図では1行が1つの点になるので、点は142個です。nrow(gap07) で確かめられます。gapminder 全体（1,704行）をそのまま描くと、同じ国が12個の点になって重なり合います。散布図を描く前に「1行＝何か」を確かめておくと、図の読み違いを防げます。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第18ステップの復習】第18ステップで作った pref_panel（保存済みのものを setup で読み込んであります）について、年ごとに欠損を確かめます。pref_panel を year でグループ分けし、次の3列をもつ表を na_by_year に代入してください。
+      - n_rows … 行数（n()）
+      - na_min_wage … min_wage が NA の行の数（sum(is.na(min_wage))）
+      - na_avg_wage … avg_wage が NA の行の数
+    starter: |
+      na_by_year <- pref_panel |>
+    solution: |
+      na_by_year <- pref_panel |>
+        group_by(year) |>
+        summarise(n_rows = n(),
+                  na_min_wage = sum(is.na(min_wage)),
+                  na_avg_wage = sum(is.na(avg_wage)))
+    check: |
+      expect_object("na_by_year", class = "data.frame")
+      expect_cols(na_by_year, c("year", "n_rows", "na_min_wage", "na_avg_wage"))
+      expect_df_equal(na_by_year, .sol$na_by_year, ignore_row_order = TRUE)
+    hints:
+      - 「年でグループ分けする → 1グループ1行にまとめる」の2段のパイプです。第18ステップ c の summarise() の前に group_by() を入れます。
+      - group_by(year) のあと、summarise(n_rows = n(), na_min_wage = sum(is.na(min_wage)), na_avg_wage = …) と書きます。
+      - "na_by_year <- pref_panel |> group_by(year) |> summarise(n_rows = n(), na_min_wage = sum(is.na(min_wage)), na_avg_wage = sum(is.na(avg_wage)))"
+    tests:
+      fail:
+        - |
+          na_by_year <- pref_panel |>
+            summarise(n_rows = n(),
+                      na_min_wage = sum(is.na(min_wage)),
+                      na_avg_wage = sum(is.na(avg_wage)))
+        - |
+          na_by_year <- pref_panel |>
+            group_by(year) |>
+            summarise(n_rows = n(),
+                      na_min_wage = sum(!is.na(min_wage)),
+                      na_avg_wage = sum(!is.na(avg_wage)))

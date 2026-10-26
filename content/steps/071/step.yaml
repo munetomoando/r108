@@ -1,0 +1,200 @@
+id: "071"
+part: 8
+title: 実データRDD
+question: 所得移転は支持率を変えたか
+minutes: 45
+mode: browser
+packages: [dplyr, ggplot2, causaldata]
+learn: []
+setup: |
+  library(dplyr); library(ggplot2)
+  # ウルグアイの貧困対策の所得移転（PANES）の対象基準の前後の1,948世帯（causaldata パッケージ）
+  # Income_Centered：所得の指標から基準の値を引いたもの（負＝対象）。Support：政府への支持（0、0.5、1）
+  transfers <- causaldata::gov_transfers
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      所得の指標 Income_Centered を0.002刻みのビンに分け、ビンごとの政府への支持 Support の平均を点で描きます。
+      1. transfers に bin = floor(Income_Centered * 500) / 500 + 0.001（各ビンの中央の値）を加え、bin ごとに support = mean(Support) を集計して bins_gt に代入する
+      2. bins_gt で横軸を bin、縦軸を support とした散布図を描き、geom_vline(xintercept = 0) で基準の位置に縦線を引く
+    starter: |
+      bins_gt <- transfers |>
+        mutate(bin = ) |>
+
+      ggplot(bins_gt, aes()) +
+    solution: |
+      bins_gt <- transfers |>
+        mutate(bin = floor(Income_Centered * 500) / 500 + 0.001) |>
+        group_by(bin) |>
+        summarise(support = mean(Support))
+      ggplot(bins_gt, aes(x = bin, y = support)) +
+        geom_point() +
+        geom_vline(xintercept = 0)
+    check: |
+      expect_object("bins_gt", class = "data.frame")
+      expect_cols(bins_gt, c("bin", "support"))
+      check_that(nrow(bins_gt) == nrow(.sol$bins_gt),
+                 "ビンの数が違います。bin = floor(Income_Centered * 500) / 500 + 0.001 で0.002刻みにし、group_by(bin) で集計しましょう。")
+      expect_df_equal(bins_gt[c("bin", "support")], .sol$bins_gt, ignore_row_order = TRUE)
+      expect_ggplot(geom = "point", x = "bin", y = "support")
+      layers_of <- function(p, cls) Filter(function(l) inherits(l$geom, cls), unname(p$layers))
+      check_that(length(layers_of(.plot, "GeomVline")) >= 1,
+                 "縦線の層がありません。+ geom_vline(xintercept = 0) を足しましょう。")
+      vx <- unlist(lapply(layers_of(.plot, "GeomVline"), function(l) l$data$xintercept))
+      check_that(isTRUE(any(abs(as.numeric(vx)) < 1e-9)),
+                 "縦線の位置が違います。基準の位置（Income_Centered = 0）に xintercept = 0 で引きましょう。")
+    hints:
+      - 第70ステップ a と同じ手順です。Income_Centered は −0.02〜0.02 の小さな値なので、500倍して切り捨て、500で割ると0.002刻みの区間の下端になります。
+      - mutate(bin = floor(Income_Centered * 500) / 500 + 0.001) のあと group_by(bin) |> summarise(support = mean(Support)) です。図は aes(x = bin, y = support) に geom_point() と geom_vline(xintercept = 0) を足します。
+      - |
+        bins_gt <- transfers |>
+          mutate(bin = floor(Income_Centered * 500) / 500 + 0.001) |>
+          group_by(bin) |>
+          summarise(support = mean(Support))
+        ggplot(bins_gt, aes(x = bin, y = support)) +
+          geom_point() +
+          geom_vline(xintercept = 0)
+    tests:
+      fail:
+        - |
+          bins_gt <- transfers |>
+            mutate(bin = floor(Income_Centered * 500) / 500 + 0.001) |>
+            group_by(bin) |>
+            summarise(support = mean(Participation))
+          ggplot(bins_gt, aes(x = bin, y = support)) +
+            geom_point() +
+            geom_vline(xintercept = 0)
+        - |
+          bins_gt <- transfers |>
+            mutate(bin = floor(Income_Centered * 500) / 500 + 0.001) |>
+            group_by(bin) |>
+            summarise(support = mean(Support))
+          ggplot(bins_gt, aes(x = bin, y = support)) +
+            geom_point()
+  - id: b
+    type: write
+    prompt: |
+      データにある全世帯（基準の前後 0.02 以内）で局所線形回帰を推定します。
+      Support を Participation * Income_Centered で説明する回帰を lm() で推定して m_gt に代入し、coef(m_gt) を表示してください。
+      このデータでは、Income_Centered が負の世帯は全員が受給し（Participation = 1）、正の世帯は全員が受給していません。
+    starter: |
+      m_gt <-
+      coef(m_gt)
+    solution: |
+      m_gt <- lm(Support ~ Participation * Income_Centered, data = transfers)
+      coef(m_gt)
+    check: |
+      expect_object("m_gt", class = "lm")
+      check_that(nobs(m_gt) == nobs(.sol$m_gt),
+                 "推定に使った世帯数が違います。transfers の全世帯（1,948世帯）で推定しましょう。")
+      expect_coef(m_gt, "Participation", coef(.sol$m_gt)[["Participation"]])
+      expect_model(m_gt, like = .sol$m_gt)
+      expect_value(.value, .sol_value, label = "表示した coef(m_gt)")
+    hints:
+      - 第70ステップ b と同じ形です。Income_Centered はすでに基準からの距離なので、そのまま使えます。交差項にすると、基準の左右で傾きが変わってよいことになります。
+      - 式は Support ~ Participation * Income_Centered、data は transfers です。
+      - |
+        m_gt <- lm(Support ~ Participation * Income_Centered, data = transfers)
+        coef(m_gt)
+    tests:
+      fail:
+        - |
+          m_gt <- lm(Support ~ Participation, data = transfers)
+          coef(m_gt)
+        - |
+          m_gt <- lm(Support ~ Participation + Income_Centered, data = transfers)
+          coef(m_gt)
+  - id: c
+    type: fill
+    prompt: |
+      帯域幅を 0.005・0.01・0.015・0.02 と変えて、Participation の係数がどれだけ動くかを確かめます。
+      `___` を埋めて、帯域幅ごとの係数を est_005、est_010、est_015、est_020 に代入し、
+      帯域幅 と 推定値 の2列の表 sens を作って表示してください。
+    starter: |
+      est_005 <- coef(lm(Support ~ Participation * Income_Centered,
+                         data = filter(transfers, abs(Income_Centered) < ___)))[["Participation"]]
+      est_010 <- coef(lm(Support ~ Participation * Income_Centered,
+                         data = filter(transfers, abs(Income_Centered) < ___)))[["Participation"]]
+      est_015 <- coef(lm(Support ~ Participation * Income_Centered,
+                         data = filter(transfers, abs(Income_Centered) < ___)))[["Participation"]]
+      est_020 <- coef(lm(Support ~ Participation * Income_Centered,
+                         data = filter(transfers, abs(Income_Centered) < ___)))[["Participation"]]
+      sens <- tibble(帯域幅 = c(0.005, 0.01, 0.015, 0.02),
+                     推定値 = c(___))
+      sens
+    solution: |
+      est_005 <- coef(lm(Support ~ Participation * Income_Centered,
+                         data = filter(transfers, abs(Income_Centered) < 0.005)))[["Participation"]]
+      est_010 <- coef(lm(Support ~ Participation * Income_Centered,
+                         data = filter(transfers, abs(Income_Centered) < 0.01)))[["Participation"]]
+      est_015 <- coef(lm(Support ~ Participation * Income_Centered,
+                         data = filter(transfers, abs(Income_Centered) < 0.015)))[["Participation"]]
+      est_020 <- coef(lm(Support ~ Participation * Income_Centered,
+                         data = filter(transfers, abs(Income_Centered) < 0.02)))[["Participation"]]
+      sens <- tibble(帯域幅 = c(0.005, 0.01, 0.015, 0.02),
+                     推定値 = c(est_005, est_010, est_015, est_020))
+      sens
+    check: |
+      expect_object("est_005", class = "numeric")
+      expect_value(est_005, .sol$est_005, label = "est_005")
+      expect_value(est_010, .sol$est_010, label = "est_010")
+      expect_value(est_015, .sol$est_015, label = "est_015")
+      expect_value(est_020, .sol$est_020, label = "est_020")
+      expect_object("sens", class = "data.frame")
+      expect_cols(sens, c("帯域幅", "推定値"))
+      expect_nrow(sens, 4)
+      expect_df_equal(sens, .sol$sens)
+    hints:
+      - b と同じ回帰を、filter() の帯域幅だけ変えて4回推定します。第70ステップ c と同じ形です。
+      - filter(transfers, abs(Income_Centered) < 0.005)、< 0.01、< 0.015、< 0.02 です。推定値 = c(est_005, est_010, est_015, est_020) とします。
+      - |
+        est_005 <- coef(lm(Support ~ Participation * Income_Centered,
+                           data = filter(transfers, abs(Income_Centered) < 0.005)))[["Participation"]]
+        est_010 <- coef(lm(Support ~ Participation * Income_Centered,
+                           data = filter(transfers, abs(Income_Centered) < 0.01)))[["Participation"]]
+        est_015 <- coef(lm(Support ~ Participation * Income_Centered,
+                           data = filter(transfers, abs(Income_Centered) < 0.015)))[["Participation"]]
+        est_020 <- coef(lm(Support ~ Participation * Income_Centered,
+                           data = filter(transfers, abs(Income_Centered) < 0.02)))[["Participation"]]
+        sens <- tibble(帯域幅 = c(0.005, 0.01, 0.015, 0.02),
+                       推定値 = c(est_005, est_010, est_015, est_020))
+        sens
+    tests:
+      fail:
+        - |
+          est_005 <- coef(lm(Support ~ Participation * Income_Centered,
+                             data = filter(transfers, Income_Centered < 0.005)))[["Participation"]]
+          est_010 <- coef(lm(Support ~ Participation * Income_Centered,
+                             data = filter(transfers, Income_Centered < 0.01)))[["Participation"]]
+          est_015 <- coef(lm(Support ~ Participation * Income_Centered,
+                             data = filter(transfers, Income_Centered < 0.015)))[["Participation"]]
+          est_020 <- coef(lm(Support ~ Participation * Income_Centered,
+                             data = filter(transfers, Income_Centered < 0.02)))[["Participation"]]
+          sens <- tibble(帯域幅 = c(0.005, 0.01, 0.015, 0.02),
+                         推定値 = c(est_005, est_010, est_015, est_020))
+          sens
+        - |
+          est_005 <- coef(lm(Support ~ Participation,
+                             data = filter(transfers, abs(Income_Centered) < 0.005)))[["Participation"]]
+          est_010 <- coef(lm(Support ~ Participation,
+                             data = filter(transfers, abs(Income_Centered) < 0.01)))[["Participation"]]
+          est_015 <- coef(lm(Support ~ Participation,
+                             data = filter(transfers, abs(Income_Centered) < 0.015)))[["Participation"]]
+          est_020 <- coef(lm(Support ~ Participation,
+                             data = filter(transfers, abs(Income_Centered) < 0.02)))[["Participation"]]
+          sens <- tibble(帯域幅 = c(0.005, 0.01, 0.015, 0.02),
+                         推定値 = c(est_005, est_010, est_015, est_020))
+          sens
+  - id: d
+    type: interpret
+    prompt: |
+      Participation の係数は、帯域幅 0.02（全世帯）で約0.100（95%信頼区間 約0.042〜0.158）、0.015 で約0.106、0.01 で約0.077、
+      0.005（462世帯）で約0.002（95%信頼区間 約−0.118〜0.122）でした。この結果の読み方として、最も適切なものはどれですか。
+    choices:
+      - "広い帯域幅では支持が約0.1上がるという推定が得られるが、帯域幅を狭めると推定値が小さくなり、信頼区間も広がってはっきりしない。結論は帯域幅の選び方に左右されるので、すべての帯域幅の結果を並べ、基準の前後で他の要因が連続しているという仮定とともに報告する"
+      - "帯域幅 0.005 の推定値がほぼ0なので、所得移転は支持率をまったく変えなかったことが証明された"
+      - "帯域幅 0.02 の推定値が最も大きく有意なので、その値だけを報告すればよい"
+      - "Participation の係数は、受給世帯と非受給世帯全体の支持の平均の差と同じものである"
+    answer: 0
+    explain: 帯域幅を狭めると、基準に近い似た世帯どうしの比較になりますが、世帯数が減って標準誤差が大きくなります（0.02 で約0.030、0.005 で約0.061）。0.005 の推定値は0に近いものの、信頼区間は約−0.12〜0.12 と広く、「効果がない」とも「効果がある」とも言えません。都合のよい帯域幅の結果だけを選んで報告するのは避け、感度の表をそのまま示します。また係数は、基準ちょうどでの支持の段差であり、全世帯の単純な平均の差（約0.118）とは別のものです。効果と読めるのは、基準の前後で受給以外の要因が連続的に変わり、所得の指標が基準の下へ操作されていないという仮定のもとでだけです。

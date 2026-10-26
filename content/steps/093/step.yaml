@@ -1,0 +1,231 @@
+id: "093"
+part: 11
+title: tidymodelsの流れ
+question: 店舗の売上を予測する
+minutes: 50
+mode: browser
+packages: [readr, dplyr, lubridate, rsample, recipes, parsnip, workflows]
+data: [store_sales_daily.csv]
+learn: [recipe, linear_reg, workflow, fit, augment]
+allow: [step_date, add_recipe, add_model]
+review_of: "092"
+setup: |
+  library(readr); library(dplyr); library(lubridate)
+  library(rsample); library(recipes); library(parsnip); library(workflows)
+  # そらまめマーケット（架空の会社）の30店舗×2023〜2025年の日次売上（教材用の合成データ）
+  ssd <- read_csv("data/store_sales_daily.csv", show_col_types = FALSE)
+  # 藤沢店（S14）の3年分（1,096日）。売上の対数 log_sales を加えておく
+  fuji <- ssd |>
+    filter(store_id == "S14") |>
+    mutate(log_sales = log(sales))
+  # 復習用：藤沢店の2025年の土曜日（第92ステップと同じ）
+  sat <- filter(fuji, year(date) == 2025, wday(date) == 7)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      藤沢店の3年分 fuji で、売上の対数 log_sales を予測するモデルの準備をします。
+      1. 2024年までを訓練期間 train（date < ymd("2025-01-01")）、2025年をテスト期間 test に分ける
+      2. recipe() で「log_sales を date と temp で予測する」レシピを train から作り、step_date() で date から曜日と月を取り出す（features = c("dow", "month")、元の date 列は残さない keep_original_cols = FALSE）。これを rec に代入して表示する
+    starter: |
+      train <-
+      test <-
+      rec <- recipe(log_sales ~ date + temp, data = train) |>
+
+      rec
+    solution: |
+      train <- filter(fuji, date < ymd("2025-01-01"))
+      test <- filter(fuji, date >= ymd("2025-01-01"))
+      rec <- recipe(log_sales ~ date + temp, data = train) |>
+        step_date(date, features = c("dow", "month"), keep_original_cols = FALSE)
+      rec
+    check: |
+      expect_object("train", class = "data.frame")
+      expect_object("test", class = "data.frame")
+      check_that(nrow(train) == 731 && nrow(test) == 365,
+                 "期間の分け方が違います。2023〜2024年（731日）を train、2025年（365日）を test にしましょう。")
+      expect_df_equal(train, .sol$train)
+      expect_df_equal(test, .sol$test)
+      expect_object("rec", class = "recipe")
+      check_that(identical(sort(rec$var_info$variable), sort(.sol$rec$var_info$variable)),
+                 "レシピの変数が違います。recipe(log_sales ~ date + temp, data = train) としましょう。")
+      check_that(length(rec$steps) == 1 && inherits(rec$steps[[1]], "step_date"),
+                 "step_date() を1つだけ加えましょう。")
+      check_that(setequal(rec$steps[[1]]$features, c("dow", "month")),
+                 "取り出すのは曜日と月です。features = c(\"dow\", \"month\") としましょう。")
+      check_that(isFALSE(rec$steps[[1]]$keep_original_cols),
+                 "元の date 列が残っています。step_date() に keep_original_cols = FALSE を加えましょう。")
+      expect_df_equal(bake(prep(rec), new_data = NULL), bake(prep(.sol$rec), new_data = NULL))
+    hints:
+      - 期間の分け方は第78ステップと同じく filter() と ymd() です。レシピは「何を何で予測するか」と「前処理の手順」を書いた設計図で、|> で手順を足していきます。
+      - recipe(log_sales ~ date + temp, data = train) |> step_date(date, features = c("dow", "month"), keep_original_cols = FALSE) です。
+      - |
+        train <- filter(fuji, date < ymd("2025-01-01"))
+        test <- filter(fuji, date >= ymd("2025-01-01"))
+        rec <- recipe(log_sales ~ date + temp, data = train) |>
+          step_date(date, features = c("dow", "month"), keep_original_cols = FALSE)
+        rec
+    tests:
+      fail:
+        - |
+          train <- filter(fuji, date < ymd("2025-01-01"))
+          test <- filter(fuji, date >= ymd("2025-01-01"))
+          rec <- recipe(log_sales ~ date + temp, data = train) |>
+            step_date(date, features = c("dow", "month"))
+          rec
+        - |
+          train <- filter(fuji, date < ymd("2025-01-01"))
+          test <- filter(fuji, date >= ymd("2025-01-01"))
+          rec <- recipe(log_sales ~ date, data = train) |>
+            step_date(date, features = c("dow", "month"), keep_original_cols = FALSE)
+          rec
+        - |
+          train <- filter(fuji, date < ymd("2024-01-01"))
+          test <- filter(fuji, date >= ymd("2024-01-01"))
+          rec <- recipe(log_sales ~ date + temp, data = train) |>
+            step_date(date, features = c("dow", "month"), keep_original_cols = FALSE)
+          rec
+  - id: b
+    type: write
+    prompt: |
+      a のレシピと線形回帰のモデルをまとめた**ワークフロー**を作り、訓練期間で推定します。
+      1. workflow() に add_recipe(rec) と add_model(linear_reg()) を |> でつなぎ、wf に代入する
+      2. fit(wf, data = train) で推定し、wf_fit に代入して表示する
+    starter: |
+      wf <- workflow() |>
+
+      wf_fit <-
+      wf_fit
+    solution: |
+      wf <- workflow() |>
+        add_recipe(rec) |>
+        add_model(linear_reg())
+      wf_fit <- fit(wf, data = train)
+      wf_fit
+    check: |
+      expect_object("wf", class = "workflow")
+      expect_object("wf_fit", class = "workflow")
+      check_that(workflows::is_trained_workflow(wf_fit),
+                 "wf_fit が推定されていません。fit(wf, data = train) としましょう。")
+      check_that(nrow(extract_fit_engine(wf_fit)$model) == nrow(.sol$train),
+                 "推定に使うデータが違います。訓練期間 train だけで fit() しましょう（data = train）。")
+      expect_model(extract_fit_engine(wf_fit), like = extract_fit_engine(.sol$wf_fit))
+    hints:
+      - tidymodels では「前処理（レシピ）」と「モデル」を1つのワークフローにまとめ、fit() で一度に推定します。linear_reg() は線形回帰（中身は lm()）です。
+      - workflow() |> add_recipe(rec) |> add_model(linear_reg()) で組み立て、fit(wf, data = train) で推定します。
+      - |
+        wf <- workflow() |>
+          add_recipe(rec) |>
+          add_model(linear_reg())
+        wf_fit <- fit(wf, data = train)
+        wf_fit
+    tests:
+      fail:
+        - |
+          wf <- workflow() |>
+            add_recipe(rec) |>
+            add_model(linear_reg())
+          wf_fit <- fit(wf, data = fuji)
+          wf_fit
+        - |
+          wf <- workflow() |>
+            add_recipe(rec) |>
+            add_model(linear_reg())
+          wf_fit <- wf
+          wf_fit
+  - id: c
+    type: write
+    prompt: |
+      b で推定したモデルで、2025年（テスト期間）の売上を予測し、精度を測ります。
+      1. augment(wf_fit, new_data = test) で test に予測値の列 .pred を加え、test_pred に代入する
+      2. test_pred から、rmse = sqrt(mean((log_sales - .pred)^2)) と mae = mean(abs(log_sales - .pred)) を summarise() で求めて表示する
+    starter: |
+      test_pred <-
+      summarise(test_pred, )
+    solution: |
+      test_pred <- augment(wf_fit, new_data = test)
+      summarise(test_pred,
+                rmse = sqrt(mean((log_sales - .pred)^2)),
+                mae = mean(abs(log_sales - .pred)))
+    check: |
+      expect_object("test_pred", class = "data.frame")
+      expect_cols(test_pred, c(".pred", "log_sales", "date"))
+      expect_nrow(test_pred, 365)
+      expect_df_equal(test_pred, .sol$test_pred, tol = 1e-8)
+      expect_cols(.value, c("rmse", "mae"))
+      expect_value(.value, .sol_value, tol = 1e-6, label = "表示した rmse と mae")
+    hints:
+      - augment() は、データの各行に予測値 .pred（と誤差 .resid）を加えた表を返します。予測にはテスト期間 test を渡します。
+      - augment(wf_fit, new_data = test) のあと、summarise(test_pred, rmse = sqrt(mean((log_sales - .pred)^2)), mae = mean(abs(log_sales - .pred))) です。
+      - |
+        test_pred <- augment(wf_fit, new_data = test)
+        summarise(test_pred,
+                  rmse = sqrt(mean((log_sales - .pred)^2)),
+                  mae = mean(abs(log_sales - .pred)))
+    tests:
+      fail:
+        - |
+          test_pred <- augment(wf_fit, new_data = train)
+          summarise(test_pred,
+                    rmse = sqrt(mean((log_sales - .pred)^2)),
+                    mae = mean(abs(log_sales - .pred)))
+        - |
+          test_pred <- augment(wf_fit, new_data = test)
+          summarise(test_pred,
+                    rmse = mean((log_sales - .pred)^2),
+                    mae = mean(abs(log_sales - .pred)))
+  - id: d
+    type: write
+    review: true
+    prompt: |
+      【第92ステップの復習】setup の sat（藤沢店の2025年の土曜日52日）を、set.seed(108) のあと initial_split() で8割・2割（prop = 0.8）に分け、訓練データを sat_train、テストデータを sat_test に代入します。
+      sat_train で log_sales を poly(temp, 2) で説明する回帰を m2 に代入し、テストデータでの RMSE を表示してください。
+    starter: |
+      set.seed(108)
+      sat_split <-
+      sat_train <-
+      sat_test <-
+      m2 <-
+      sqrt(mean((sat_test$log_sales - predict(m2, sat_test))^2))
+    solution: |
+      set.seed(108)
+      sat_split <- initial_split(sat, prop = 0.8)
+      sat_train <- training(sat_split)
+      sat_test <- testing(sat_split)
+      m2 <- lm(log_sales ~ poly(temp, 2), data = sat_train)
+      sqrt(mean((sat_test$log_sales - predict(m2, sat_test))^2))
+    check: |
+      expect_object("sat_split", class = "rsplit")
+      expect_object("sat_train", class = "data.frame")
+      check_that(nrow(sat_train) == nrow(.sol$sat_train),
+                 "sat_train の行数が違います。prop = 0.8 としましょう。")
+      expect_df_equal(sat_train, .sol$sat_train)
+      expect_object("m2", class = "lm")
+      expect_model(m2, like = .sol$m2)
+      expect_value(.value, .sol_value, tol = 1e-6, label = "テストデータでの RMSE")
+    hints:
+      - 第92ステップ a・b と同じ手順です。分ける割合と次数だけが違います。
+      - initial_split(sat, prop = 0.8)、training()、testing()、lm(log_sales ~ poly(temp, 2), data = sat_train) です。
+      - |
+        set.seed(108)
+        sat_split <- initial_split(sat, prop = 0.8)
+        sat_train <- training(sat_split)
+        sat_test <- testing(sat_split)
+        m2 <- lm(log_sales ~ poly(temp, 2), data = sat_train)
+        sqrt(mean((sat_test$log_sales - predict(m2, sat_test))^2))
+    tests:
+      fail:
+        - |
+          set.seed(108)
+          sat_split <- initial_split(sat, prop = 0.8)
+          sat_train <- training(sat_split)
+          sat_test <- testing(sat_split)
+          m2 <- lm(log_sales ~ poly(temp, 2), data = sat_train)
+          sqrt(mean((sat_train$log_sales - predict(m2, sat_train))^2))
+        - |
+          set.seed(108)
+          sat_split <- initial_split(sat, prop = 0.8)
+          sat_train <- training(sat_split)
+          sat_test <- testing(sat_split)
+          m2 <- lm(log_sales ~ poly(temp, 2), data = sat)
+          sqrt(mean((sat_test$log_sales - predict(m2, sat_test))^2))

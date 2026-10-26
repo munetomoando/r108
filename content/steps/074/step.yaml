@@ -1,0 +1,231 @@
+id: "074"
+part: 9
+title: 季節性
+question: 原数値と季節調整値はどう違うか
+minutes: 45
+mode: browser
+packages: [readr, dplyr, tidyr, lubridate, ggplot2]
+data: [lfs_monthly.csv]
+learn: [ts, stl]
+review_of: "073"
+setup: |
+  library(readr); library(dplyr); library(tidyr); library(lubridate); library(ggplot2)
+  # 総務省統計局「労働力調査」長期時系列（2026年8月分公表時点）。2000年1月〜2026年8月の月次
+  lfs <- read_csv("data/lfs_monthly.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      完全失業率の原数値 unemp_rate_nsa を、2000年1月始まり・1年12か月の時系列オブジェクトにして u_ts に代入してください（ts() の start = c(2000, 1)、frequency = 12）。
+      続けて u_ts を stl() で分解し（s.window = 13）、fit に代入して、成分の最初の12か月 head(fit$time.series, 12) を表示します。
+    starter: |
+      u_ts <-
+      fit <-
+      head(fit$time.series, 12)
+    solution: |
+      u_ts <- ts(lfs$unemp_rate_nsa, start = c(2000, 1), frequency = 12)
+      fit <- stl(u_ts, s.window = 13)
+      head(fit$time.series, 12)
+    check: |
+      expect_object("u_ts", class = "ts")
+      check_that(frequency(u_ts) == 12,
+                 "u_ts の frequency が12ではありません。月次なので1年に12個、frequency = 12 を指定しましょう。")
+      check_that(identical(start(u_ts), start(.sol$u_ts)),
+                 "u_ts の始まりが違います。start = c(2000, 1)（2000年の1か月目）を指定しましょう。")
+      check_that(isTRUE(all.equal(as.numeric(u_ts), as.numeric(.sol$u_ts))),
+                 "u_ts の中身が違います。季節調整値ではなく、原数値の lfs$unemp_rate_nsa を使いましょう。")
+      expect_object("fit", class = "stl")
+      check_that(isTRUE(all.equal(as.numeric(fit$time.series[, "seasonal"]),
+                                  as.numeric(.sol$fit$time.series[, "seasonal"]), tolerance = 1e-6)),
+                 "季節成分が正解と違います。stl(u_ts, s.window = 13) で分解しましょう。")
+      expect_value(.value, .sol_value, label = "表示した成分の表")
+    hints:
+      - ts() は数のベクトルに「いつ始まり、1年に何個あるか」の情報を付けます。stl() は、その情報を使って季節成分・トレンド成分・残差に分けます。
+      - ts(lfs$unemp_rate_nsa, start = c(2000, 1), frequency = 12) と stl(u_ts, s.window = 13) です。
+      - |
+        u_ts <- ts(lfs$unemp_rate_nsa, start = c(2000, 1), frequency = 12)
+        fit <- stl(u_ts, s.window = 13)
+        head(fit$time.series, 12)
+    tests:
+      fail:
+        - |
+          u_ts <- ts(lfs$unemp_rate_nsa, start = c(2000, 1), frequency = 12)
+          fit <- stl(u_ts, s.window = "periodic")
+          head(fit$time.series, 12)
+        - |
+          u_ts <- ts(lfs$unemp_rate_sa, start = c(2000, 1), frequency = 12)
+          fit <- stl(u_ts, s.window = 13)
+          head(fit$time.series, 12)
+        - |
+          u_ts <- ts(lfs$unemp_rate_nsa, start = c(2000, 1), frequency = 4)
+          fit <- stl(u_ts, s.window = 13)
+          head(fit$time.series, 12)
+  - id: b
+    type: fill
+    prompt: |
+      a の成分を表にして、図に並べます。`___` を埋めてください。
+      1. date、原数値 observed、季節成分 seasonal、トレンド成分 trend、残差 remainder の5列の表を tibble() で作り、comp に代入する（成分は fit$time.series[, "seasonal"] のように取り出し、as.numeric() で数のベクトルにする）
+      2. comp を date 以外の列について縦長にして（列名は component と value）comp_long に代入する
+      3. 横軸 date・縦軸 value の折れ線を、component ごとに縦に4段（facet_wrap の ncol = 1）、縦軸の目盛りを段ごとに変えて（scales = "free_y"）描く
+    starter: |
+      comp <- tibble(date = lfs$date,
+                     observed = lfs$unemp_rate_nsa,
+                     seasonal = as.numeric(fit$time.series[, "seasonal"]),
+                     trend = ___,
+                     remainder = ___)
+      comp_long <- pivot_longer(comp, ___, names_to = "component", values_to = "value")
+      ggplot(comp_long, aes(x = date, y = value)) +
+        geom_line() +
+        facet_wrap(~ ___, ncol = 1, scales = "free_y")
+    solution: |
+      comp <- tibble(date = lfs$date,
+                     observed = lfs$unemp_rate_nsa,
+                     seasonal = as.numeric(fit$time.series[, "seasonal"]),
+                     trend = as.numeric(fit$time.series[, "trend"]),
+                     remainder = as.numeric(fit$time.series[, "remainder"]))
+      comp_long <- pivot_longer(comp, -date, names_to = "component", values_to = "value")
+      ggplot(comp_long, aes(x = date, y = value)) +
+        geom_line() +
+        facet_wrap(~ component, ncol = 1, scales = "free_y")
+    check: |
+      expect_object("comp", class = "data.frame")
+      expect_cols(comp, c("date", "observed", "seasonal", "trend", "remainder"))
+      expect_df_equal(comp, .sol$comp)
+      expect_object("comp_long", class = "data.frame")
+      expect_nrow(comp_long, nrow(.sol$comp_long))
+      expect_df_equal(comp_long, .sol$comp_long, ignore_row_order = TRUE)
+      expect_ggplot(geom = "line", x = "date", y = "value", facet = "component")
+      check_that(identical(.plot$facet$params$free$y, TRUE),
+                 "縦軸の目盛りが段ごとに変わっていません。facet_wrap() に scales = \"free_y\" を付けましょう。")
+    hints:
+      - 1つ目の空欄は seasonal の行と同じ形で、成分の名前だけを替えます。縦長にするのは date 以外の4列です（第13ステップ）。
+      - trend = as.numeric(fit$time.series[, "trend"])、pivot_longer(comp, -date, ...)、facet_wrap(~ component, ...) です。
+      - |
+        comp <- tibble(date = lfs$date,
+                       observed = lfs$unemp_rate_nsa,
+                       seasonal = as.numeric(fit$time.series[, "seasonal"]),
+                       trend = as.numeric(fit$time.series[, "trend"]),
+                       remainder = as.numeric(fit$time.series[, "remainder"]))
+        comp_long <- pivot_longer(comp, -date, names_to = "component", values_to = "value")
+        ggplot(comp_long, aes(x = date, y = value)) +
+          geom_line() +
+          facet_wrap(~ component, ncol = 1, scales = "free_y")
+    tests:
+      fail:
+        - |
+          comp <- tibble(date = lfs$date,
+                         observed = lfs$unemp_rate_nsa,
+                         seasonal = as.numeric(fit$time.series[, "seasonal"]),
+                         trend = as.numeric(fit$time.series[, "trend"]),
+                         remainder = as.numeric(fit$time.series[, "remainder"]))
+          comp_long <- pivot_longer(comp, -date, names_to = "component", values_to = "value")
+          ggplot(comp_long, aes(x = date, y = value)) +
+            geom_line() +
+            facet_wrap(~ component, ncol = 1)
+        - |
+          comp <- tibble(date = lfs$date,
+                         observed = lfs$unemp_rate_nsa,
+                         seasonal = as.numeric(fit$time.series[, "seasonal"]),
+                         trend = as.numeric(fit$time.series[, "seasonal"]),
+                         remainder = as.numeric(fit$time.series[, "remainder"]))
+          comp_long <- pivot_longer(comp, -date, names_to = "component", values_to = "value")
+          ggplot(comp_long, aes(x = date, y = value)) +
+            geom_line() +
+            facet_wrap(~ component, ncol = 1, scales = "free_y")
+  - id: c
+    type: write
+    prompt: |
+      STL で作った季節調整値と、統計局が公表した季節調整値 unemp_rate_sa を比べます。
+      comp に3つの列を加えて cmp に代入してください。
+      - sa_stl … 原数値から季節成分を引いた値（observed − seasonal）
+      - sa_pub … 公表の季節調整値（lfs$unemp_rate_sa）
+      - gap … sa_stl − sa_pub
+      続けて、cmp から gap の絶対値の平均 mae と、絶対値の最大 max_gap の2つを summarise() で求めて表示します。
+    starter: |
+      cmp <- comp |>
+        mutate()
+      summarise(cmp, )
+    solution: |
+      cmp <- comp |>
+        mutate(sa_stl = observed - seasonal,
+               sa_pub = lfs$unemp_rate_sa,
+               gap = sa_stl - sa_pub)
+      summarise(cmp, mae = mean(abs(gap)), max_gap = max(abs(gap)))
+    check: |
+      expect_object("cmp", class = "data.frame")
+      expect_cols(cmp, c("sa_stl", "sa_pub", "gap"))
+      check_that(isTRUE(all.equal(cmp$sa_stl, .sol$cmp$sa_stl)),
+                 "sa_stl の値が違います。原数値 observed から季節成分 seasonal を引きましょう（トレンドではありません）。")
+      expect_df_equal(cmp, .sol$cmp)
+      expect_cols(.value, c("mae", "max_gap"))
+      expect_value(.value, .sol_value, label = "表示した mae と max_gap")
+    hints:
+      - 季節調整値は「原数値 − 季節成分」です。トレンド成分と残差は残したままにします。差の大きさは、第33ステップの abs() で絶対値にしてから平均と最大をとります。
+      - mutate(sa_stl = observed - seasonal, sa_pub = lfs$unemp_rate_sa, gap = sa_stl - sa_pub) と summarise(cmp, mae = mean(abs(gap)), max_gap = max(abs(gap))) です。
+      - |
+        cmp <- comp |>
+          mutate(sa_stl = observed - seasonal,
+                 sa_pub = lfs$unemp_rate_sa,
+                 gap = sa_stl - sa_pub)
+        summarise(cmp, mae = mean(abs(gap)), max_gap = max(abs(gap)))
+    tests:
+      fail:
+        - |
+          cmp <- comp |>
+            mutate(sa_stl = trend,
+                   sa_pub = lfs$unemp_rate_sa,
+                   gap = sa_stl - sa_pub)
+          summarise(cmp, mae = mean(abs(gap)), max_gap = max(abs(gap)))
+        - |
+          cmp <- comp |>
+            mutate(sa_stl = observed - seasonal,
+                   sa_pub = lfs$unemp_rate_sa,
+                   gap = sa_stl - sa_pub)
+          summarise(cmp, mae = mean(gap), max_gap = max(gap))
+  - id: d
+    type: interpret
+    prompt: |
+      2026年2月から3月にかけて、完全失業率の原数値は2.6%から2.8%へ0.2ポイント上がり、季節調整値は2.6%から2.7%へ0.1ポイント上がりました。a の季節成分を見ると、2026年は3月が2月より0.14ポイントほど高くなっています。この動きの読み方として最も適切なものはどれですか。
+    choices:
+      - "原数値で0.2ポイント上がったので、2月から3月にかけて雇用情勢は0.2ポイント分悪化したと読む"
+      - "原数値の上昇の多くは毎年3月に起きる季節の動きで、季節の影響を除いた上昇は0.1ポイントほどと読む。前の月と比べるときは季節調整値を使う"
+      - "季節調整値は統計的に加工した値なので、景気を読むには原数値だけを使うべきである"
+      - "季節成分は毎年まったく同じ大きさなので、3月の原数値から季節成分を引けば、公表の季節調整値と必ず一致する"
+    answer: 1
+    explain: 2026年の季節成分は2月が約−0.06、3月が約+0.08で、3月は毎年2月より高くなります。年度の変わり目で、仕事を探し始める人や離職する人が増えるためと考えられます。原数値の上昇0.2ポイントのうち0.14ポイントほどはこの季節の動きで、季節の影響を除いた上昇は季節調整値の0.1ポイントほどです。なお、s.window = 13 の季節成分は年とともに少しずつ変わり、STL は統計局とは別の方法なので、c のとおり公表の季節調整値と完全には一致しません。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第73ステップの復習】lfs に、就業者数 employed_10k の前年同月差（万人）emp_diff を加えて lfs_emp に代入し、2026年1月1日以降の行を表示してください。
+    starter: |
+      lfs_emp <-
+
+    solution: |
+      lfs_emp <- lfs |>
+        mutate(emp_diff = employed_10k - lag(employed_10k, 12))
+      filter(lfs_emp, date >= ymd("2026-01-01"))
+    check: |
+      expect_object("lfs_emp", class = "data.frame")
+      expect_cols(lfs_emp, "emp_diff")
+      check_that(sum(is.na(lfs_emp$emp_diff)) == 12,
+                 "emp_diff の最初の12か月は NA になるはずです。lag(employed_10k, 12) で12か月前の値と比べましょう。")
+      expect_df_equal(lfs_emp, .sol$lfs_emp)
+      expect_value(.value, .sol_value, label = "表示した2026年の行")
+    hints:
+      - 前年同月は12行前です。第73ステップ b の前年同月差と同じ形で、列を就業者数に替えます。
+      - mutate(emp_diff = employed_10k - lag(employed_10k, 12)) と filter(lfs_emp, date >= ymd("2026-01-01")) です。
+      - |
+        lfs_emp <- lfs |>
+          mutate(emp_diff = employed_10k - lag(employed_10k, 12))
+        filter(lfs_emp, date >= ymd("2026-01-01"))
+    tests:
+      fail:
+        - |
+          lfs_emp <- lfs |>
+            mutate(emp_diff = employed_10k - lag(employed_10k))
+          filter(lfs_emp, date >= ymd("2026-01-01"))
+        - |
+          lfs_emp <- lfs |>
+            mutate(emp_diff = lag(employed_10k, 12) - employed_10k)
+          filter(lfs_emp, date >= ymd("2026-01-01"))

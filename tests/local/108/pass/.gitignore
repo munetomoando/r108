@@ -1,0 +1,8 @@
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+
+# 社外秘のデータと API キーはリポジトリに入れない
+data/
+.Renviron

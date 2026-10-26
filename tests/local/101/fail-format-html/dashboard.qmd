@@ -1,0 +1,76 @@
+---
+title: "ネット通販 月次ダッシュボード"
+subtitle: "そらまめマーケット（架空の会社）"
+author: "安藤至大"
+lang: ja
+format: html
+knitr:
+  opts_chunk:
+    dev: ragg_png   # 図の日本語を文字化けさせない
+---
+
+```{r}
+#| label: setup
+#| include: false
+library(tidyverse)
+orders <- read_csv("data/ec_orders.csv", show_col_types = FALSE)
+products <- read_csv("data/ec_products.csv", show_col_types = FALSE)
+
+m <- ymd("2025-12-01")   # 対象の月
+
+ec <- orders |>
+  left_join(products, by = "product_id") |>
+  mutate(sales = qty * unit_price,
+         ym = floor_date(order_date, unit = "month"))
+
+kpi <- ec |>
+  group_by(ym) |>
+  summarise(sales = sum(sales),
+            buyers = n_distinct(customer_id),
+            orders = n_distinct(order_id)) |>
+  mutate(spend = sales / buyers)
+
+now <- kpi |> filter(ym == m)
+```
+
+## Row {height="25%"}
+
+```{r}
+#| content: valuebox
+#| title: "売上（万円）"
+list(icon = "currency-yen", color = "primary", value = round(now$sales / 10000))
+```
+
+```{r}
+#| content: valuebox
+#| title: "客数（人）"
+list(icon = "people", color = "info", value = now$buyers)
+```
+
+```{r}
+#| content: valuebox
+#| title: "客単価（円）"
+list(icon = "cart", color = "secondary", value = round(now$spend))
+```
+
+## Row {height="75%"}
+
+```{r}
+#| title: "月別の売上（万円）"
+ggplot(kpi, aes(x = ym, y = sales / 10000)) +
+  geom_line() +
+  geom_point() +
+  labs(x = NULL, y = NULL)
+```
+
+```{r}
+#| title: "カテゴリ別の売上（対象月、万円）"
+ec |>
+  filter(ym == m) |>
+  group_by(category) |>
+  summarise(sales = sum(sales) / 10000) |>
+  ggplot(aes(x = fct_reorder(category, sales), y = sales)) +
+  geom_col() +
+  coord_flip() +
+  labs(x = NULL, y = NULL)
+```

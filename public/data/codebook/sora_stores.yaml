@@ -1,0 +1,39 @@
+title: そらまめマーケット 店舗データ（架空）
+file: sora_stores.csv
+source: 合成データ（data-raw/synth_sora_stores.R、乱数シード108）。架空の企業「そらまめマーケット」が運営する食品スーパー50店舗の年次データで、実在の企業・店舗とは関係ありません
+rows: 50
+unit_of_observation: 店舗
+columns:
+  - name: store_id
+    description: 店舗ID（S01〜S50）
+    unit: なし
+  - name: store_name
+    description: 店舗名
+    unit: なし
+  - name: region
+    description: 地域（北海道・東北、関東、中部、近畿、中国・四国、九州・沖縄の6区分）
+    unit: なし
+  - name: pref
+    description: 所在する都道府県
+    unit: なし
+  - name: location
+    description: 立地（駅前・郊外・商業施設）
+    unit: なし
+  - name: open_year
+    description: 開店した年
+    unit: 年
+  - name: floor_m2
+    description: 売場面積
+    unit: m²
+  - name: staff
+    description: 従業員数（パート・アルバイトを常勤換算）
+    unit: 人
+  - name: customers
+    description: 今年の客数（レジを通った延べ人数）
+    unit: 人/年
+  - name: sales
+    description: 今年の売上高
+    unit: 万円/年
+  - name: sales_last
+    description: 前年の売上高
+    unit: 万円/年

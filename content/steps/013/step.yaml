@@ -1,0 +1,165 @@
+id: "013"
+part: 2
+title: 縦長と横長
+question: 2000〜2020年に就業率が最も上がった県はどこか
+minutes: 45
+mode: browser
+packages: [readr, dplyr, tidyr, stringi]
+data: [pref_labor_wide.csv]
+learn: [pivot_longer, pivot_wider, names_to, values_to, names_transform]
+allow: [as.integer]
+review_of: "012"
+setup: |
+  library(readr); library(dplyr); library(tidyr); library(stringi)
+  labor_wide <- read_csv("data/pref_labor_wide.csv", show_col_types = FALSE)
+  jobs <- data.frame(
+    store = c("S01", "S02", "S03", "S04", "S05"),
+    wage = c("１,１００円", "1,050円", "-", "１２００円", "不明")
+  )
+exercises:
+  - id: a
+    type: fill
+    prompt: |
+      labor_wide は、1行が1つの県で、2000〜2020年の就業率（%）が5つの列に横に並んだ表です。
+      pref 以外の5つの列を縦に積み直し、年の列 year と就業率の列 emp_rate をもつ縦長の表にして、labor_long に代入してください。
+      year は names_transform で整数に直します（この部分は書いてあります）。___ を埋めてください。
+    starter: |
+      labor_long <- labor_wide |>
+        pivot_longer(cols = ___, names_to = ___, values_to = ___,
+                     names_transform = list(year = as.integer))
+    solution: |
+      labor_long <- labor_wide |>
+        pivot_longer(cols = -pref, names_to = "year", values_to = "emp_rate",
+                     names_transform = list(year = as.integer))
+    check: |
+      expect_object("labor_long", class = "data.frame")
+      expect_cols(labor_long, c("pref", "year", "emp_rate"))
+      check_that(is.numeric(labor_long$year), "year が数値になっていません。names_transform = list(year = as.integer) を残しましょう。")
+      expect_df_equal(labor_long, .sol$labor_long, ignore_row_order = TRUE)
+    hints:
+      - 縦に積みたいのは pref 以外のすべての列です。「元の列名」が入る列の名前と、「値」が入る列の名前を、それぞれ文字列で指定します。
+      - cols = -pref で「pref 以外の列」を指定できます。names_to = "year"（元の列名 2000 などが入る列）、values_to = "emp_rate"（就業率が入る列）です。
+      - "labor_long <- labor_wide |> pivot_longer(cols = -pref, names_to = \"year\", values_to = \"emp_rate\", names_transform = list(year = as.integer))"
+    tests:
+      fail:
+        - |
+          labor_long <- labor_wide |>
+            pivot_longer(cols = -pref, names_to = "year", values_to = "emp_rate")
+        - |
+          labor_long <- labor_wide |>
+            pivot_longer(cols = -pref, names_to = "emp_rate", values_to = "year")
+        - |
+          labor_long <- labor_wide |>
+            pivot_longer(cols = c(`2000`, `2020`), names_to = "year", values_to = "emp_rate",
+                         names_transform = list(year = as.integer))
+  - id: b
+    type: predict
+    prompt: |
+      labor_wide は47行6列です。a で作った labor_long は何行になるでしょうか。実行する前に予想してから、nrow(labor_long) で確かめてください。
+    choices:
+      - "47行（県の数は変わらないので）"
+      - "5行（年の数だけになるので）"
+      - "235行"
+      - "282行"
+    answer: 2
+    explain: |
+      縦長の表では、1行が「1つの県の1つの年」になります。47県それぞれに5つの年があるので、47 × 5 = 235 行です。
+      282 は 47 × 6 で、pref の列まで積んでしまった場合の数です。pref は「どの県か」を表す列なので、積まずに残します。
+  - id: c
+    type: write
+    prompt: |
+      県ごとに、2000年から2020年までの就業率の変化幅（ポイント）を求めます。
+      横長の labor_wide に、2020年の列から2000年の列を引いた列 change を mutate() で作り、pref と change の2列だけを選んで、change の大きい順に並べた表を labor_change に代入してください。
+      列名が数字なので、`2020` のようにバッククォート（`）で囲んで書きます。
+    starter: |
+      labor_change <- labor_wide |>
+    solution: |
+      labor_change <- labor_wide |>
+        mutate(change = `2020` - `2000`) |>
+        select(pref, change) |>
+        arrange(desc(change))
+    check: |
+      expect_object("labor_change", class = "data.frame")
+      expect_cols(labor_change, c("pref", "change"))
+      expect_df_equal(labor_change, .sol$labor_change)
+    hints:
+      - 「列を作る → 2列を選ぶ → 大きい順に並べる」の3段のパイプです。横長の表では、年どうしの引き算が列どうしの引き算になります。
+      - mutate(change = `2020` - `2000`) と書きます。引用符（"）ではなくバッククォート（`）です。続けて select(pref, change)、arrange(desc(change)) とつなぎます。
+      - "labor_change <- labor_wide |> mutate(change = `2020` - `2000`) |> select(pref, change) |> arrange(desc(change))"
+    tests:
+      fail:
+        - |
+          labor_change <- labor_wide |>
+            mutate(change = `2020` - `2000`) |>
+            select(pref, change) |>
+            arrange(change)
+        - |
+          labor_change <- labor_wide |>
+            mutate(change = `2000` - `2020`) |>
+            select(pref, change) |>
+            arrange(desc(change))
+        - |
+          labor_change <- labor_wide |>
+            mutate(change = `2020` - `2015`) |>
+            select(pref, change) |>
+            arrange(desc(change))
+  - id: d
+    type: write
+    prompt: |
+      上司から「2000年と2020年の就業率を、県ごとに横に並べた表がほしい」と頼まれました。
+      a の labor_long から、year が 2000 と 2020 の行だけを残し、pivot_wider() で年を列に戻して、列が pref, `2000`, `2020` の横長の表 labor_00_20 に代入してください。
+    starter: |
+      labor_00_20 <- labor_long |>
+    solution: |
+      labor_00_20 <- labor_long |>
+        filter(year %in% c(2000, 2020)) |>
+        pivot_wider(names_from = year, values_from = emp_rate)
+    check: |
+      expect_object("labor_00_20", class = "data.frame")
+      expect_uses("pivot_wider")
+      expect_cols(labor_00_20, c("pref", "2000", "2020"))
+      expect_df_equal(labor_00_20, .sol$labor_00_20, ignore_row_order = TRUE)
+    hints:
+      - まず filter() で2つの年の行だけにし、そのあと縦長を横長に戻します。横長に戻すと、47行に戻るはずです。
+      - filter(year %in% c(2000, 2020)) で2つの年を残します。pivot_wider(names_from = year, values_from = emp_rate) で、year の値が列名に、emp_rate の値がその中身になります。
+      - "labor_00_20 <- labor_long |> filter(year %in% c(2000, 2020)) |> pivot_wider(names_from = year, values_from = emp_rate)"
+    tests:
+      fail:
+        - "labor_00_20 <- labor_long |> pivot_wider(names_from = year, values_from = emp_rate)"
+        - "labor_00_20 <- labor_long |> filter(year %in% c(2000, 2020)) |> pivot_wider(names_from = pref, values_from = emp_rate)"
+        - "labor_00_20 <- labor_wide |> select(pref, `2000`, `2020`)"
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第12ステップの復習】店長たちから、パート募集の時給をまとめた小さな表 jobs が届きました。wage には全角の数字、「円」、「-」、「不明」が混じっています。
+      wage の「-」と「不明」を na_if() で NA にし、stri_trans_nfkc() で半角にしてから parse_number() で数値にして、jobs2 に代入してください。
+    starter: |
+      jobs2 <- jobs |>
+        mutate(wage = na_if(wage, "-"),
+               wage = ,
+               wage = )
+    solution: |
+      jobs2 <- jobs |>
+        mutate(wage = na_if(wage, "-"),
+               wage = na_if(wage, "不明"),
+               wage = parse_number(stri_trans_nfkc(wage)))
+    check: |
+      expect_object("jobs2", class = "data.frame")
+      expect_uses("na_if")
+      expect_df_equal(jobs2, .sol$jobs2)
+    hints:
+      - 「欠損の表記を NA にする → 全角を半角にする → 数値にする」の順です。全角の数字は、半角にしないと数値として読めません。
+      - 2行目は na_if(wage, "不明")、3行目は stri_trans_nfkc() で半角にした結果を parse_number() に渡します。
+      - "jobs2 <- jobs |> mutate(wage = na_if(wage, \"-\"), wage = na_if(wage, \"不明\"), wage = parse_number(stri_trans_nfkc(wage)))"
+    tests:
+      fail:
+        - |
+          jobs2 <- jobs |>
+            mutate(wage = na_if(wage, "-"),
+                   wage = na_if(wage, "不明"))
+        - |
+          jobs2 <- jobs |>
+            mutate(wage = na_if(wage, "-"),
+                   wage = na_if(wage, "不明"),
+                   wage = parse_number(wage))

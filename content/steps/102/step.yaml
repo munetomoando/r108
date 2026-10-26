@@ -1,0 +1,25 @@
+id: "102"
+part: 12
+title: Shiny入門
+question: 地域を選ぶと売上の図が変わるアプリ
+minutes: 60
+mode: local
+packages: [shiny, readr, dplyr, ggplot2, lubridate]
+data: [sora_stores.csv, store_sales_daily.csv]
+learn: [fluidPage, selectInput, plotOutput, renderPlot, reactive]
+allow: [shinyApp, titlePanel, sidebarLayout, sidebarPanel, mainPanel, tableOutput, renderTable, runApp, paste0]
+local:
+  script: check_102.R
+  code_sha256: "4be5fc00697ac1a7215867d2ffa1dc12566061203acd7eab4087845c325e5230"
+  instructions: |
+    **実行する前に**
+    - 本文の手順を終え、プロジェクトのフォルダに `app.R` と `data/sora_stores.csv`・`data/store_sales_daily.csv` がそろっていること
+    - 「Run App」で動かしたアプリを止めていること（コンソールの右上の赤い停止ボタン、または Esc キー）
+
+    ダウンロードした `check_102.R` を `app.R` と同じフォルダに置き、コンソールで次を実行します。
+
+    ```r
+    source("check_102.R", encoding = "UTF-8")
+    ```
+
+    確認スクリプトはアプリを起動しません。`shiny::shinyAppFile()` で app.R を読み込み、画面の部品（入力と出力）を調べてから、`shiny::testServer()` で server を動かして、地域を変えると図や表が変わるかを確かめます。

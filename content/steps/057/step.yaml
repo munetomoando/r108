@@ -1,0 +1,182 @@
+id: "057"
+part: 7
+title: RCTの精度を上げる
+question: 共変量を入れると何が変わるか
+minutes: 50
+mode: browser
+packages: [readr, dplyr, fixest]
+data: [training_rct.csv]
+learn: []
+review_of: "056"
+setup: |
+  library(readr); library(dplyr); library(fixest)
+  # 職業訓練のランダム化比較試験（架空のデータ、1,000人）。参加希望者を抽選で500人ずつに分けた
+  rct <- read_csv("data/training_rct.csv", show_col_types = FALSE)
+  # 訓練の「後」に決まる変数 regular_post（訓練後1年以内に正社員の仕事に就いたら1）を加える。
+  # u は earn_post の式の誤差（意欲や能力など、データにない要因）。
+  # 正社員になる確率は、訓練を受けると高まり、u が大きい人ほど高い
+  set.seed(57)
+  rct <- rct |>
+    mutate(u = earn_post - (150 + 0.8 * prior_earn + 5 * educ_years -
+                              0.5 * (age - 35)^2 / 10 + 30 * treat),
+           regular_post = rbinom(n(), size = 1, prob = plogis(-1 + 1.5 * treat + 0.03 * u))) |>
+    select(-u)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      訓練の前から決まっている共変量（prior_earn、educ_years、age、female）を説明変数に加えた回帰で、訓練の効果を推定します。
+      1. 第56ステップと同じ lm(earn_post ~ treat, data = rct) を m_simple に代入する
+      2. treat に prior_earn・educ_years・age・female を加えた回帰（この順）を m_cov に代入する
+      3. 2つのモデルの treat の係数を c(coef(m_simple)[["treat"]], coef(m_cov)[["treat"]]) で並べて表示する
+    starter: |
+      m_simple <- lm(earn_post ~ treat, data = rct)
+      m_cov <-
+      c(coef(m_simple)[["treat"]], coef(m_cov)[["treat"]])
+    solution: |
+      m_simple <- lm(earn_post ~ treat, data = rct)
+      m_cov <- lm(earn_post ~ treat + prior_earn + educ_years + age + female, data = rct)
+      c(coef(m_simple)[["treat"]], coef(m_cov)[["treat"]])
+    check: |
+      expect_object("m_simple", class = "lm")
+      expect_model(m_simple, like = .sol$m_simple)
+      expect_object("m_cov", class = "lm")
+      check_that(!("regular_post" %in% names(coef(m_cov))),
+                 "regular_post は訓練の後に決まる変数です。この小課題では、訓練の前から決まっている4つの共変量だけを入れましょう。")
+      expect_model(m_cov, like = .sol$m_cov)
+      expect_value(.value, .sol_value, label = "表示した2つの係数")
+    hints:
+      - 重回帰（第39ステップ）と同じく、~ の右に変数を + でつないで並べます。
+      - 式は earn_post ~ treat + prior_earn + educ_years + age + female です。
+      - |
+        m_simple <- lm(earn_post ~ treat, data = rct)
+        m_cov <- lm(earn_post ~ treat + prior_earn + educ_years + age + female, data = rct)
+        c(coef(m_simple)[["treat"]], coef(m_cov)[["treat"]])
+    tests:
+      fail:
+        - |
+          m_simple <- lm(earn_post ~ treat, data = rct)
+          m_cov <- lm(earn_post ~ treat + prior_earn, data = rct)
+          c(coef(m_simple)[["treat"]], coef(m_cov)[["treat"]])
+        - |
+          m_simple <- lm(earn_post ~ treat, data = rct)
+          m_cov <- lm(earn_post ~ treat + prior_earn + educ_years + age + female + regular_post, data = rct)
+          c(coef(m_simple)[["treat"]], coef(m_cov)[["treat"]])
+  - id: b
+    type: write
+    prompt: |
+      a の2つのモデルを fixest の feols() で推定し直し、treat の標準誤差を比べます（第43ステップ）。
+      1. 共変量なしのモデルを f_simple に、共変量ありのモデルを f_cov に代入する。どちらも vcov = "hetero"（不均一分散に頑健な標準誤差）を付ける
+      2. c(se(f_simple)[["treat"]], se(f_cov)[["treat"]]) を表示する
+    starter: |
+      f_simple <- feols(earn_post ~ treat, data = rct, vcov = "hetero")
+      f_cov <-
+      c(se(f_simple)[["treat"]], se(f_cov)[["treat"]])
+    solution: |
+      f_simple <- feols(earn_post ~ treat, data = rct, vcov = "hetero")
+      f_cov <- feols(earn_post ~ treat + prior_earn + educ_years + age + female,
+                     data = rct, vcov = "hetero")
+      c(se(f_simple)[["treat"]], se(f_cov)[["treat"]])
+    check: |
+      expect_object("f_simple", class = "fixest")
+      expect_model(f_simple, like = .sol$f_simple)
+      expect_object("f_cov", class = "fixest")
+      expect_model(f_cov, like = .sol$f_cov)
+      check_that(isTRUE(all.equal(as.numeric(se(f_cov)), as.numeric(se(.sol$f_cov)), tolerance = 1e-6)),
+                 "f_cov の標準誤差が頑健な標準誤差になっていません。feols() の中に vcov = \"hetero\" を書きましょう。")
+      expect_value(.value, .sol_value, label = "表示した2つの標準誤差")
+    hints:
+      - 式は a の m_cov と同じです。lm を feols に変え、vcov = "hetero" を付けます。
+      - se(モデル) で標準誤差が取り出せ、[["treat"]] で treat の分だけを選べます。
+      - |
+        f_simple <- feols(earn_post ~ treat, data = rct, vcov = "hetero")
+        f_cov <- feols(earn_post ~ treat + prior_earn + educ_years + age + female,
+                       data = rct, vcov = "hetero")
+        c(se(f_simple)[["treat"]], se(f_cov)[["treat"]])
+    tests:
+      fail:
+        - |
+          f_simple <- feols(earn_post ~ treat, data = rct, vcov = "hetero")
+          f_cov <- feols(earn_post ~ treat + prior_earn + educ_years + age + female, data = rct)
+          c(se(f_simple)[["treat"]], se(f_cov)[["treat"]])
+        - |
+          f_simple <- feols(earn_post ~ treat, data = rct, vcov = "hetero")
+          f_cov <- feols(earn_post ~ treat + prior_earn, data = rct, vcov = "hetero")
+          c(se(f_simple)[["treat"]], se(f_cov)[["treat"]])
+  - id: c
+    type: fix
+    prompt: |
+      rct には、訓練の後に決まる変数 regular_post（訓練後1年以内に正社員の仕事に就いたら1）も入っています。
+      ある先輩が「正社員になったかどうかもそろえたほうが、訓練の効果を正確に測れる」と考えて、starter のように regular_post を説明変数に加えました。
+      starter の1行目を実行して、訓練が regular_post そのものを変えていることを確かめてから、誤りを直した推定を f_c に代入し、treat の係数を表示してください（vcov = "hetero" はそのまま残します）。
+    starter: |
+      rct |> group_by(treat) |> summarise(正社員になった割合 = mean(regular_post))
+      f_c <- feols(earn_post ~ treat + prior_earn + educ_years + age + female + regular_post,
+                   data = rct, vcov = "hetero")
+      coef(f_c)[["treat"]]
+    solution: |
+      rct |> group_by(treat) |> summarise(正社員になった割合 = mean(regular_post))
+      f_c <- feols(earn_post ~ treat + prior_earn + educ_years + age + female,
+                   data = rct, vcov = "hetero")
+      coef(f_c)[["treat"]]
+    check: |
+      expect_object("f_c", class = "fixest")
+      check_that(!("regular_post" %in% names(coef(f_c))),
+                 "regular_post が説明変数に残っています。訓練の後に決まり、訓練そのものに左右される変数は、効果を測る回帰に入れてはいけません。")
+      check_that("treat" %in% names(coef(f_c)), "treat は残しましょう。訓練の効果を測る回帰です。")
+      expect_model(f_c, like = .sol$f_c)
+      expect_value(.value, .sol_value, label = "表示した treat の係数")
+    hints:
+      - 1行目の結果では、正社員になった割合が処置群で高くなっています。regular_post は訓練の「結果」の一部です。
+      - 説明変数に入れてよいのは、訓練の前から決まっている変数（prior_earn、educ_years、age、female）だけです。
+      - |
+        rct |> group_by(treat) |> summarise(正社員になった割合 = mean(regular_post))
+        f_c <- feols(earn_post ~ treat + prior_earn + educ_years + age + female,
+                     data = rct, vcov = "hetero")
+        coef(f_c)[["treat"]]
+    tests:
+      fail:
+        - |
+          f_c <- feols(earn_post ~ prior_earn + educ_years + age + female + regular_post,
+                       data = rct, vcov = "hetero")
+          coef(f_c)[["regular_post"]]
+        - |
+          f_c <- feols(earn_post ~ treat + regular_post, data = rct, vcov = "hetero")
+          coef(f_c)[["treat"]]
+  - id: d
+    type: interpret
+    prompt: |
+      a・b の結果は、treat の係数が共変量なしで約34.8、共変量ありで約33.5、頑健な標準誤差が約8.03と約3.75でした。この結果の読み方として最も適切なものはどれですか。
+    choices:
+      - "無作為割当なのでどちらの推定値も偏りはない。共変量（特に前年収入）が年収のばらつきの多くを説明するので、共変量ありのほうが標準誤差が半分以下になり、効果をより精度よく推定できる"
+      - "共変量を入れると係数が小さくなったので、共変量なしの推定値34.8には選択バイアスが含まれていた"
+      - "共変量を入れると標準誤差が小さくなるので、入れる変数は多ければ多いほど良く、regular_post のような訓練後の変数も入れるべきである"
+      - "標準誤差が小さくなったのは、共変量を入れると推定に使う人数が増えるからである"
+    answer: 0
+    explain: 抽選で分けたので、共変量は処置と（平均的には）無関係です。そのため共変量を入れても入れなくても、treat の係数は平均的には真の効果になります。34.8と33.5の違いは、偶然生じた共変量の小さな差（年齢の約1歳など）を調整したことによるもので、選択バイアスの証拠ではありません（選択肢2は誤り）。共変量を入れる利点は精度です。前年収入は訓練後の年収と強く相関し（相関係数の2乗は約0.77）、年収のばらつきのうち訓練と関係ない部分を説明します。残りのばらつきが小さくなるので、標準誤差は約0.47倍になりました。推定に使う人数はどちらも1,000人です（選択肢4は誤り）。ただし入れてよいのは処置の前に決まる変数だけで、c のように訓練後の変数を入れると推定が偏ります（選択肢3は誤り）。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第56ステップの復習】バランスチェックの続きです。処置群と対照群で教育年数 educ_years の平均に差があるかを、t.test() で検定して表示してください（式は educ_years ~ treat、data = rct）。
+    starter: |
+      t.test()
+    solution: |
+      t.test(educ_years ~ treat, data = rct)
+    check: |
+      expect_uses("t.test")
+      check_that(inherits(.value, "htest"), "t.test() の結果が表示されていません。")
+      check_that(isTRUE(all.equal(.value$p.value, .sol_value$p.value)),
+                 "検定の結果が違います。式を educ_years ~ treat、data を rct にしましょう。")
+      expect_value(unname(.value$estimate), unname(.sol_value$estimate), label = "2つの群の平均")
+    hints:
+      - 2つの群の平均の差の検定は t.test() で行えます（第33ステップ）。
+      - t.test(比べる変数 ~ 群を表す変数, data = データ) の形で書きます。
+      - |
+        t.test(educ_years ~ treat, data = rct)
+    tests:
+      fail:
+        - |
+          t.test(prior_earn ~ treat, data = rct)
+        - |
+          t.test(earn_post ~ treat, data = rct)

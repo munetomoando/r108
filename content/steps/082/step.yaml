@@ -1,0 +1,236 @@
+id: "082"
+part: 10
+title: 業務データの全体像
+question: 先月の売上・客数・客単価は
+minutes: 45
+mode: browser
+packages: [readr, dplyr, lubridate]
+data: [ec_orders.csv, ec_customers.csv, ec_products.csv, lfs_monthly.csv]
+learn: []
+review_of: "081"
+setup: |
+  library(readr); library(dplyr); library(lubridate)
+  # 架空の企業「そらまめマーケット」のネット通販。注文明細・顧客マスタ・商品マスタ（2024〜2025年）
+  orders <- read_csv("data/ec_orders.csv", show_col_types = FALSE)
+  customers <- read_csv("data/ec_customers.csv", show_col_types = FALSE)
+  products <- read_csv("data/ec_products.csv", show_col_types = FALSE)
+  # 第81ステップの復習用：労働力調査の月次（2000年1月〜2026年8月）
+  lfs <- read_csv("data/lfs_monthly.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      3つの表を1つにつなぎ、分析の土台になる表を作ります。
+      1. orders に products を product_id で、続けて customers を customer_id で左結合（left_join）する
+      2. 明細ごとの売上 sales（qty × unit_price）の列を加える
+      この表を ec に代入し、nrow(ec) を表示してください。結合の前後で行数が変わらないこと（61,275行）を確かめます。
+    starter: |
+      ec <- orders |>
+
+      nrow(ec)
+    solution: |
+      ec <- orders |>
+        left_join(products, by = "product_id") |>
+        left_join(customers, by = "customer_id") |>
+        mutate(sales = qty * unit_price)
+      nrow(ec)
+    check: |
+      expect_object("ec", class = "data.frame")
+      expect_cols(ec, c("order_id", "customer_id", "category", "channel", "pref_code", "sales"))
+      check_that(nrow(ec) == nrow(orders),
+                 "ec の行数が orders と違います。顧客マスタにない顧客の注文も残すため、inner_join ではなく left_join を使いましょう。")
+      check_that(isTRUE(all.equal(ec$sales, ec$qty * ec$unit_price)),
+                 "sales が違います。売上は実際に売れた値段 unit_price を使い、qty * unit_price で計算します（list_price は定価です）。")
+      expect_df_equal(ec, .sol$ec)
+      expect_value(.value, .sol_value, label = "表示した nrow(ec)")
+    hints:
+      - 明細（orders）を左に置き、商品の情報と顧客の情報を順に横へ付け足します（第14ステップ）。キーは商品が product_id、顧客が customer_id です。
+      - left_join(products, by = "product_id") と left_join(customers, by = "customer_id") をパイプでつなぎ、最後に mutate(sales = qty * unit_price) を足します。
+      - |
+        ec <- orders |>
+          left_join(products, by = "product_id") |>
+          left_join(customers, by = "customer_id") |>
+          mutate(sales = qty * unit_price)
+        nrow(ec)
+    tests:
+      fail:
+        - |
+          ec <- orders |>
+            left_join(products, by = "product_id") |>
+            inner_join(customers, by = "customer_id") |>
+            mutate(sales = qty * unit_price)
+          nrow(ec)
+        - |
+          ec <- orders |>
+            left_join(products, by = "product_id") |>
+            left_join(customers, by = "customer_id") |>
+            mutate(sales = qty * list_price)
+          nrow(ec)
+  - id: b
+    type: write
+    prompt: |
+      ec から月次の KPI 表を作り、kpi に代入して表示してください（2024年1月〜2025年12月の24行）。
+      - ym … 注文日をその月の1日にそろえた列（floor_date(order_date, unit = "month")）。ym ごとに集計します
+      - sales … 売上の合計
+      - buyers … 客数。その月に1回以上注文した顧客の数（customer_id の種類の数）
+      - orders … 注文件数（order_id の種類の数）
+    starter: |
+      kpi <- ec |>
+
+      kpi
+    solution: |
+      kpi <- ec |>
+        mutate(ym = floor_date(order_date, unit = "month")) |>
+        group_by(ym) |>
+        summarise(sales = sum(sales),
+                  buyers = n_distinct(customer_id),
+                  orders = n_distinct(order_id))
+      kpi
+    check: |
+      expect_object("kpi", class = "data.frame")
+      expect_cols(kpi, c("ym", "sales", "buyers", "orders"))
+      expect_nrow(kpi, 24)
+      check_that(isTRUE(all.equal(kpi$sales, .sol$kpi$sales)),
+                 "sales が違います。ym ごとに sum(sales) で合計しましょう。")
+      check_that(isTRUE(all.equal(kpi$buyers, .sol$kpi$buyers)),
+                 "buyers が違います。1行は注文明細なので、n() では同じ顧客を何度も数えます。n_distinct(customer_id) で顧客の数を数えましょう。")
+      check_that(isTRUE(all.equal(kpi$orders, .sol$kpi$orders)),
+                 "orders が違います。1つの注文に複数の明細があるので、n_distinct(order_id) で注文の数を数えましょう。")
+      expect_df_equal(kpi, .sol$kpi)
+      expect_value(.value, .sol_value, label = "表示した kpi")
+    hints:
+      - 「月の列を作る → 月でグループに分ける → 3つの指標を集計する」の3段です。ec の1行は注文明細なので、行数を数えると客数にも注文件数にもなりません。
+      - floor_date(order_date, unit = "month") で月の1日にそろえます（第15ステップ）。種類の数は n_distinct()（第64ステップ）で数えます。
+      - |
+        kpi <- ec |>
+          mutate(ym = floor_date(order_date, unit = "month")) |>
+          group_by(ym) |>
+          summarise(sales = sum(sales),
+                    buyers = n_distinct(customer_id),
+                    orders = n_distinct(order_id))
+        kpi
+    tests:
+      fail:
+        - |
+          kpi <- ec |>
+            mutate(ym = floor_date(order_date, unit = "month")) |>
+            group_by(ym) |>
+            summarise(sales = sum(sales),
+                      buyers = n(),
+                      orders = n_distinct(order_id))
+          kpi
+        - |
+          kpi <- ec |>
+            mutate(ym = floor_date(order_date, unit = "month")) |>
+            group_by(ym) |>
+            summarise(sales = sum(sales),
+                      buyers = n_distinct(customer_id),
+                      orders = n())
+          kpi
+        - |
+          kpi <- ec |>
+            mutate(ym = month(order_date)) |>
+            group_by(ym) |>
+            summarise(sales = sum(sales),
+                      buyers = n_distinct(customer_id),
+                      orders = n_distinct(order_id))
+          kpi
+  - id: c
+    type: write
+    prompt: |
+      売上を「客数 × 客単価」に分けます。kpi に3つの列を加えて kpi2 に代入し、2025年11月以降（ym >= ymd("2025-11-01")）の2行を表示してください。
+      - spend … 客単価（sales ÷ buyers）。1人の顧客がその月に使った金額の平均です
+      - freq … 1人当たり注文件数（orders ÷ buyers）
+      - aov … 1注文当たりの金額（sales ÷ orders）
+      客単価は「1人当たり注文件数 × 1注文当たりの金額」にもなります。
+    starter: |
+      kpi2 <- kpi |>
+        mutate()
+      filter(kpi2, ym >= ymd("2025-11-01"))
+    solution: |
+      kpi2 <- kpi |>
+        mutate(spend = sales / buyers,
+               freq = orders / buyers,
+               aov = sales / orders)
+      filter(kpi2, ym >= ymd("2025-11-01"))
+    check: |
+      expect_object("kpi2", class = "data.frame")
+      expect_cols(kpi2, c("spend", "freq", "aov"))
+      check_that(isTRUE(all.equal(kpi2$spend, .sol$kpi2$spend)),
+                 "spend（客単価）が違います。売上を客数で割った sales / buyers です。")
+      check_that(isTRUE(all.equal(kpi2$freq, .sol$kpi2$freq)),
+                 "freq が違います。注文件数を客数で割った orders / buyers です。")
+      check_that(isTRUE(all.equal(kpi2$aov, .sol$kpi2$aov)),
+                 "aov が違います。売上を注文件数で割った sales / orders です。")
+      expect_df_equal(kpi2, .sol$kpi2)
+      expect_value(.value, .sol_value, label = "表示した2025年11月・12月の行")
+    hints:
+      - 3つとも割り算です。何を何で割るかは、「何当たり」の「何」が分母になると考えます（1人当たりなら客数、1注文当たりなら注文件数）。
+      - mutate(spend = sales / buyers, freq = orders / buyers, aov = sales / orders) です。
+      - |
+        kpi2 <- kpi |>
+          mutate(spend = sales / buyers,
+                 freq = orders / buyers,
+                 aov = sales / orders)
+        filter(kpi2, ym >= ymd("2025-11-01"))
+    tests:
+      fail:
+        - |
+          kpi2 <- kpi |>
+            mutate(spend = sales / orders,
+                   freq = orders / buyers,
+                   aov = sales / orders)
+          filter(kpi2, ym >= ymd("2025-11-01"))
+        - |
+          kpi2 <- kpi |>
+            mutate(spend = sales / buyers,
+                   freq = buyers / orders,
+                   aov = sales / orders)
+          filter(kpi2, ym >= ymd("2025-11-01"))
+  - id: d
+    type: interpret
+    prompt: |
+      c の結果では、2025年12月は11月と比べて、売上が約736万円から約991万円（+35%）、客数が1,925人から2,374人（+23%）、客単価が約3,824円から約4,174円（+9%）に増えました。1人当たり注文件数は1.36から1.51、1注文当たりの金額は約2,804円から約2,756円でした。上司に報告する文として最も適切なものはどれですか。
+    choices:
+      - "12月は客単価が9%上がったので、1回の注文で買う金額が増えた。高い商品が売れたと考えられる"
+      - "12月の売上増は、買った人が23%増えたことが中心で、客単価も9%上がった。客単価の上昇は1人が注文する回数が増えたためで、1回の注文額はほとんど変わっていない"
+      - "売上は35%増えたが、客数は23%しか増えていないので、客数は売上増にほとんど関係がない"
+      - "客単価は売上を注文件数で割ったものなので、12月は1注文当たりの金額が上がったことになる"
+    answer: 1
+    explain: 売上 = 客数 × 客単価で、1.23 × 1.09 ≒ 1.35 なので、35%の増加のうち大きい部分は客数の伸びです（選択肢3は誤り）。客単価はさらに「1人当たり注文件数 × 1注文当たりの金額」に分けられます。注文件数は1.36回から1.51回に増えましたが、1注文当たりの金額はむしろ約2%下がりました。したがって「1回に高い商品を買った」のではなく「12月は何度も注文した」と読みます（選択肢1は誤り）。この表では客単価を客数（購入した人の数）で割って定義しています。注文件数で割ったものは1注文当たりの金額で、別の指標です（選択肢4は誤り）。報告では、どの定義を使ったかを必ず書き添えます。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第81ステップの復習】完全失業率の季節調整値 unemp_rate_sa を、2000年1月始まりの月次の時系列（frequency = 12）にして、全期間で AR(1) モデル（order = c(1, 0, 0)）を当てはめ、m_ar1 に代入してください。
+      続けて、2026年9月から6か月先までの予測値 predict(m_ar1, n.ahead = 6)$pred を表示します。
+    starter: |
+      m_ar1 <-
+      predict(m_ar1, n.ahead = 6)$pred
+    solution: |
+      m_ar1 <- arima(ts(lfs$unemp_rate_sa, start = c(2000, 1), frequency = 12),
+                     order = c(1, 0, 0))
+      predict(m_ar1, n.ahead = 6)$pred
+    check: |
+      expect_object("m_ar1", class = "Arima")
+      check_that(identical(m_ar1$arma, .sol$m_ar1$arma) && m_ar1$nobs == .sol$m_ar1$nobs,
+                 "m_ar1 が違います。全期間（320か月）の季節調整値に order = c(1, 0, 0) を当てはめましょう。")
+      expect_value(coef(m_ar1), coef(.sol$m_ar1), tol = 1e-4, label = "m_ar1 の係数")
+      expect_value(as.numeric(.value), as.numeric(.sol_value), tol = 1e-4, label = "表示した予測値")
+    hints:
+      - 第81ステップ c と同じ手順で、次数だけが違います。AR(1) は階差をとらない（d = 0）モデルです。
+      - ts(lfs$unemp_rate_sa, start = c(2000, 1), frequency = 12) を arima() に渡し、order = c(1, 0, 0) を指定します。
+      - |
+        m_ar1 <- arima(ts(lfs$unemp_rate_sa, start = c(2000, 1), frequency = 12),
+                       order = c(1, 0, 0))
+        predict(m_ar1, n.ahead = 6)$pred
+    tests:
+      fail:
+        - |
+          m_ar1 <- arima(ts(lfs$unemp_rate_sa, start = c(2000, 1), frequency = 12),
+                         order = c(1, 1, 0))
+          predict(m_ar1, n.ahead = 6)$pred
+        - |
+          m_ar1 <- arima(ts(lfs$unemp_rate_nsa, start = c(2000, 1), frequency = 12),
+                         order = c(1, 0, 0))
+          predict(m_ar1, n.ahead = 6)$pred

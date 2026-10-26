@@ -1,0 +1,250 @@
+id: "061"
+part: 7
+title: 傾向スコア
+question: 参加しやすさで重みをつける
+minutes: 45
+mode: browser
+packages: [readr, dplyr, MatchIt]
+data: [training_obs.csv]
+learn: [weighted.mean]
+review_of: "060"
+setup: |
+  library(readr); library(dplyr); library(MatchIt)
+  # 職業訓練の観察データ（4,000人。教材用の合成データ。真の効果は +30万円/年）
+  obs <- read_csv("data/training_obs.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      一人ひとりの「訓練に参加しやすさ」（傾向スコア）を、ロジットモデルで推定します。
+      1. treat を prior_earn、age、educ_years、female で説明するロジットを glm(..., family = binomial) で推定し、ps_model に代入する
+      2. obs に、mutate() で傾向スコアの列 ps = predict(ps_model, type = "response") を加えて obs_ps に代入する
+      3. obs_ps を treat でグループに分け、平均 = mean(ps)、最小 = min(ps)、最大 = max(ps) を集計して ps_by_group に代入し、ps_by_group を表示する
+    starter: |
+      ps_model <- glm(treat ~ , data = obs, family = binomial)
+      obs_ps <- obs |>
+        mutate(ps = )
+      ps_by_group <- obs_ps |>
+
+      ps_by_group
+    solution: |
+      ps_model <- glm(treat ~ prior_earn + age + educ_years + female, data = obs, family = binomial)
+      obs_ps <- obs |>
+        mutate(ps = predict(ps_model, type = "response"))
+      ps_by_group <- obs_ps |>
+        group_by(treat) |>
+        summarise(平均 = mean(ps), 最小 = min(ps), 最大 = max(ps))
+      ps_by_group
+    check: |
+      expect_object("ps_model", class = "glm")
+      check_that(identical(ps_model$family$family, "binomial"),
+                 "family = binomial を付けて、ロジットで推定しましょう。")
+      check_that(all(c("prior_earn", "age", "educ_years", "female") %in% names(coef(ps_model))),
+                 "説明変数は prior_earn、age、educ_years、female の4つです。被説明変数は treat です。")
+      expect_model(ps_model, like = .sol$ps_model)
+      expect_object("obs_ps", class = "data.frame")
+      expect_cols(obs_ps, "ps")
+      check_that(isTRUE(all(obs_ps$ps >= 0 & obs_ps$ps <= 1)),
+                 "ps が確率（0〜1）になっていません。predict() に type = \"response\" を付けましょう。")
+      expect_df_equal(obs_ps, .sol$obs_ps)
+      expect_object("ps_by_group", class = "data.frame")
+      expect_df_equal(ps_by_group, .sol$ps_by_group, ignore_row_order = TRUE)
+    hints:
+      - 第48ステップと同じく、0か1の被説明変数（ここでは treat）を glm(family = binomial) で説明します。予測確率がそのまま傾向スコアです。
+      - 式は treat ~ prior_earn + age + educ_years + female です。predict(ps_model, type = "response") で、一人ひとりの参加確率が出ます。
+      - |
+        ps_model <- glm(treat ~ prior_earn + age + educ_years + female, data = obs, family = binomial)
+        obs_ps <- obs |>
+          mutate(ps = predict(ps_model, type = "response"))
+        ps_by_group <- obs_ps |>
+          group_by(treat) |>
+          summarise(平均 = mean(ps), 最小 = min(ps), 最大 = max(ps))
+        ps_by_group
+    tests:
+      fail:
+        - |
+          ps_model <- glm(treat ~ prior_earn + age + educ_years + female, data = obs, family = binomial)
+          obs_ps <- obs |>
+            mutate(ps = predict(ps_model))
+          ps_by_group <- obs_ps |>
+            group_by(treat) |>
+            summarise(平均 = mean(ps), 最小 = min(ps), 最大 = max(ps))
+          ps_by_group
+        - |
+          ps_model <- glm(treat ~ prior_earn + age + educ_years + female + earn_post, data = obs, family = binomial)
+          obs_ps <- obs |>
+            mutate(ps = predict(ps_model, type = "response"))
+          ps_by_group <- obs_ps |>
+            group_by(treat) |>
+            summarise(平均 = mean(ps), 最小 = min(ps), 最大 = max(ps))
+          ps_by_group
+  - id: b
+    type: fill
+    prompt: |
+      ATT（参加者にとっての平均効果）を推定するための重み w を作ります。参加者（treat = 1）の重みは1、不参加者（treat = 0）の重みは ps / (1 - ps) です。
+      `___` を埋めて obs_w を作り、続けて前年収入の群別の平均を、重みなし（mean）と重みつき（weighted.mean）で比べた表 balance を表示してください。
+    starter: |
+      obs_w <- obs_ps |>
+        mutate(w = if_else(treat == 1, ___, ___))
+      balance <- obs_w |>
+        group_by(treat) |>
+        summarise(前年収入 = mean(prior_earn),
+                  前年収入_重みつき = ___)
+      balance
+    solution: |
+      obs_w <- obs_ps |>
+        mutate(w = if_else(treat == 1, 1, ps / (1 - ps)))
+      balance <- obs_w |>
+        group_by(treat) |>
+        summarise(前年収入 = mean(prior_earn),
+                  前年収入_重みつき = weighted.mean(prior_earn, w))
+      balance
+    check: |
+      expect_object("obs_w", class = "data.frame")
+      expect_cols(obs_w, "w")
+      check_that(isTRUE(all(obs_w$w[obs_w$treat == 1] == 1)),
+                 "参加者（treat = 1）の重みは1にしましょう。ATT では参加者はそのままの姿で使います。")
+      expect_df_equal(obs_w, .sol$obs_w)
+      expect_uses("weighted.mean")
+      expect_object("balance", class = "data.frame")
+      expect_df_equal(balance, .sol$balance, ignore_row_order = TRUE)
+    hints:
+      - 参加者は1、不参加者は「参加しやすさのオッズ」ps / (1 - ps) です。if_else(条件, 真のときの値, 偽のときの値) で書けます。
+      - 重みつき平均は weighted.mean(値, 重み) です。ここでは weighted.mean(prior_earn, w) です。
+      - |
+        obs_w <- obs_ps |>
+          mutate(w = if_else(treat == 1, 1, ps / (1 - ps)))
+        balance <- obs_w |>
+          group_by(treat) |>
+          summarise(前年収入 = mean(prior_earn),
+                    前年収入_重みつき = weighted.mean(prior_earn, w))
+        balance
+    tests:
+      fail:
+        - |
+          obs_w <- obs_ps |>
+            mutate(w = if_else(treat == 1, 1 / ps, 1 / (1 - ps)))
+          balance <- obs_w |>
+            group_by(treat) |>
+            summarise(前年収入 = mean(prior_earn),
+                      前年収入_重みつき = weighted.mean(prior_earn, w))
+          balance
+        - |
+          obs_w <- obs_ps |>
+            mutate(w = if_else(treat == 1, 1, ps))
+          balance <- obs_w |>
+            group_by(treat) |>
+            summarise(前年収入 = mean(prior_earn),
+                      前年収入_重みつき = weighted.mean(prior_earn, w))
+          balance
+  - id: c
+    type: write
+    prompt: |
+      b の重み w を使って、訓練後の年収 earn_post の加重平均を群別に求め、その差で ATT を推定します。
+      1. obs_w を treat でグループに分け、年収 = weighted.mean(earn_post, w) を集計して att_tab に代入する
+      2. 参加者の値から不参加者の値を引いた差（att_tab$年収[2] - att_tab$年収[1]）を att_ipw に代入し、att_ipw を表示する
+    starter: |
+      att_tab <- obs_w |>
+
+      att_ipw <-
+      att_ipw
+    solution: |
+      att_tab <- obs_w |>
+        group_by(treat) |>
+        summarise(年収 = weighted.mean(earn_post, w))
+      att_ipw <- att_tab$年収[2] - att_tab$年収[1]
+      att_ipw
+    check: |
+      expect_object("att_tab", class = "data.frame")
+      expect_cols(att_tab, c("treat", "年収"))
+      expect_df_equal(att_tab, .sol$att_tab, ignore_row_order = TRUE)
+      expect_object("att_ipw", class = "numeric")
+      check_that(length(att_ipw) == 1, "att_ipw は1つの数にしましょう。")
+      expect_value(att_ipw, .sol$att_ipw, label = "att_ipw")
+      expect_value(.value, .sol_value, label = "表示した att_ipw")
+    hints:
+      - b の前年収入と同じく、group_by(treat) と summarise() で、今度は earn_post の重みつき平均を求めます。
+      - summarise(年収 = weighted.mean(earn_post, w)) です。att_tab は treat = 0 が1行目、treat = 1 が2行目なので、att_tab$年収[2] - att_tab$年収[1] が「参加者 − 不参加者」です。
+      - |
+        att_tab <- obs_w |>
+          group_by(treat) |>
+          summarise(年収 = weighted.mean(earn_post, w))
+        att_ipw <- att_tab$年収[2] - att_tab$年収[1]
+        att_ipw
+    tests:
+      fail:
+        - |
+          att_tab <- obs_w |>
+            group_by(treat) |>
+            summarise(年収 = mean(earn_post))
+          att_ipw <- att_tab$年収[2] - att_tab$年収[1]
+          att_ipw
+        - |
+          att_tab <- obs_w |>
+            group_by(treat) |>
+            summarise(年収 = weighted.mean(earn_post, w))
+          att_ipw <- att_tab$年収[1] - att_tab$年収[2]
+          att_ipw
+  - id: d
+    type: interpret
+    prompt: |
+      全員の平均効果（ATE）を推定する重みは、参加者が 1/ps、不参加者が 1/(1 - ps) です。この重みで同じ計算をすると、推定値は約11.4万円になり、真の効果30万円から大きく外れます。
+      参加者のうち傾向スコアが最も小さい人（約0.0195）の重みは約51で、前年収入が500万円を超える283人には参加者が1人もいません。このような「極端な重み」の扱いとして、最も適切なものはどれですか。
+    choices:
+      - "傾向スコアの分布を群別に見て、参加者と不参加者が重なっている範囲（共通サポート）を確かめる。重なりのない人を除く（トリミング）か ATT に切り替えるなら、推定の対象がどの人々の平均効果に変わったかを明記し、除く前と後の結果を両方報告する"
+      - "重みが大きい人ほど多くの情報を持っているので、重みはそのまま使えばよい"
+      - "推定値が予想に近づくまで、重みの大きい人を1人ずつ除いていく"
+      - "極端な重みは計算の誤りなので、全員の傾向スコアを0.5に置き換える"
+    answer: 0
+    explain: 参加確率がほぼ0の人を「1/0.0195 ≈ 51人分」として数えると、その数人の年収で推定値が大きく揺れます。さらに前年収入が500万円を超える283人には比べる相手となる参加者がいないので、どんな重みをつけても、その人たちが参加した場合の年収はデータから分かりません（共通サポートがない）。傾向スコアが0.05〜0.95の人だけに絞ると、ATE の推定値は約27.1万円になりますが、これは「全員」ではなく「重なりのある人」の平均効果です。ATT の重み（不参加者が ps/(1 − ps)）は、この観察データでは最大でも約3.6にとどまります。実際の研究では真の値が分からないので、「望む値に近づくまで除く」のは結論を都合よく作ることになり、してはいけません。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第60ステップの復習】MatchIt で、参加者1人に前年収入などの近い不参加者1人を組み合わせます。
+      1. matchit() に treat ~ prior_earn + age + educ_years + female、data = obs、method = "nearest" を渡して m_match に代入する
+      2. match.data(m_match) でマッチングで選ばれた人のデータを取り出して md に代入する
+      3. md を treat でグループに分け、人数 = n()、前年収入 = mean(prior_earn) を集計して md_balance に代入し、md_balance を表示する
+    starter: |
+      m_match <- matchit(treat ~ prior_earn + age + educ_years + female, data = obs,
+                       )
+      md <-
+      md_balance <- md |>
+
+      md_balance
+    solution: |
+      m_match <- matchit(treat ~ prior_earn + age + educ_years + female, data = obs,
+                         method = "nearest")
+      md <- match.data(m_match)
+      md_balance <- md |>
+        group_by(treat) |>
+        summarise(人数 = n(), 前年収入 = mean(prior_earn))
+      md_balance
+    check: |
+      expect_object("m_match", class = "matchit")
+      expect_object("md", class = "data.frame")
+      check_that(nrow(md) == nrow(.sol$md),
+                 "マッチング後の人数が違います。method = \"nearest\" を付け、match.data(m_match) で取り出しましょう。")
+      expect_object("md_balance", class = "data.frame")
+      expect_df_equal(md_balance, .sol$md_balance, ignore_row_order = TRUE)
+    hints:
+      - 第60ステップと同じく、matchit() でマッチングし、match.data() で選ばれた人だけのデータを取り出します。
+      - matchit(treat ~ prior_earn + age + educ_years + female, data = obs, method = "nearest") です。集計は group_by(treat) |> summarise(人数 = n(), 前年収入 = mean(prior_earn)) です。
+      - |
+        m_match <- matchit(treat ~ prior_earn + age + educ_years + female, data = obs,
+                         method = "nearest")
+        md <- match.data(m_match)
+        md_balance <- md |>
+          group_by(treat) |>
+          summarise(人数 = n(), 前年収入 = mean(prior_earn))
+        md_balance
+    tests:
+      fail:
+        - |
+          m_match <- matchit(treat ~ prior_earn + age + educ_years + female, data = obs,
+                           method = "nearest")
+          md <- obs
+          md_balance <- md |>
+            group_by(treat) |>
+            summarise(人数 = n(), 前年収入 = mean(prior_earn))
+          md_balance

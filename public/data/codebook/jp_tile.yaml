@@ -1,0 +1,23 @@
+title: 都道府県のタイル地図の位置表
+file: jp_tile.csv
+source: 手作業で作成した補助データ（data-raw/make_jp_tile.R に配置を手書きし、県コード・県名を pref_basic.csv と照合して書き出す）。統計の値は含まない
+rows: 47
+unit_of_observation: 都道府県（pref_code の順に並ぶ）
+notes: >-
+  47都道府県を1県1マスで12列×11行の格子に並べた位置。北海道が右上、沖縄県が左下になり、
+  隣り合う県がなるべく上下左右（少なくとも斜め）に接するように置いた。同じマスに2県は無い。
+  row は上から数えるので、ggplot2 で描くときは aes(x = col, y = row) とし、scale_y_reverse() で縦軸を反転させる。
+  面積や形は表さない（どの県も同じ大きさのマス）。pref_code で min_wage_pref.csv などと結合して使う
+columns:
+  - name: pref_code
+    description: 都道府県コード（JIS X 0401。北海道=1〜沖縄県=47）
+    unit: なし（整数）
+  - name: pref
+    description: 都道府県名（pref_basic.csv の pref と同じ表記）
+    unit: なし
+  - name: row
+    description: タイル地図の行（上から何行目か。1〜11）
+    unit: なし（整数）
+  - name: col
+    description: タイル地図の列（左から何列目か。1〜12）
+    unit: なし（整数）

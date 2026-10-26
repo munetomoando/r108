@@ -1,0 +1,178 @@
+id: "027"
+part: 3
+title: 総合演習：最低賃金の20年を1枚で伝える
+question: パートの時給と人件費を考える：最低賃金はこの20年でどう動き、地域差はどう変わったか
+minutes: 45
+mode: browser
+packages: [readr, dplyr, tidyr, ggplot2]
+data: [min_wage_pref.csv]
+learn: [ggsave]
+allow: [max, min, file.exists]
+setup: |
+  library(readr); library(dplyr); library(tidyr); library(ggplot2)
+  mw <- read_csv("data/min_wage_pref.csv", show_col_types = FALSE)
+  # 保存先（このアプリの作業用フォルダにある png ファイル。名前は自動で付く）
+  out_png <- tempfile("min_wage_", fileext = ".png")
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      全国の推移と地域差を1枚の折れ線グラフに描きます。
+      1. mw を年度（fiscal_year）ごとに集計し、47都道府県の 最高 = max(min_wage)、平均 = mean(min_wage)、最低 = min(min_wage) の3列を作る
+      2. pivot_longer() で縦長にし、3列の名前を stat 列に、値を yen 列に入れる（1行＝年度×統計量）。この表を mw_long に代入する
+      3. mw_long で、横軸 fiscal_year・縦軸 yen・色 stat の折れ線グラフ（geom_line）を作って p に代入し、最後に p を表示する
+
+      平均は47都道府県の単純平均です（厚生労働省が公表する全国加重平均とは違います）。
+    starter: |
+      mw_long <- mw |>
+        group_by(fiscal_year) |>
+
+      p <-
+      p
+    solution: |
+      mw_long <- mw |>
+        group_by(fiscal_year) |>
+        summarise(最高 = max(min_wage), 平均 = mean(min_wage), 最低 = min(min_wage)) |>
+        pivot_longer(cols = -fiscal_year, names_to = "stat", values_to = "yen")
+      p <- ggplot(mw_long, aes(x = fiscal_year, y = yen, colour = stat)) +
+        geom_line()
+      p
+    check: |
+      expect_object("mw_long", class = "data.frame")
+      expect_cols(mw_long, c("fiscal_year", "stat", "yen"))
+      expect_df_equal(mw_long, .sol$mw_long, ignore_row_order = TRUE)
+      expect_ggplot(geom = "line", x = "fiscal_year", y = "yen", colour = "stat")
+      expect_df_equal(.plot$data, .sol_plot$data, ignore_row_order = TRUE)
+    hints:
+      - 「集計する（group_by → summarise）→ 縦長にする（pivot_longer）」の表づくりと、「ggplot → geom_line」の図づくりの2段に分けます。
+      - summarise(最高 = max(min_wage), 平均 = mean(min_wage), 最低 = min(min_wage)) のあと、pivot_longer(cols = -fiscal_year, names_to = "stat", values_to = "yen") とします。図は aes(x = fiscal_year, y = yen, colour = stat) です。
+      - |
+        mw_long <- mw |> group_by(fiscal_year) |> summarise(最高 = max(min_wage), 平均 = mean(min_wage), 最低 = min(min_wage)) |> pivot_longer(cols = -fiscal_year, names_to = "stat", values_to = "yen")
+        p <- ggplot(mw_long, aes(x = fiscal_year, y = yen, colour = stat)) + geom_line()
+        p
+    tests:
+      fail:
+        - |
+          mw_long <- mw |>
+            group_by(fiscal_year) |>
+            summarise(最高 = max(min_wage), 平均 = mean(min_wage), 最低 = min(min_wage)) |>
+            pivot_longer(cols = -fiscal_year, names_to = "stat", values_to = "yen")
+          p <- ggplot(mw, aes(x = fiscal_year, y = min_wage)) +
+            geom_point()
+          p
+        - |
+          mw_long <- mw |>
+            group_by(pref_code) |>
+            summarise(最高 = max(min_wage), 平均 = mean(min_wage), 最低 = min(min_wage)) |>
+            pivot_longer(cols = -pref_code, names_to = "stat", values_to = "yen")
+          p <- ggplot(mw_long, aes(x = pref_code, y = yen, colour = stat)) +
+            geom_line()
+          p
+  - id: b
+    type: write
+    prompt: |
+      a の図 p を、経営会議でそのまま見せられる1枚に仕上げ、p2 に代入して表示してください。
+      - labs() で 見出し（title）、補足（subtitle）、横軸・縦軸の名前、出典（caption）を付ける。出典には「厚生労働省」の名前を入れる
+      - annotate() で、図の中に読み取ってほしい点を文字で書き込む（例：最高と最低の差が何円から何円になったか）
+      - theme_minimal() で背景を簡素にする
+    starter: |
+      p2 <- p +
+
+      p2
+    solution: |
+      p2 <- p +
+        annotate("text", x = 2009, y = 1000,
+                 label = "最高と最低の差\n2002年度 104円 → 2025年度 203円") +
+        labs(title = "最低賃金は23年で約1.7倍に。最高と最低の差は約2倍に広がった",
+             subtitle = "47都道府県の最高・平均（単純平均）・最低、2002〜2025年度",
+             x = "年度", y = "最低賃金（円/時）", colour = "",
+             caption = "出典：厚生労働省「地域別最低賃金改定状況」") +
+        theme_minimal()
+      p2
+    check: |
+      expect_object("p2", class = "ggplot")
+      expect_ggplot(geom = "line", x = "fiscal_year", y = "yen", colour = "stat")
+      expect_df_equal(.plot$data, .sol_plot$data, ignore_row_order = TRUE)
+      expect_uses("labs")
+      expect_uses("annotate")
+      expect_uses("theme_minimal")
+      check_that(length(.plot$layers) >= 2, "annotate() で図の中に文字を書き込みましょう（p に + annotate(...) を足します）。")
+      check_that(!is.null(.plot$labels$title) && nchar(.plot$labels$title) > 0, "labs(title = ...) で見出しを付けましょう。")
+      check_that(!is.null(.plot$labels$subtitle), "labs(subtitle = ...) で補足（何を・いつからいつまで描いたか）を付けましょう。")
+      check_that(!is.null(.plot$labels$x) && !is.null(.plot$labels$y), "labs(x = ..., y = ...) で軸の名前を日本語にしましょう。")
+      check_that(!is.null(.plot$labels$caption) && grepl("厚生労働省", .plot$labels$caption), "labs(caption = ...) に出典（厚生労働省の資料名）を書きましょう。")
+    hints:
+      - p に「+ annotate(...)」「+ labs(...)」「+ theme_minimal()」の3つを足します。足す順番は自由です。
+      - annotate("text", x = 2009, y = 1000, label = "書き込む文") の x と y は、文字を置く場所（横軸と縦軸の値）です。labs() には title, subtitle, x, y, caption をカンマで区切って書きます。
+      - |
+        p2 <- p + annotate("text", x = 2009, y = 1000, label = "最高と最低の差\n2002年度 104円 → 2025年度 203円") + labs(title = "最低賃金は23年で約1.7倍に。最高と最低の差は約2倍に広がった", subtitle = "47都道府県の最高・平均（単純平均）・最低、2002〜2025年度", x = "年度", y = "最低賃金（円/時）", colour = "", caption = "出典：厚生労働省「地域別最低賃金改定状況」") + theme_minimal()
+        p2
+    tests:
+      fail:
+        - |
+          p2 <- p +
+            labs(title = "最低賃金の推移", subtitle = "2002〜2025年度",
+                 x = "年度", y = "最低賃金（円/時）") +
+            theme_minimal()
+          p2
+        - |
+          p2 <- p +
+            annotate("text", x = 2009, y = 1000, label = "差が広がった") +
+            labs(title = "最低賃金の推移", subtitle = "2002〜2025年度",
+                 x = "年度", y = "最低賃金（円/時）") +
+            theme_minimal()
+          p2
+  - id: c
+    type: write
+    prompt: |
+      b の図 p2 を画像ファイルに保存し、保存できたかを確かめます。
+      ggsave() で p2 を out_png に、幅 8・高さ 5（単位はインチ）、解像度 dpi = 150 で保存してから、file.exists(out_png) を表示してください。TRUE と出れば保存できています。
+      out_png は、このアプリの作業用フォルダにある png ファイルの場所です（setup で用意してあります）。
+    starter: |
+      ggsave()
+      file.exists(out_png)
+    solution: |
+      ggsave(out_png, plot = p2, width = 8, height = 5, dpi = 150)
+      file.exists(out_png)
+    check: |
+      expect_uses("ggsave")
+      check_that(file.exists(out_png), "out_png に画像が保存されていません。ggsave() の最初の引数（保存先）に、引用符を付けずに out_png と書きましょう。")
+      check_that(file.size(out_png) > 0, "保存した画像が空です。ggsave() の plot = に p2 を指定しましょう。")
+      check_that(isTRUE(.value), "最後に file.exists(out_png) を表示して、TRUE になることを確かめましょう。")
+    hints:
+      - ggsave(保存先, plot = 図, width = 幅, height = 高さ, dpi = 解像度) の形で書きます。保存先の拡張子（.png）で画像の形式が決まります。
+      - 保存先は out_png（引用符なし）、図は plot = p2 です。そのあとに file.exists(out_png) を書きます。
+      - |
+        ggsave(out_png, plot = p2, width = 8, height = 5, dpi = 150)
+        file.exists(out_png)
+    tests:
+      fail:
+        - |
+          file.exists(out_png)
+        - |
+          ggsave(file.path(tempdir(), "other.png"), plot = p2, width = 8, height = 5, dpi = 150)
+          file.exists(out_png)
+  - id: d
+    type: interpret
+    free: true
+    prompt: |
+      a〜c の図をもとに、経営会議で図の下に添える結論を3行（3文）で書いてください。
+      1文目に全国の最低賃金がこの20年でどれだけ上がったか、2文目に地域差（最高と最低の差、または比）がどう変わったか、3文目にそらまめマーケットの来年度のパート時給・人件費への含意を書くと書きやすいでしょう。1文目か2文目には、図から読み取った数字（円）を入れてください。
+    solution: |
+      47都道府県の最低賃金の単純平均は、2002年度の約639円から2025年度の約1067円へ、23年で約428円（約1.7倍）上がった。
+      最高と最低の差は2002年度の104円から2018年度の224円まで広がったが、その後は地方の引上げ幅が大きく、2025年度は203円、最高÷最低の比は1.31倍（2014年度）から1.20倍まで縮んでいる。
+      近年は年に50〜70円規模の引上げが続いているので、来年度のパート時給と人件費は、最低賃金の低い県の店舗ほど上がり幅を大きめに見込んで予算を組むべきである。
+    check: |
+      expect_min_chars(80)
+      expect_text("[0-9０-９]+円|倍", "図から読み取った数字（何円、何倍）を入れて書きましょう。")
+      expect_text("上が|上昇|引上げ|引き上げ|増", "全国の最低賃金がどれだけ上がったかを書きましょう。")
+      expect_text("差|比|地域|県|最高|最低|格差", "地域差（最高と最低の差や比）がどう変わったかを書きましょう。")
+      expect_text("時給|人件費|賃金|コスト|予算", "そらまめマーケットのパート時給・人件費への含意を1文入れましょう。")
+    hints:
+      - 平均の線の左端（2002年度）と右端（2025年度）の値、最高と最低の線の間の幅が、年度によってどう変わるかを見ましょう。数字は mw_long を表示すると確かめられます。
+      - 「全国でどれだけ上がったか」「地域差は広がったか縮んだか」「だから来年度の時給・人件費をどう考えるか」の3点を1文ずつ書きます。
+      - 例「単純平均は2002年度の約〇円から2025年度の約〇円に上がった。最高と最低の差は〇円から〇円になった。来年度のパート時給と人件費は、〇〇を見込んで予算を組む。」
+    tests:
+      fail:
+        - 最低賃金は上がった。
+        - 最低賃金はこの20年でずいぶん上がっており、地域によっても違いがあることが図から分かった。これからも注目していきたい。

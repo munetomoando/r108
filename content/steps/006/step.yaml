@@ -1,0 +1,122 @@
+id: "006"
+part: 1
+title: "グループごとに集計する"
+question: "地域別の客単価はいくらか"
+minutes: 45
+mode: browser
+packages: [readr, dplyr]
+data: [sora_stores.csv]
+learn: [group_by, summarise, "n"]
+setup: |
+  library(readr); library(dplyr)
+  stores <- read_csv("data/sora_stores.csv", show_col_types = FALSE)
+  stores <- mutate(stores, spend = sales * 10000 / customers)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      stores には、第5ステップで作った客単価の列 spend（円）がすでに加えてあります。stores を地域 region でグループに分けたものを stores_grouped に代入してください。続けて、stores_grouped から地域ごとの客単価 spend の平均を求め、列名を mean_spend として region_spend に代入してください。
+    starter: |
+      stores_grouped <-
+      region_spend <-
+    solution: |
+      stores_grouped <- group_by(stores, region)
+      region_spend <- summarise(stores_grouped, mean_spend = mean(spend))
+    check: |
+      expect_object("region_spend", class = "data.frame")
+      expect_df_equal(region_spend, .sol$region_spend, ignore_row_order = TRUE)
+    hints:
+      - まず group_by() でグループを作り、次に summarise() でグループごとに集計します。
+      - group_by(データ, region) でグループ分けし、summarise(グループ分けしたデータ, mean_spend = mean(spend)) と書きます。
+      - |
+        stores_grouped <- group_by(stores, region)
+        region_spend <- summarise(stores_grouped, mean_spend = mean(spend))
+    tests:
+      fail:
+        - "region_spend <- summarise(stores, mean_spend = mean(spend))"
+        - |
+          stores_grouped <- group_by(stores, region)
+          region_spend <- summarise(stores_grouped, mean_spend = mean(sales))
+  - id: b
+    type: write
+    prompt: |
+      stores_grouped から、地域ごとの店舗数（列名 n_store）と客単価の平均（列名 mean_spend）を1つの表にまとめ、region_n に代入してください。
+    starter: |
+      region_n <-
+    solution: |
+      region_n <- summarise(stores_grouped, n_store = n(), mean_spend = mean(spend))
+    check: |
+      expect_object("region_n", class = "data.frame")
+      expect_df_equal(region_n, .sol$region_n, ignore_row_order = TRUE)
+    hints:
+      - summarise() の中には、カンマで区切って複数の集計を書けます。
+      - グループの行数（ここでは店舗数）は n() で数えます。かっこの中には何も入れません。
+      - region_n <- summarise(stores_grouped, n_store = n(), mean_spend = mean(spend))
+    tests:
+      fail:
+        - "region_n <- summarise(stores, n_store = n(), mean_spend = mean(spend))"
+        - "region_n <- summarise(stores_grouped, mean_spend = mean(spend))"
+  - id: c
+    type: write
+    prompt: |
+      地域ごとに、店舗の客単価の単純平均 mean_spend と、地域全体の客単価 total_spend の2つを集計し、region_w に代入してください。地域全体の客単価は、売上の合計を客数の合計で割って sum(sales) * 10000 / sum(customers) で計算します（客数で重みづけた客単価です）。
+    starter: |
+      region_w <-
+    solution: |
+      region_w <- summarise(stores_grouped,
+                            mean_spend = mean(spend),
+                            total_spend = sum(sales) * 10000 / sum(customers))
+    check: |
+      expect_object("region_w", class = "data.frame")
+      expect_df_equal(region_w, .sol$region_w, ignore_row_order = TRUE)
+    hints:
+      - 地域全体の客単価は「地域の売上の合計」を「地域の客数の合計」で割ったものです。
+      - sum() はグループごとに計算されます。分子は sum(sales) * 10000、分母は sum(customers) です。
+      - total_spend = sum(sales) * 10000 / sum(customers)
+    tests:
+      fail:
+        - |
+          region_w <- summarise(stores_grouped,
+                                mean_spend = mean(spend),
+                                total_spend = sum(sales) / sum(customers))
+        - |
+          region_w <- summarise(stores_grouped,
+                                mean_spend = mean(spend),
+                                total_spend = mean(spend))
+  - id: d
+    type: interpret
+    prompt: |
+      c の結果を見ると、どの地域でも地域全体の客単価 total_spend が、店舗の客単価の単純平均 mean_spend より高くなります。その理由として最も適切なものはどれですか。
+    choices:
+      - "total_spend は計算の途中で四捨五入されるから"
+      - "客数の多い大型店ほど客単価が高く、売上合計÷客数合計ではその店舗が大きく効くから"
+      - "店舗数の多い地域ほど単純平均が小さく出るから"
+      - "total_spend は売場面積の広い店舗を除いて計算するから"
+    answer: 1
+    explain: 単純平均はどの店舗も同じ重み（1店1票）で扱いますが、売上合計÷客数合計は客数の多い店舗ほど大きく効きます（客数で重みづけた平均）。そらまめマーケットでは、郊外の大型店ほど客数が多く客単価も高いため、地域全体の客単価は単純平均より高くなります。経営者が見る「全社の客単価」は売上合計÷客数合計のほうで、店舗の平均とは一致しないことに注意が必要です。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第5ステップの復習】stores に売場効率の列 sales_per_m2（sales ÷ floor_m2、単位は万円/m²）を加えたうえで、store_name、location、sales_per_m2 の3列だけを残した表を stores_eff に代入してください。2行に分けて書いてもかまいません。
+    starter: |
+      stores_eff <-
+    solution: |
+      stores_eff <- mutate(stores, sales_per_m2 = sales / floor_m2)
+      stores_eff <- select(stores_eff, store_name, location, sales_per_m2)
+    check: |
+      expect_object("stores_eff", class = "data.frame")
+      expect_df_equal(stores_eff, .sol$stores_eff, ignore_row_order = TRUE)
+    hints:
+      - 列を作る mutate() と、列を選ぶ select() を順に使います。
+      - mutate(stores, sales_per_m2 = sales / floor_m2) の結果を、select(結果, store_name, location, sales_per_m2) に渡します。
+      - |
+        stores_eff <- mutate(stores, sales_per_m2 = sales / floor_m2)
+        stores_eff <- select(stores_eff, store_name, location, sales_per_m2)
+    tests:
+      fail:
+        - "stores_eff <- mutate(stores, sales_per_m2 = sales / floor_m2)"
+        - |
+          stores_eff <- mutate(stores, sales_per_m2 = floor_m2 / sales)
+          stores_eff <- select(stores_eff, store_name, location, sales_per_m2)
+review_of: "005"

@@ -1,0 +1,234 @@
+id: "063"
+part: 7
+title: 総合演習：職業訓練は年収を上げたか
+question: 4つの方法で推定した訓練の効果はどれくらい違い、どう読むべきか
+minutes: 60
+mode: browser
+packages: [readr, dplyr, MatchIt]
+data: [training_obs.csv]
+learn: []
+setup: |
+  library(readr); library(dplyr); library(MatchIt)
+  # 職業訓練の観察データ（4,000人。教材用の合成データ。真の効果は +30万円/年）
+  obs <- read_csv("data/training_obs.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      【単純比較】訓練後の年収 earn_post を treat だけで説明する回帰を obs で推定し、treat の係数を est_naive に代入して表示してください。
+      係数は coef(モデル)[["treat"]] で1つの数として取り出せます。
+    starter: |
+      est_naive <-
+      est_naive
+    solution: |
+      est_naive <- coef(lm(earn_post ~ treat, data = obs))[["treat"]]
+      est_naive
+    check: |
+      expect_object("est_naive", class = "numeric")
+      check_that(length(est_naive) == 1, "est_naive は1つの数にしましょう。coef(モデル)[[\"treat\"]] で取り出せます。")
+      expect_value(est_naive, .sol$est_naive, label = "est_naive")
+      expect_value(.value, .sol_value, label = "表示した est_naive")
+    hints:
+      - 単純比較は、参加者と不参加者の平均の差です。lm(earn_post ~ treat) の treat の係数と同じ値になります（第56・59ステップ）。
+      - lm(earn_post ~ treat, data = obs) を coef() に渡し、[["treat"]] で treat の係数だけを取り出します。
+      - |
+        est_naive <- coef(lm(earn_post ~ treat, data = obs))[["treat"]]
+        est_naive
+    tests:
+      fail:
+        - |
+          est_naive <- coef(lm(earn_post ~ treat + prior_earn, data = obs))[["treat"]]
+          est_naive
+        - |
+          est_naive <- coef(lm(earn_post ~ treat, data = obs))
+          est_naive
+  - id: b
+    type: write
+    prompt: |
+      【回帰】earn_post を treat、prior_earn、age、I(age^2)、educ_years、female で説明する回帰を推定し、treat の係数を est_reg に代入して表示してください。
+    starter: |
+      est_reg <-
+      est_reg
+    solution: |
+      est_reg <- coef(lm(earn_post ~ treat + prior_earn + age + I(age^2) + educ_years + female,
+                         data = obs))[["treat"]]
+      est_reg
+    check: |
+      expect_object("est_reg", class = "numeric")
+      check_that(length(est_reg) == 1, "est_reg は1つの数にしましょう。coef(モデル)[[\"treat\"]] で取り出せます。")
+      expect_value(est_reg, .sol$est_reg, label = "est_reg")
+      expect_value(.value, .sol_value, label = "表示した est_reg")
+    hints:
+      - 第59ステップと同じく、処置の前に決まっている変数（前年収入・年齢・教育年数・性別）を説明変数に加えます。年齢は2乗の項も入れます。
+      - 式は earn_post ~ treat + prior_earn + age + I(age^2) + educ_years + female です。
+      - |
+        est_reg <- coef(lm(earn_post ~ treat + prior_earn + age + I(age^2) + educ_years + female,
+                           data = obs))[["treat"]]
+        est_reg
+    tests:
+      fail:
+        - |
+          est_reg <- coef(lm(earn_post ~ treat + prior_earn + age + educ_years + female,
+                             data = obs))[["treat"]]
+          est_reg
+        - |
+          est_reg <- coef(lm(earn_post ~ treat + age + I(age^2) + educ_years + female,
+                             data = obs))[["treat"]]
+          est_reg
+  - id: c
+    type: write
+    prompt: |
+      【マッチング】第60ステップと同じ設定でマッチングし、ATT を推定します。
+      1. matchit() に treat ~ prior_earn + age + educ_years + female、data = obs、method = "nearest" を渡して m_match に代入する
+      2. match.data(m_match) を md に代入する
+      3. md で earn_post を treat で説明する回帰を weights = weights を付けて推定し、treat の係数を est_match に代入して表示する
+    starter: |
+      m_match <-
+      md <-
+      est_match <-
+      est_match
+    solution: |
+      m_match <- matchit(treat ~ prior_earn + age + educ_years + female, data = obs,
+                         method = "nearest")
+      md <- match.data(m_match)
+      est_match <- coef(lm(earn_post ~ treat, data = md, weights = weights))[["treat"]]
+      est_match
+    check: |
+      expect_object("m_match", class = "matchit")
+      expect_object("md", class = "data.frame")
+      check_that(nrow(md) == nrow(.sol$md),
+                 "マッチング後の人数が違います。method = \"nearest\" を付け、match.data(m_match) で取り出しましょう。")
+      expect_object("est_match", class = "numeric")
+      check_that(length(est_match) == 1, "est_match は1つの数にしましょう。")
+      expect_value(est_match, .sol$est_match, label = "est_match")
+      expect_value(.value, .sol_value, label = "表示した est_match")
+    hints:
+      - 第60ステップの手順をそのまま使います。マッチングで選ばれた人だけのデータで、参加者と不参加者の年収を比べます。
+      - matchit(treat ~ prior_earn + age + educ_years + female, data = obs, method = "nearest") の結果を match.data() に渡します。回帰は lm(earn_post ~ treat, data = md, weights = weights) です。
+      - |
+        m_match <- matchit(treat ~ prior_earn + age + educ_years + female, data = obs,
+                         method = "nearest")
+        md <- match.data(m_match)
+        est_match <- coef(lm(earn_post ~ treat, data = md, weights = weights))[["treat"]]
+        est_match
+    tests:
+      fail:
+        - |
+          m_match <- matchit(treat ~ prior_earn + age + educ_years + female, data = obs,
+                           method = "nearest")
+          md <- match.data(m_match)
+          est_match <- coef(lm(earn_post ~ treat, data = obs))[["treat"]]
+          est_match
+        - |
+          m_match <- matchit(treat ~ age + educ_years + female, data = obs,
+                           method = "nearest")
+          md <- match.data(m_match)
+          est_match <- coef(lm(earn_post ~ treat, data = md, weights = weights))[["treat"]]
+          est_match
+  - id: d
+    type: write
+    prompt: |
+      【傾向スコアの重み】第61ステップと同じ作り方で ATT を推定し、4つの推定値を1つの表にまとめます。
+      1. treat を prior_earn、age、educ_years、female で説明するロジットを ps_model に代入し、obs に ps（予測確率）と w（参加者は1、不参加者は ps / (1 - ps)）を加えて obs_w に代入する
+      2. treat ごとに 年収 = weighted.mean(earn_post, w) を集計して att_tab に代入し、参加者 − 不参加者 の差を est_ipw に代入する
+      3. tibble() で、方法 = c("単純比較", "回帰", "マッチング", "傾向スコアの重み")、推定値 = c(est_naive, est_reg, est_match, est_ipw) の表を作って results に代入し、results を表示する
+    starter: |
+      ps_model <-
+      obs_w <- obs |>
+        mutate()
+      att_tab <- obs_w |>
+
+      est_ipw <-
+      results <- tibble(方法 = c("単純比較", "回帰", "マッチング", "傾向スコアの重み"),
+                        推定値 = )
+      results
+    solution: |
+      ps_model <- glm(treat ~ prior_earn + age + educ_years + female, data = obs, family = binomial)
+      obs_w <- obs |>
+        mutate(ps = predict(ps_model, type = "response"),
+               w = if_else(treat == 1, 1, ps / (1 - ps)))
+      att_tab <- obs_w |>
+        group_by(treat) |>
+        summarise(年収 = weighted.mean(earn_post, w))
+      est_ipw <- att_tab$年収[2] - att_tab$年収[1]
+      results <- tibble(方法 = c("単純比較", "回帰", "マッチング", "傾向スコアの重み"),
+                        推定値 = c(est_naive, est_reg, est_match, est_ipw))
+      results
+    check: |
+      expect_object("ps_model", class = "glm")
+      expect_model(ps_model, like = .sol$ps_model)
+      expect_object("obs_w", class = "data.frame")
+      expect_cols(obs_w, c("ps", "w"))
+      expect_df_equal(obs_w, .sol$obs_w)
+      expect_object("est_ipw", class = "numeric")
+      expect_value(est_ipw, .sol$est_ipw, label = "est_ipw")
+      expect_object("results", class = "data.frame")
+      expect_cols(results, c("方法", "推定値"))
+      expect_nrow(results, 4)
+      expect_df_equal(results, .sol$results)
+    hints:
+      - 前半は第61ステップの a〜c と同じです。表は、方法の名前と a〜d の4つの推定値を並べた2列の tibble() です。
+      - ps = predict(ps_model, type = "response")、w = if_else(treat == 1, 1, ps / (1 - ps))、年収 = weighted.mean(earn_post, w)、est_ipw <- att_tab$年収[2] - att_tab$年収[1] です。
+      - |
+        ps_model <- glm(treat ~ prior_earn + age + educ_years + female, data = obs, family = binomial)
+        obs_w <- obs |>
+          mutate(ps = predict(ps_model, type = "response"),
+                 w = if_else(treat == 1, 1, ps / (1 - ps)))
+        att_tab <- obs_w |>
+          group_by(treat) |>
+          summarise(年収 = weighted.mean(earn_post, w))
+        est_ipw <- att_tab$年収[2] - att_tab$年収[1]
+        results <- tibble(方法 = c("単純比較", "回帰", "マッチング", "傾向スコアの重み"),
+                          推定値 = c(est_naive, est_reg, est_match, est_ipw))
+        results
+    tests:
+      fail:
+        - |
+          ps_model <- glm(treat ~ prior_earn + age + educ_years + female, data = obs, family = binomial)
+          obs_w <- obs |>
+            mutate(ps = predict(ps_model, type = "response"),
+                   w = if_else(treat == 1, 1 / ps, 1 / (1 - ps)))
+          att_tab <- obs_w |>
+            group_by(treat) |>
+            summarise(年収 = weighted.mean(earn_post, w))
+          est_ipw <- att_tab$年収[2] - att_tab$年収[1]
+          results <- tibble(方法 = c("単純比較", "回帰", "マッチング", "傾向スコアの重み"),
+                            推定値 = c(est_naive, est_reg, est_match, est_ipw))
+          results
+        - |
+          ps_model <- glm(treat ~ prior_earn + age + educ_years + female, data = obs, family = binomial)
+          obs_w <- obs |>
+            mutate(ps = predict(ps_model, type = "response"),
+                   w = if_else(treat == 1, 1, ps / (1 - ps)))
+          att_tab <- obs_w |>
+            group_by(treat) |>
+            summarise(年収 = weighted.mean(earn_post, w))
+          est_ipw <- att_tab$年収[2] - att_tab$年収[1]
+          results <- tibble(方法 = c("単純比較", "回帰", "マッチング", "傾向スコアの重み"),
+                            推定値 = c(est_naive, est_reg, est_ipw, est_match))
+          results
+  - id: e
+    type: interpret
+    free: true
+    prompt: |
+      d の表をもとに、「職業訓練は年収を上げたか」への結論を3行（3文）で書いてください。
+      1文目に単純比較の値とそれが外れた理由を、2文目に調整した3つの推定値（数字）と真の効果30万円との関係を、3文目にこの結論が成り立つための条件（観察できる変数で参加が説明できること、似た比較相手がいること など）と、実際のデータでの注意を書くと書きやすいでしょう。
+    solution: |
+      単純比較では参加者の年収が約65万円低く見えるが、これは前年収入の低い人ほど訓練に参加したことによる選択バイアスである。
+      前年収入・年齢・教育年数・性別で調整すると、回帰で約26.9万円、マッチングで約22.7万円、傾向スコアの重みで約27.5万円と、どれも真の効果30万円に近いプラスの値になり、訓練は年収を上げたと考えられる。
+      ただしこれは参加が観察できる変数だけで決まり、参加者に似た不参加者がいるという条件のもとでの結論であり、真の値が分からない実際のデータでは、方法によって値が数万円動くことも含めて複数の推定を並べて示す必要がある。
+    check: |
+      expect_min_chars(120)
+      expect_text("[0-9０-９]", "推定値などの数字を入れて書きましょう。")
+      expect_text("単純比較|単純な比較|平均の差", "1文目に、単純比較の結果を書きましょう。")
+      expect_text("選択|前年収入|低い人|偏り|バイアス", "単純比較が外れた理由（前年収入の低い人ほど参加したこと＝選択バイアス）を書きましょう。")
+      expect_text("回帰|マッチング|傾向スコア|重み|調整", "2文目に、調整した推定値（回帰・マッチング・傾向スコア）を書きましょう。")
+      expect_text("条件|仮定|観察できな|観察できる|共通サポート|似た|比較相手|やる気", "3文目に、結論が成り立つための条件（観察できる変数で参加が説明できる、似た比較相手がいる など）を書きましょう。")
+    hints:
+      - d の results を見直しましょう。単純比較だけが大きく外れ、ほかの3つは近い値になっているはずです。第59〜61ステップの本文も参考になります。
+      - 「単純比較はなぜ外れたか」「調整するとどうなったか（数字）」「どんな条件のもとで言えるか」の3点を1文ずつ書きます。
+      - 例「単純比較では約〇万円と負になるが、前年収入の低い人ほど参加した選択バイアスによる。回帰・マッチング・傾向スコアの重みで調整すると約〇・〇・〇万円で、真の効果30万円に近い。ただし参加が観察できる変数だけで決まり、似た比較相手がいるという条件のもとでの結論である。」
+    tests:
+      fail:
+        - 訓練は年収を上げた。
+        - 単純比較では約65万円低い。回帰・マッチング・傾向スコアで推定すると約27万円、約23万円、約28万円になった。よって訓練は必ず年収を30万円上げることが証明された。

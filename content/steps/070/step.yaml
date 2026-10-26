@@ -1,0 +1,268 @@
+id: "070"
+part: 8
+title: 回帰不連続デザイン
+question: 奨学金は将来の年収を上げるか
+minutes: 50
+mode: browser
+packages: [readr, dplyr, ggplot2, fixest, causaldata]
+data: [scholarship_rdd.csv]
+learn: [floor]
+review_of: "069"
+setup: |
+  library(readr); library(dplyr); library(ggplot2); library(fixest)
+  # 給付型奨学金と30歳時の年収（5,000人。教材用の合成データ。GPA 3.0以上で奨学金、真の効果は +25万円）
+  sch <- read_csv("data/scholarship_rdd.csv", show_col_types = FALSE)
+  # 第69ステップの米国の若年男性3,010人（Card 1995 のデータ。e の復習で使う）
+  cc <- causaldata::close_college
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      GPA を0.1刻みの区間（ビン）に分け、ビンごとの30歳時年収の平均を点で描きます。
+      1. sch に bin = floor(gpa * 10) / 10 + 0.05（各ビンの中央の値）を加え、bin ごとに earn = mean(earn30) を集計して bins に代入する
+      2. bins で横軸を bin、縦軸を earn とした散布図を描き、geom_vline(xintercept = 3) で閾値の GPA 3.0 に縦線を引く
+    starter: |
+      bins <- sch |>
+        mutate(bin = ) |>
+
+      ggplot(bins, aes()) +
+    solution: |
+      bins <- sch |>
+        mutate(bin = floor(gpa * 10) / 10 + 0.05) |>
+        group_by(bin) |>
+        summarise(earn = mean(earn30))
+      ggplot(bins, aes(x = bin, y = earn)) +
+        geom_point() +
+        geom_vline(xintercept = 3)
+    check: |
+      expect_object("bins", class = "data.frame")
+      expect_cols(bins, c("bin", "earn"))
+      check_that(nrow(bins) == nrow(.sol$bins),
+                 "ビンの数が違います。bin = floor(gpa * 10) / 10 + 0.05 で0.1刻みにし、group_by(bin) で集計しましょう。")
+      expect_df_equal(bins[c("bin", "earn")], .sol$bins, ignore_row_order = TRUE)
+      expect_ggplot(geom = "point", x = "bin", y = "earn")
+      layers_of <- function(p, cls) Filter(function(l) inherits(l$geom, cls), unname(p$layers))
+      check_that(length(layers_of(.plot, "GeomVline")) >= 1,
+                 "縦線の層がありません。+ geom_vline(xintercept = 3) を足しましょう。")
+      vx <- unlist(lapply(layers_of(.plot, "GeomVline"), function(l) l$data$xintercept))
+      check_that(isTRUE(any(abs(as.numeric(vx) - 3) < 1e-9)),
+                 "縦線の位置が違います。閾値の GPA 3.0 に xintercept = 3 で引きましょう。")
+    hints:
+      - 「ビンを作る → ビンごとに平均する → 点で描いて閾値に縦線を引く」の3段階です。floor() は小数点以下を切り捨てます。gpa * 10 を切り捨てて10で割ると、0.1刻みの区間の下端になります。
+      - mutate(bin = floor(gpa * 10) / 10 + 0.05) のあと group_by(bin) |> summarise(earn = mean(earn30)) です。図は aes(x = bin, y = earn) に geom_point() と geom_vline(xintercept = 3) を足します。
+      - |
+        bins <- sch |>
+          mutate(bin = floor(gpa * 10) / 10 + 0.05) |>
+          group_by(bin) |>
+          summarise(earn = mean(earn30))
+        ggplot(bins, aes(x = bin, y = earn)) +
+          geom_point() +
+          geom_vline(xintercept = 3)
+    tests:
+      fail:
+        - |
+          bins <- sch |>
+            mutate(bin = round(gpa, 1)) |>
+            group_by(bin) |>
+            summarise(earn = mean(earn30))
+          ggplot(bins, aes(x = bin, y = earn)) +
+            geom_point() +
+            geom_vline(xintercept = 3)
+        - |
+          bins <- sch |>
+            mutate(bin = floor(gpa * 10) / 10 + 0.05) |>
+            group_by(bin) |>
+            summarise(earn = mean(earn30))
+          ggplot(bins, aes(x = bin, y = earn)) +
+            geom_point()
+        - |
+          bins <- sch |>
+            mutate(bin = floor(gpa * 10) / 10 + 0.05) |>
+            group_by(bin) |>
+            summarise(earn = mean(earn30))
+          ggplot(bins, aes(x = bin, y = earn)) +
+            geom_point() +
+            geom_vline(xintercept = 2.8)
+  - id: b
+    type: write
+    prompt: |
+      閾値の前後 GPA 2.5〜3.5 の学生だけで、局所線形回帰を推定します。
+      1. sch に、閾値からの距離 gpa_c = gpa - 3 を加えて sch_c に代入する
+      2. sch_c のうち abs(gpa_c) < 0.5 の学生で、earn30 を scholarship * gpa_c で説明する回帰を lm() で推定して m_rdd に代入する
+      3. coef(m_rdd) を表示する
+    starter: |
+      sch_c <- sch |>
+        mutate(gpa_c = )
+      m_rdd <- lm(earn30 ~ scholarship * gpa_c, data = )
+      coef(m_rdd)
+    solution: |
+      sch_c <- sch |>
+        mutate(gpa_c = gpa - 3)
+      m_rdd <- lm(earn30 ~ scholarship * gpa_c, data = filter(sch_c, abs(gpa_c) < 0.5))
+      coef(m_rdd)
+    check: |
+      expect_object("sch_c", class = "data.frame")
+      expect_cols(sch_c, "gpa_c")
+      check_that(nrow(sch_c) == nrow(sch),
+                 "sch_c は sch の全員（5,000人）に gpa_c を加えた表にします。絞り込みは lm() の data で行いましょう。")
+      expect_df_equal(sch_c, .sol$sch_c)
+      expect_object("m_rdd", class = "lm")
+      check_that(nobs(m_rdd) == nobs(.sol$m_rdd),
+                 "推定に使った人数が違います。data = filter(sch_c, abs(gpa_c) < 0.5) で GPA 2.5〜3.5 の学生に絞りましょう。")
+      expect_coef(m_rdd, "scholarship", coef(.sol$m_rdd)[["scholarship"]])
+      expect_model(m_rdd, like = .sol$m_rdd)
+      expect_value(.value, .sol_value, label = "表示した coef(m_rdd)")
+    hints:
+      - 閾値からの距離 gpa_c を説明変数にすると、scholarship の係数が「閾値ちょうどでの年収の段差」になります。scholarship * gpa_c と交差項にすると、閾値の左右で傾きが変わってよいことになります（第41ステップ）。
+      - mutate(gpa_c = gpa - 3) で距離を作り、lm() の data に filter(sch_c, abs(gpa_c) < 0.5) を渡します。
+      - |
+        sch_c <- sch |>
+          mutate(gpa_c = gpa - 3)
+        m_rdd <- lm(earn30 ~ scholarship * gpa_c, data = filter(sch_c, abs(gpa_c) < 0.5))
+        coef(m_rdd)
+    tests:
+      fail:
+        - |
+          sch_c <- sch |>
+            mutate(gpa_c = gpa - 3)
+          m_rdd <- lm(earn30 ~ scholarship, data = filter(sch_c, abs(gpa_c) < 0.5))
+          coef(m_rdd)
+        - |
+          sch_c <- sch |>
+            mutate(gpa_c = gpa - 3)
+          m_rdd <- lm(earn30 ~ scholarship * gpa_c, data = sch_c)
+          coef(m_rdd)
+        - |
+          sch_c <- sch |>
+            mutate(gpa_c = gpa - 3)
+          m_rdd <- lm(earn30 ~ scholarship + gpa_c, data = filter(sch_c, abs(gpa_c) < 0.5))
+          coef(m_rdd)
+  - id: c
+    type: fill
+    prompt: |
+      帯域幅（閾値の前後どこまでの学生を使うか）を 0.25・0.5・1 と変えて、推定値がどれだけ動くかを確かめます。
+      `___` を埋めて、帯域幅ごとの scholarship の係数を est_025、est_05、est_1 に代入し、
+      帯域幅 と 推定値 の2列の表 rob を作って表示してください。
+    starter: |
+      est_025 <- coef(lm(earn30 ~ scholarship * gpa_c,
+                         data = filter(sch_c, abs(gpa_c) < ___)))[["scholarship"]]
+      est_05 <- coef(lm(earn30 ~ scholarship * gpa_c,
+                        data = filter(sch_c, abs(gpa_c) < ___)))[["scholarship"]]
+      est_1 <- coef(lm(earn30 ~ scholarship * gpa_c,
+                       data = filter(sch_c, abs(gpa_c) < ___)))[["scholarship"]]
+      rob <- tibble(帯域幅 = c(0.25, 0.5, 1),
+                    推定値 = c(___))
+      rob
+    solution: |
+      est_025 <- coef(lm(earn30 ~ scholarship * gpa_c,
+                         data = filter(sch_c, abs(gpa_c) < 0.25)))[["scholarship"]]
+      est_05 <- coef(lm(earn30 ~ scholarship * gpa_c,
+                        data = filter(sch_c, abs(gpa_c) < 0.5)))[["scholarship"]]
+      est_1 <- coef(lm(earn30 ~ scholarship * gpa_c,
+                       data = filter(sch_c, abs(gpa_c) < 1)))[["scholarship"]]
+      rob <- tibble(帯域幅 = c(0.25, 0.5, 1),
+                    推定値 = c(est_025, est_05, est_1))
+      rob
+    check: |
+      expect_object("est_025", class = "numeric")
+      expect_value(est_025, .sol$est_025, label = "est_025")
+      expect_value(est_05, .sol$est_05, label = "est_05")
+      expect_value(est_1, .sol$est_1, label = "est_1")
+      expect_object("rob", class = "data.frame")
+      expect_cols(rob, c("帯域幅", "推定値"))
+      expect_nrow(rob, 3)
+      expect_df_equal(rob, .sol$rob)
+    hints:
+      - b と同じ回帰を、filter() の帯域幅だけ変えて3回推定します。表の 推定値 には、帯域幅の順（0.25、0.5、1）に3つの係数を並べます。
+      - filter(sch_c, abs(gpa_c) < 0.25)、< 0.5、< 1 です。推定値 = c(est_025, est_05, est_1) とします。
+      - |
+        est_025 <- coef(lm(earn30 ~ scholarship * gpa_c,
+                           data = filter(sch_c, abs(gpa_c) < 0.25)))[["scholarship"]]
+        est_05 <- coef(lm(earn30 ~ scholarship * gpa_c,
+                          data = filter(sch_c, abs(gpa_c) < 0.5)))[["scholarship"]]
+        est_1 <- coef(lm(earn30 ~ scholarship * gpa_c,
+                         data = filter(sch_c, abs(gpa_c) < 1)))[["scholarship"]]
+        rob <- tibble(帯域幅 = c(0.25, 0.5, 1),
+                      推定値 = c(est_025, est_05, est_1))
+        rob
+    tests:
+      fail:
+        - |
+          est_025 <- coef(lm(earn30 ~ scholarship * gpa_c,
+                             data = filter(sch_c, abs(gpa_c) < 0.25)))[["scholarship"]]
+          est_05 <- coef(lm(earn30 ~ scholarship * gpa_c,
+                            data = filter(sch_c, abs(gpa_c) < 0.5)))[["scholarship"]]
+          est_1 <- coef(lm(earn30 ~ scholarship * gpa_c,
+                           data = filter(sch_c, abs(gpa_c) < 1)))[["scholarship"]]
+          rob <- tibble(帯域幅 = c(0.25, 0.5, 1),
+                        推定値 = c(est_1, est_05, est_025))
+          rob
+        - |
+          est_025 <- coef(lm(earn30 ~ scholarship * gpa_c,
+                             data = filter(sch_c, gpa_c < 0.25)))[["scholarship"]]
+          est_05 <- coef(lm(earn30 ~ scholarship * gpa_c,
+                            data = filter(sch_c, gpa_c < 0.5)))[["scholarship"]]
+          est_1 <- coef(lm(earn30 ~ scholarship * gpa_c,
+                           data = filter(sch_c, gpa_c < 1)))[["scholarship"]]
+          rob <- tibble(帯域幅 = c(0.25, 0.5, 1),
+                        推定値 = c(est_025, est_05, est_1))
+          rob
+  - id: d
+    type: interpret
+    prompt: |
+      全員で年収を奨学金の有無だけで比べると、受給者の方が約75万円高くなりました。
+      一方、b の回帰不連続デザインの推定値は約25.5万円（95%信頼区間 約14.8〜36.2万円）でした。
+      この結果の読み方として、最も適切なものはどれですか。
+    choices:
+      - "約75万円には GPA の高い学生ほどもともと年収が高い分が含まれている。約25.5万円は、閾値の前後で年収を決める他の要因が連続的に変わり、GPA の操作がないという仮定のもとでの、GPA 3.0 付近の学生にとっての効果である"
+      - "約25.5万円は、GPA 2.0 の学生に奨学金を与えたときの効果としてもそのまま使える"
+      - "回帰不連続デザインでは閾値の前後の学生が無作為に分けられたことが検定で証明されるので、仮定を気にする必要はない"
+      - "約75万円の方が人数の多いデータを使っているので、より信頼できる"
+    answer: 0
+    explain: 奨学金は GPA 3.0 以上の学生だけが受け取るので、全員での単純比較の約75万円には、GPA が高いこと自体による年収の差（このデータでは GPA が1上がると年収が60万円上がるように作ってあります）が混ざります。回帰不連続デザインは、閾値のすぐ下とすぐ上の学生は奨学金以外では似ているとみなし、閾値での段差を効果とします。そのため推定できるのは閾値付近の学生にとっての効果で、GPA 2.0 の学生に当てはまるとは限りません。また、閾値の前後で他の要因が連続していること、学生や教員が GPA を閾値の上へ動かしていないことは仮定であり、図や人数の確認で支えることはできても、検定で証明することはできません。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第69ステップの復習】cc で、教育の収益率を OLS と 2SLS で推定して並べます。
+      1. lwage を educ、exper、black、south、smsa で説明する回帰を feols() で vcov = "hetero" を付けて推定し、ols に代入する
+      2. 同じ統制変数を使い、educ を nearc4 で操作した 2SLS を vcov = "hetero" を付けて推定し、iv に代入する
+      3. 2つのモデルの教育の係数を c(OLS = coef(ols)[["educ"]], 2SLS = coef(iv)[["fit_educ"]]) で並べて表示する
+    starter: |
+      ols <-
+      iv <-
+      c(OLS = coef(ols)[["educ"]], `2SLS` = coef(iv)[["fit_educ"]])
+    solution: |
+      ols <- feols(lwage ~ educ + exper + black + south + smsa, data = cc, vcov = "hetero")
+      iv <- feols(lwage ~ exper + black + south + smsa | educ ~ nearc4,
+                  data = cc, vcov = "hetero")
+      c(OLS = coef(ols)[["educ"]], `2SLS` = coef(iv)[["fit_educ"]])
+    check: |
+      expect_object("ols", class = "fixest")
+      expect_model(ols, like = .sol$ols)
+      expect_object("iv", class = "fixest")
+      check_that("fit_educ" %in% names(coef(iv)),
+                 "教育年数を操作変数で推定していません。| の後ろに educ ~ nearc4 を書きましょう。")
+      expect_model(iv, like = .sol$iv)
+      check_that(isTRUE(all.equal(as.numeric(se(iv)), as.numeric(se(.sol$iv)), tolerance = 1e-6)),
+                 "標準誤差が違います。vcov = \"hetero\" を付けましょう。")
+      expect_value(unname(.value), unname(.sol_value), label = "表示した2つの係数")
+    hints:
+      - 第69ステップの a と c です。2SLS は「結果 ~ 統制変数 | 内生変数 ~ 操作変数」と書きます。2SLS の教育の係数は fit_educ という名前になります。
+      - OLS は feols(lwage ~ educ + exper + black + south + smsa, data = cc, vcov = "hetero")、2SLS は feols(lwage ~ exper + black + south + smsa | educ ~ nearc4, data = cc, vcov = "hetero") です。
+      - |
+        ols <- feols(lwage ~ educ + exper + black + south + smsa, data = cc, vcov = "hetero")
+        iv <- feols(lwage ~ exper + black + south + smsa | educ ~ nearc4,
+                    data = cc, vcov = "hetero")
+        c(OLS = coef(ols)[["educ"]], `2SLS` = coef(iv)[["fit_educ"]])
+    tests:
+      fail:
+        - |
+          ols <- feols(lwage ~ educ + exper + black + south + smsa, data = cc, vcov = "hetero")
+          iv <- feols(lwage ~ exper + black + south + smsa | nearc4 ~ educ,
+                      data = cc, vcov = "hetero")
+          c(OLS = coef(ols)[["educ"]], `2SLS` = coef(iv)[["fit_nearc4"]])
+        - |
+          ols <- feols(lwage ~ educ + exper + black + south + smsa, data = cc, vcov = "hetero")
+          iv <- feols(lwage ~ educ + exper + black + south + smsa, data = cc, vcov = "hetero")
+          c(OLS = coef(ols)[["educ"]], `2SLS` = coef(iv)[["educ"]])

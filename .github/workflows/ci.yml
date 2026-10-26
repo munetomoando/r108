@@ -1,0 +1,72 @@
+# Rテスト → ビルド → E2E → GitHub Pages へ公開（main への push 時のみ）
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  r-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with: { use-public-rspm: true }
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: any::testthat, any::yaml, any::rlang, any::dplyr, any::readr, any::ggplot2, any::tidyr, any::lubridate, any::stringi, any::stringr, any::forcats, any::readxl, any::janitor, any::jsonlite, any::gapminder, any::writexl, any::fixest, any::modelsummary, any::wooldridge, any::sandwich, any::tidyverse, any::here, any::renv, any::knitr, any::rmarkdown, any::ragg, any::MatchIt, any::causaldata, any::tidymodels, any::rpart, any::randomForest, any::shiny, any::duckdb, any::dbplyr, any::DBI
+          dependencies: '"hard"'
+      - name: r108check の単体テスト
+        run: Rscript -e 'testthat::test_local("r/r108check", stop_on_failure = TRUE)'
+      - name: 全ステップの正解コード
+        run: Rscript tests/r/run_solutions.R
+      - name: 合成データの効果の再現
+        run: Rscript tests/r/test_synth.R
+      - uses: quarto-dev/quarto-actions/setup@v2
+      - name: ローカル実行ステップの確認スクリプト
+        run: Rscript tests/r/test_local.R
+
+  build:
+    needs: r-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: dist }
+
+  e2e:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: playwright-report, path: test-results }
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build, e2e]
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

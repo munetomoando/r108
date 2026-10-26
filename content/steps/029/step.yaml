@@ -1,0 +1,189 @@
+id: "029"
+part: 4
+title: 相関
+question: 教育年数と時給はどれくらい関係するか
+minutes: 40
+mode: browser
+packages: [readr, dplyr, ggplot2]
+data: [wage_survey.csv]
+learn: [log, bind_rows]
+review_of: "028"
+setup: |
+  library(readr); library(dplyr); library(ggplot2)
+  # 架空の賃金調査の個票（3,000人）
+  wage <- read_csv("data/wage_survey.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      教育年数 educ_years と時給 hourly_wage の相関係数を cor() で求めて r_wage に代入し、表示してください。
+    starter: |
+      r_wage <-
+      r_wage
+    solution: |
+      r_wage <- cor(wage$educ_years, wage$hourly_wage)
+      r_wage
+    check: |
+      expect_object("r_wage", class = "numeric")
+      expect_value(r_wage, .sol$r_wage)
+      expect_value(.value, .sol_value)
+    hints:
+      - 第24ステップと同じく、2つの列を cor() に渡します。
+      - 列は wage$educ_years と wage$hourly_wage のように $ で取り出します。
+      - |
+        r_wage <- cor(wage$educ_years, wage$hourly_wage)
+        r_wage
+    tests:
+      fail:
+        - |
+          r_wage <- cor(wage$educ_years, wage$log_wage)
+          r_wage
+        - |
+          r_wage <- cor(wage$exper, wage$hourly_wage)
+          r_wage
+  - id: b
+    type: write
+    prompt: |
+      時給の対数をとってから相関を求めます。
+      1. mutate() と log() で、wage に時給の自然対数の列 lw（log(hourly_wage)）を加え、wage に代入し直す
+      2. educ_years と lw の相関係数を求めて r_log に代入し、表示する
+
+      wage にはすでに log_wage という列がありますが、ここでは自分で log() を使って作りましょう（log_wage は小数4桁に丸めてあります）。
+    starter: |
+      wage <- mutate(wage, lw = )
+      r_log <-
+      r_log
+    solution: |
+      wage <- mutate(wage, lw = log(hourly_wage))
+      r_log <- cor(wage$educ_years, wage$lw)
+      r_log
+    check: |
+      expect_object("wage", class = "data.frame")
+      expect_cols(wage, "lw")
+      expect_value(wage$lw, .sol$wage$lw)
+      expect_uses("log")
+      expect_object("r_log", class = "numeric")
+      expect_value(r_log, .sol$r_log)
+    hints:
+      - log() は自然対数（底が e の対数）を返す関数です。mutate() で新しい列を作り、その列と educ_years を cor() に渡します。
+      - 1行目は mutate(wage, lw = log(hourly_wage)) です。2行目は cor(wage$educ_years, wage$lw) です。
+      - |
+        wage <- mutate(wage, lw = log(hourly_wage))
+        r_log <- cor(wage$educ_years, wage$lw)
+        r_log
+    tests:
+      fail:
+        - |
+          wage <- mutate(wage, lw = log(hourly_wage))
+          r_log <- cor(wage$educ_years, wage$hourly_wage)
+          r_log
+        - |
+          wage <- mutate(wage, lw = sqrt(hourly_wage))
+          r_log <- cor(wage$educ_years, wage$lw)
+          r_log
+  - id: c
+    type: write
+    prompt: |
+      極端な値をもつ1人を加えると相関係数がどう変わるかを確かめます。
+      1. head(wage, 1) で wage の1行目だけを取り出し、mutate() で educ_years を 12、hourly_wage を 100000、lw を log(100000) に書き換えた1行の表を extreme に代入する（高卒で時給10万円の人）
+      2. bind_rows() で wage の下に extreme をつなげた表を wage_out に代入する（3,001行になります）
+      3. wage_out で、educ_years と hourly_wage の相関係数を r_out に、educ_years と lw の相関係数を r_out_log に代入し、c(r_out, r_out_log) を表示する
+    starter: |
+      extreme <- head(wage, 1) |>
+        mutate()
+      wage_out <-
+
+    solution: |
+      extreme <- head(wage, 1) |>
+        mutate(educ_years = 12, hourly_wage = 100000, lw = log(100000))
+      wage_out <- bind_rows(wage, extreme)
+      r_out <- cor(wage_out$educ_years, wage_out$hourly_wage)
+      r_out_log <- cor(wage_out$educ_years, wage_out$lw)
+      c(r_out, r_out_log)
+    check: |
+      expect_object("extreme", class = "data.frame")
+      expect_nrow(extreme, 1)
+      check_that(isTRUE(extreme$educ_years == 12) && isTRUE(extreme$hourly_wage == 100000) &&
+                   isTRUE(all.equal(extreme$lw, log(100000))),
+                 "extreme の educ_years を 12、hourly_wage を 100000、lw を log(100000) に書き換えましょう。")
+      expect_object("wage_out", class = "data.frame")
+      expect_nrow(wage_out, 3001)
+      expect_uses("bind_rows")
+      expect_object("r_out", class = "numeric")
+      expect_value(r_out, .sol$r_out)
+      expect_object("r_out_log", class = "numeric")
+      expect_value(r_out_log, .sol$r_out_log)
+    hints:
+      - 「1行を作る（head → mutate）→ 下につなげる（bind_rows）→ 相関を2つ求める」の順に書きます。lw も書き換えないと、時給と対数時給が食い違った行になります。
+      - mutate(educ_years = 12, hourly_wage = 100000, lw = log(100000)) で3つの列を書き換え、bind_rows(wage, extreme) で上下につなげます。
+      - |
+        extreme <- head(wage, 1) |> mutate(educ_years = 12, hourly_wage = 100000, lw = log(100000))
+        wage_out <- bind_rows(wage, extreme)
+        r_out <- cor(wage_out$educ_years, wage_out$hourly_wage)
+        r_out_log <- cor(wage_out$educ_years, wage_out$lw)
+        c(r_out, r_out_log)
+    tests:
+      fail:
+        - |
+          extreme <- head(wage, 1) |>
+            mutate(educ_years = 12, hourly_wage = 100000)
+          wage_out <- bind_rows(wage, extreme)
+          r_out <- cor(wage_out$educ_years, wage_out$hourly_wage)
+          r_out_log <- cor(wage_out$educ_years, wage_out$lw)
+          c(r_out, r_out_log)
+        - |
+          extreme <- head(wage, 1) |>
+            mutate(educ_years = 12, hourly_wage = 100000, lw = log(100000))
+          wage_out <- wage
+          r_out <- cor(wage_out$educ_years, wage_out$hourly_wage)
+          r_out_log <- cor(wage_out$educ_years, wage_out$lw)
+          c(r_out, r_out_log)
+  - id: d
+    type: interpret
+    prompt: |
+      a〜b で、教育年数の長い人ほど時給が高い傾向（正の相関）が確かめられました。
+      この相関だけから「大学に進学すれば（教育年数を延ばせば）、誰でもその分だけ時給が上がる」と言い切れない理由として、最も適切なものはどれですか。
+    choices:
+      - "相関係数が0.3より小さいので、教育年数と時給には関係がないと判断すべきだから"
+      - "もともとの能力や家庭環境のように、教育年数と時給の両方を高める要因があると、教育そのものに効果がなくても同じ正の相関が生まれるから"
+      - "対数をとると相関係数が変わるので、どちらの値が正しいか決められないから"
+      - "相関係数は教育年数が12・14・16・18年の4種類しかないデータでは計算できないから"
+    answer: 1
+    explain: 相関は「2つが一緒に動く」ことを示すだけで、片方を変えたらもう片方が変わるか（因果）は教えてくれません。例えば、学力や意欲の高い人ほど長く教育を受け、同時に職場でも高く評価されるなら、教育年数を延ばすこと自体に効果がなくても、教育年数と時給には正の相関が出ます（このような第3の要因を交絡要因といいます）。また、相関係数が小さくても関係がないとは限りません。この架空データでは、他の条件が同じなら教育年数1年あたり時給が約7%高くなるように作ってありますが、個人差（誤差）が大きいため相関係数は0.24〜0.26ほどにとどまります。教育の「効果」を測る方法は、第5部（回帰分析）と第7・8部（因果推論）で学びます。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第28ステップの復習】男女で時給の「典型的な値」と「散らばり」を比べます。
+      wage を female ごとにまとめ、時給 hourly_wage の中央値 med_wage と四分位範囲 iqr_wage の2列をもつ表を sex_summary に代入し、表示してください。
+    starter: |
+      sex_summary <- wage |>
+
+      sex_summary
+    solution: |
+      sex_summary <- wage |>
+        group_by(female) |>
+        summarise(med_wage = median(hourly_wage), iqr_wage = IQR(hourly_wage))
+      sex_summary
+    check: |
+      expect_object("sex_summary", class = "data.frame")
+      expect_cols(sex_summary, c("female", "med_wage", "iqr_wage"))
+      expect_df_equal(sex_summary, .sol$sex_summary, ignore_row_order = TRUE)
+    hints:
+      - group_by() でグループに分け、summarise() の中で中央値と四分位範囲を求めます。
+      - 中央値は median(hourly_wage)、四分位範囲は IQR(hourly_wage) です。
+      - |
+        sex_summary <- wage |> group_by(female) |> summarise(med_wage = median(hourly_wage), iqr_wage = IQR(hourly_wage))
+        sex_summary
+    tests:
+      fail:
+        - |
+          sex_summary <- wage |>
+            group_by(female) |>
+            summarise(med_wage = mean(hourly_wage), iqr_wage = IQR(hourly_wage))
+          sex_summary
+        - |
+          sex_summary <- wage |>
+            group_by(female) |>
+            summarise(med_wage = median(hourly_wage), iqr_wage = sd(hourly_wage))
+          sex_summary

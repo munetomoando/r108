@@ -1,0 +1,209 @@
+id: "031"
+part: 4
+title: 標本分布と中心極限定理
+question: 100人調べた平均はどれくらい揺れるか
+minutes: 45
+mode: browser
+packages: [readr, dplyr, ggplot2]
+data: [wage_survey.csv]
+learn: [replicate, seq_len]
+review_of: "030"
+setup: |
+  library(readr); library(dplyr); library(ggplot2)
+  # 架空の賃金調査の個票（3,000人）。このステップでは、この3,000人を「母集団」とみなす
+  wage <- read_csv("data/wage_survey.csv", show_col_types = FALSE)
+exercises:
+  - id: a
+    type: write
+    prompt: |
+      wage の3,000人を母集団とみなし、そこから100人を無作為に選んで平均時給を求める「調査」を1000回くり返します。
+      最初の行に set.seed(108) を書いてから、replicate(1000, mean(sample(wage$hourly_wage, 100))) の結果を means100 に代入してください。
+      続けて mean(means100) を表示し、1000回の標本平均の平均を確かめます。
+    starter: |
+      set.seed(108)
+      means100 <-
+
+    solution: |
+      set.seed(108)
+      means100 <- replicate(1000, mean(sample(wage$hourly_wage, 100)))
+      mean(means100)
+    check: |
+      expect_uses("set.seed")
+      expect_uses("replicate")
+      expect_uses("sample")
+      expect_object("means100", class = "numeric")
+      check_that(length(means100) == 1000, "means100 の長さが1000ではありません。replicate() の最初の引数を 1000 にしましょう。")
+      expect_value(means100, .sol$means100, label = "means100")
+      expect_value(.value, .sol_value, label = "mean(means100)")
+    hints:
+      - sample(wage$hourly_wage, 100) で100人分の時給を選び、mean() で平均にします。この「1回の調査」を replicate() で1000回くり返します。
+      - replicate(回数, くり返す式) の形です。式は mean(sample(wage$hourly_wage, 100)) です。最後に mean(means100) を書きます。
+      - |
+        set.seed(108)
+        means100 <- replicate(1000, mean(sample(wage$hourly_wage, 100)))
+        mean(means100)
+    tests:
+      fail:
+        - |
+          means100 <- replicate(1000, mean(sample(wage$hourly_wage, 100)))
+          mean(means100)
+        - |
+          set.seed(108)
+          means100 <- replicate(1000, mean(sample(wage$hourly_wage, 10)))
+          mean(means100)
+        - |
+          set.seed(108)
+          means100 <- replicate(100, mean(sample(wage$hourly_wage, 100)))
+          mean(means100)
+  - id: b
+    type: write
+    prompt: |
+      a の1000個の標本平均を表にして、分布を描きます。
+      tibble() で、列 trial（何回目の調査か。seq_len(1000) で 1, 2, …, 1000）と列 mean_wage（means100）をもつ表を作って sim に代入してください。
+      そのうえで、sim の mean_wage のヒストグラムを geom_histogram(binwidth = 20)（20円きざみ）で描いてください。
+    starter: |
+      sim <- tibble(trial = , mean_wage = )
+
+    solution: |
+      sim <- tibble(trial = seq_len(1000), mean_wage = means100)
+      ggplot(sim, aes(x = mean_wage)) + geom_histogram(binwidth = 20)
+    check: |
+      expect_object("sim", class = "data.frame")
+      expect_cols(sim, c("trial", "mean_wage"))
+      expect_df_equal(sim, .sol$sim)
+      expect_ggplot(geom = "histogram", x = "mean_wage")
+      expect_df_equal(.plot$data, .sol_plot$data)
+    hints:
+      - tibble(列名 = 値, 列名 = 値) で表を作れます。値の長さはどちらも1000にそろえます。図は第21ステップと同じヒストグラムです。
+      - trial = seq_len(1000), mean_wage = means100 と書きます。図は ggplot(sim, aes(x = mean_wage)) に + geom_histogram(binwidth = 20) をつなぎます。
+      - |
+        sim <- tibble(trial = seq_len(1000), mean_wage = means100)
+        ggplot(sim, aes(x = mean_wage)) + geom_histogram(binwidth = 20)
+    tests:
+      fail:
+        - |
+          sim <- tibble(trial = seq_len(1000), mean_wage = means100)
+          ggplot(wage, aes(x = hourly_wage)) + geom_histogram(binwidth = 20)
+        - |
+          sim <- tibble(trial = seq_len(100), mean_wage = means100[1:100])
+          ggplot(sim, aes(x = mean_wage)) + geom_histogram(binwidth = 20)
+  - id: c
+    type: write
+    prompt: |
+      標本の人数 n を変えると、標本平均の揺れ（標準偏差）がどう変わるかを比べます。
+      1. set.seed(108) を書いてから、10人の標本平均を1000回求めて m10 に、続けて400人の標本平均を1000回求めて m400 に代入する（この順に書く）
+      2. 母集団の時給の標準偏差 sd(wage$hourly_wage) を sigma に代入する
+      3. tibble() で、列 n（c(10, 100, 400)）、列 sd_mean（c(sd(m10), sd(means100), sd(m400))）、列 theory（sigma / sqrt(n)）をもつ表を作って comp に代入し、comp を表示する
+
+      tibble() の中では、先に作った列 n を後の列の式で使えます。
+    starter: |
+      set.seed(108)
+      m10 <-
+      m400 <-
+      sigma <-
+      comp <- tibble(n = c(10, 100, 400),
+                     sd_mean = ,
+                     theory = )
+      comp
+    solution: |
+      set.seed(108)
+      m10 <- replicate(1000, mean(sample(wage$hourly_wage, 10)))
+      m400 <- replicate(1000, mean(sample(wage$hourly_wage, 400)))
+      sigma <- sd(wage$hourly_wage)
+      comp <- tibble(n = c(10, 100, 400),
+                     sd_mean = c(sd(m10), sd(means100), sd(m400)),
+                     theory = sigma / sqrt(n))
+      comp
+    check: |
+      expect_uses("set.seed")
+      expect_object("m10", class = "numeric")
+      expect_object("m400", class = "numeric")
+      expect_value(m10, .sol$m10, label = "m10")
+      expect_value(m400, .sol$m400, label = "m400")
+      expect_object("comp", class = "data.frame")
+      expect_cols(comp, c("n", "sd_mean", "theory"))
+      expect_df_equal(comp, .sol$comp)
+    hints:
+      - m10 と m400 は、a の式の「100」を 10 と 400 に変えるだけです。set.seed(108) は最初に1回だけ書き、m10 → m400 の順に作ります。
+      - sd_mean = c(sd(m10), sd(means100), sd(m400))、theory = sigma / sqrt(n) です。sqrt() は平方根です。
+      - |
+        set.seed(108)
+        m10 <- replicate(1000, mean(sample(wage$hourly_wage, 10)))
+        m400 <- replicate(1000, mean(sample(wage$hourly_wage, 400)))
+        sigma <- sd(wage$hourly_wage)
+        comp <- tibble(n = c(10, 100, 400), sd_mean = c(sd(m10), sd(means100), sd(m400)), theory = sigma / sqrt(n))
+        comp
+    tests:
+      fail:
+        - |
+          set.seed(108)
+          m10 <- replicate(1000, mean(sample(wage$hourly_wage, 10)))
+          m400 <- replicate(1000, mean(sample(wage$hourly_wage, 400)))
+          sigma <- sd(wage$hourly_wage)
+          comp <- tibble(n = c(10, 100, 400),
+                         sd_mean = c(sd(m10), sd(means100), sd(m400)),
+                         theory = sigma / n)
+          comp
+        - |
+          set.seed(108)
+          m400 <- replicate(1000, mean(sample(wage$hourly_wage, 400)))
+          m10 <- replicate(1000, mean(sample(wage$hourly_wage, 10)))
+          sigma <- sd(wage$hourly_wage)
+          comp <- tibble(n = c(10, 100, 400),
+                         sd_mean = c(sd(m10), sd(means100), sd(m400)),
+                         theory = sigma / sqrt(n))
+          comp
+  - id: d
+    type: interpret
+    prompt: |
+      c の表のとおり、標本平均の標準偏差はおよそ σ/√n（σ は母集団の標準偏差）になります。
+      100人の調査では、標本平均の標準偏差は約84円でした。これを約半分（40円台）にするには、およそ何人を調べればよいですか。
+    choices:
+      - "200人（人数を2倍にする）"
+      - "400人（人数を4倍にする）"
+      - "1,000人（人数を10倍にする）"
+      - "人数を増やしても揺れは小さくならない"
+    answer: 1
+    explain: 揺れは人数 n そのものではなく √n に反比例します。半分にするには √n を2倍にする必要があり、それには n を4倍の400人にします。c の表でも n = 400 の標準偏差は約39円で、100人のときの約84円の半分ほどです。人数を2倍の200人にしても、揺れは 1/√2 ≈ 0.71 倍にしかなりません。調査の精度を上げるには、人数を大きく増やす必要があるということです。
+  - id: e
+    type: write
+    review: true
+    prompt: |
+      【第30ステップの復習】大数の法則（回数を増やすと平均が真の値に近づくこと）をサイコロで確かめます。
+      set.seed(30) を書いてから、sample(1:6, 1000, replace = TRUE) でサイコロを1000回振った結果を rolls に代入してください。
+      続けて、1回目から k 回目までの平均（k = 1, 2, …, 1000）を cumsum(rolls) / seq_len(1000) で求めて run_mean に代入し、最後に 1000回目までの平均 run_mean[1000] を表示してください。
+    starter: |
+      set.seed(30)
+      rolls <-
+      run_mean <-
+      run_mean[1000]
+    solution: |
+      set.seed(30)
+      rolls <- sample(1:6, 1000, replace = TRUE)
+      run_mean <- cumsum(rolls) / seq_len(1000)
+      run_mean[1000]
+    check: |
+      expect_uses("set.seed")
+      expect_uses("cumsum")
+      expect_value(rolls, .sol$rolls, label = "rolls")
+      expect_value(run_mean, .sol$run_mean, label = "run_mean")
+      expect_value(.value, .sol_value, label = "run_mean[1000]")
+    hints:
+      - cumsum() は「そこまでの合計」を順に並べます。それを「そこまでの回数」で割れば、そこまでの平均になります。
+      - rolls <- sample(1:6, 1000, replace = TRUE)、run_mean <- cumsum(rolls) / seq_len(1000) です。
+      - |
+        set.seed(30)
+        rolls <- sample(1:6, 1000, replace = TRUE)
+        run_mean <- cumsum(rolls) / seq_len(1000)
+        run_mean[1000]
+    tests:
+      fail:
+        - |
+          set.seed(30)
+          rolls <- sample(1:6, 1000, replace = TRUE)
+          run_mean <- cumsum(rolls)
+          run_mean[1000]
+        - |
+          rolls <- sample(1:6, 1000, replace = TRUE)
+          run_mean <- cumsum(rolls) / seq_len(1000)
+          run_mean[1000]
